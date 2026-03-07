@@ -122,7 +122,8 @@ Reference: `specs/02-technical-implementation.md` section 2.5, `specs/03-testing
 
 ---
 
-### [ ] Step: Phase 3 — Aggregation Worker
+### [x] Step: Phase 3 — Aggregation Worker
+<!-- chat-id: 3e2d8027-9280-4df2-9ee3-36b5736fa32d -->
 
 Build the Python worker that consumes events from Redis Streams, inserts raw data into ClickHouse, and computes daily rollups.
 

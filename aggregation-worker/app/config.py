@@ -1,0 +1,29 @@
+import os
+
+
+class Config:
+    # Redis
+    REDIS_HOST: str = os.environ.get("REDIS_HOST", "localhost")
+    REDIS_PORT: int = int(os.environ.get("REDIS_PORT", "6379"))
+
+    # ClickHouse
+    CLICKHOUSE_HOST: str = os.environ.get("CLICKHOUSE_HOST", "localhost")
+    CLICKHOUSE_PORT: int = int(os.environ.get("CLICKHOUSE_PORT", "8123"))
+    CLICKHOUSE_DB: str = os.environ.get("CLICKHOUSE_DB", "default")
+
+    # PostgreSQL
+    POSTGRES_HOST: str = os.environ.get("POSTGRES_HOST", "localhost")
+    POSTGRES_PORT: int = int(os.environ.get("POSTGRES_PORT", "5432"))
+    POSTGRES_DB: str = os.environ.get("POSTGRES_DB", "agenthub")
+    POSTGRES_USER: str = os.environ.get("POSTGRES_USER", "agenthub")
+    POSTGRES_PASSWORD: str = os.environ.get("POSTGRES_PASSWORD", "agenthub_dev")
+
+    # Consumer
+    STREAM_KEY: str = "agent_events"
+    CONSUMER_GROUP: str = "aggregation_workers"
+    CONSUMER_NAME: str = os.environ.get("CONSUMER_NAME", "worker-1")
+    BATCH_SIZE: int = int(os.environ.get("BATCH_SIZE", "100"))
+    BLOCK_MS: int = 5000  # Block for 5 seconds on XREADGROUP
+
+    # Aggregation
+    ROLLUP_INTERVAL_SECONDS: int = int(os.environ.get("ROLLUP_INTERVAL_SECONDS", "300"))  # 5 minutes
