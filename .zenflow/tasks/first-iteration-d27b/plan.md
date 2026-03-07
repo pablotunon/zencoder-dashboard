@@ -180,6 +180,7 @@ Reference: `specs/02-technical-implementation.md` section 2.2, `specs/03-testing
 ---
 
 ### [ ] Step: Phase 5 — Frontend Dashboard
+<!-- chat-id: 21fa142e-3469-4685-a965-0aa12d5ab781 -->
 
 Build the React SPA with Tremor charts, shadcn/ui shell, and TanStack Query data fetching for all 4 dashboard pages.
 
