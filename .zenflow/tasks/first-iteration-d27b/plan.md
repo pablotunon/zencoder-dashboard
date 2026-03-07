@@ -100,7 +100,8 @@ Reference: `specs/02-technical-implementation.md` section 2.3, `specs/03-testing
 
 ---
 
-### [ ] Step: Phase 2 — Event Simulator + Data Seeding
+### [x] Step: Phase 2 — Event Simulator + Data Seeding
+<!-- chat-id: 6b6c3157-eaab-4754-a45f-45944db579dc -->
 
 Build the TypeScript simulator that seeds PostgreSQL with org structure and generates 90 days of historical events plus continuous live events.
 

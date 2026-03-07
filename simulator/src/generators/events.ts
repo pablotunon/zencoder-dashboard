@@ -1,0 +1,242 @@
+import { randomUUID } from "crypto";
+import type { OrgDefinition, UserRecord, ProjectRecord } from "./org.js";
+
+export type AgentType =
+  | "coding"
+  | "review"
+  | "testing"
+  | "ci"
+  | "debugging"
+  | "general";
+export type EventType = "run_started" | "run_completed" | "run_failed";
+export type ErrorCategory =
+  | "timeout"
+  | "rate_limit"
+  | "context_overflow"
+  | "tool_error"
+  | "internal_error";
+
+export interface AgentEvent {
+  run_id: string;
+  org_id: string;
+  team_id: string;
+  user_id: string;
+  project_id: string;
+  agent_type: AgentType;
+  event_type: EventType;
+  timestamp: string; // ISO 8601
+  duration_ms?: number;
+  tokens_input?: number;
+  tokens_output?: number;
+  model?: string;
+  cost_usd?: number;
+  error_category?: ErrorCategory;
+  tools_used?: string[];
+  queue_wait_ms?: number;
+}
+
+export const AGENT_TYPE_WEIGHTS: Record<AgentType, number> = {
+  coding: 0.4,
+  review: 0.2,
+  testing: 0.15,
+  ci: 0.1,
+  debugging: 0.1,
+  general: 0.05,
+};
+
+const AGENT_TYPES: AgentType[] = Object.keys(AGENT_TYPE_WEIGHTS) as AgentType[];
+
+export const SUCCESS_RATE = 0.87;
+
+export const ERROR_DISTRIBUTION: Record<ErrorCategory, number> = {
+  timeout: 0.3,
+  rate_limit: 0.15,
+  context_overflow: 0.25,
+  tool_error: 0.2,
+  internal_error: 0.1,
+};
+
+const ERROR_CATEGORIES: ErrorCategory[] = Object.keys(
+  ERROR_DISTRIBUTION,
+) as ErrorCategory[];
+
+const MODELS = ["claude-sonnet-4-20250514", "claude-3-5-haiku-20241022", "gpt-4o", "gpt-4o-mini"];
+const MODEL_WEIGHTS = [0.4, 0.3, 0.2, 0.1];
+
+const TOOLS = [
+  "file_read",
+  "file_write",
+  "terminal",
+  "web_search",
+  "code_search",
+  "linter",
+  "test_runner",
+  "git",
+  "docker",
+  "database_query",
+];
+
+/**
+ * Pick a random item from a weighted distribution.
+ */
+export function weightedRandom<T>(items: T[], weights: number[]): T {
+  const totalWeight = weights.reduce((s, w) => s + w, 0);
+  let r = Math.random() * totalWeight;
+  for (let i = 0; i < items.length; i++) {
+    r -= weights[i];
+    if (r <= 0) return items[i];
+  }
+  return items[items.length - 1];
+}
+
+/**
+ * Pick a random agent type according to configured weights.
+ */
+export function pickAgentType(): AgentType {
+  return weightedRandom(
+    AGENT_TYPES,
+    AGENT_TYPES.map((t) => AGENT_TYPE_WEIGHTS[t]),
+  );
+}
+
+/**
+ * Pick an error category for a failed run.
+ */
+export function pickErrorCategory(): ErrorCategory {
+  return weightedRandom(
+    ERROR_CATEGORIES,
+    ERROR_CATEGORIES.map((c) => ERROR_DISTRIBUTION[c]),
+  );
+}
+
+/**
+ * Pick a model according to weights.
+ */
+function pickModel(): string {
+  return weightedRandom(MODELS, MODEL_WEIGHTS);
+}
+
+/**
+ * Pick a random subset of tools used.
+ */
+function pickTools(): string[] {
+  const count = 1 + Math.floor(Math.random() * 4); // 1-4 tools
+  const shuffled = [...TOOLS].sort(() => Math.random() - 0.5);
+  return shuffled.slice(0, count);
+}
+
+/**
+ * Pick a random user, weighted by team size.
+ */
+function pickUser(
+  users: UserRecord[],
+  teamWeights: Map<string, number>,
+): UserRecord {
+  // First pick a team weighted by size
+  const teamIds = [...teamWeights.keys()];
+  const weights = teamIds.map((t) => teamWeights.get(t)!);
+  const teamId = weightedRandom(teamIds, weights);
+
+  // Then pick a random user from that team
+  const teamUsers = users.filter((u) => u.team_id === teamId);
+  return teamUsers[Math.floor(Math.random() * teamUsers.length)];
+}
+
+/**
+ * Pick a random project from the user's org.
+ */
+function pickProject(projects: ProjectRecord[]): ProjectRecord {
+  return projects[Math.floor(Math.random() * projects.length)];
+}
+
+export interface EventGeneratorContext {
+  org: OrgDefinition;
+  users: UserRecord[];
+  projects: ProjectRecord[];
+  teamWeights: Map<string, number>;
+}
+
+export function createEventGeneratorContext(
+  org: OrgDefinition,
+  users: UserRecord[],
+  projects: ProjectRecord[],
+): EventGeneratorContext {
+  const teamWeights = new Map<string, number>();
+  for (const team of org.teams) {
+    teamWeights.set(team.id, team.size);
+  }
+  return { org, users, projects, teamWeights };
+}
+
+/**
+ * Generate a complete agent run (start + completed/failed events) at a given timestamp.
+ * Returns 2 events: a run_started and either run_completed or run_failed.
+ */
+export function generateRunEvents(
+  ctx: EventGeneratorContext,
+  timestamp: Date,
+): AgentEvent[] {
+  const runId = randomUUID();
+  const user = pickUser(ctx.users, ctx.teamWeights);
+  const project = pickProject(ctx.projects);
+  const agentType = pickAgentType();
+  const model = pickModel();
+  const succeeded = Math.random() < SUCCESS_RATE;
+
+  // Duration: 5s to 5min for most, up to 15min for CI
+  const baseDuration =
+    agentType === "ci"
+      ? 30000 + Math.random() * 270000
+      : 5000 + Math.random() * 295000;
+  const durationMs = Math.round(baseDuration);
+
+  // Queue wait: 100ms to 10s
+  const queueWaitMs = Math.round(100 + Math.random() * 9900);
+
+  // Tokens
+  const tokensInput = Math.round(500 + Math.random() * 49500); // 500-50000
+  const tokensOutput = Math.round(100 + Math.random() * 9900); // 100-10000
+
+  // Cost: rough approximation based on tokens
+  const costUsd =
+    Math.round(
+      (tokensInput * 0.000003 + tokensOutput * 0.000015) * 100,
+    ) / 100;
+
+  const tools = pickTools();
+
+  const startEvent: AgentEvent = {
+    run_id: runId,
+    org_id: ctx.org.id,
+    team_id: user.team_id,
+    user_id: user.user_id,
+    project_id: project.project_id,
+    agent_type: agentType,
+    event_type: "run_started",
+    timestamp: timestamp.toISOString(),
+    queue_wait_ms: queueWaitMs,
+  };
+
+  const completedAt = new Date(timestamp.getTime() + durationMs);
+
+  const endEvent: AgentEvent = {
+    run_id: runId,
+    org_id: ctx.org.id,
+    team_id: user.team_id,
+    user_id: user.user_id,
+    project_id: project.project_id,
+    agent_type: agentType,
+    event_type: succeeded ? "run_completed" : "run_failed",
+    timestamp: completedAt.toISOString(),
+    duration_ms: durationMs,
+    tokens_input: tokensInput,
+    tokens_output: tokensOutput,
+    model,
+    cost_usd: costUsd,
+    tools_used: tools,
+    queue_wait_ms: queueWaitMs,
+    ...(succeeded ? {} : { error_category: pickErrorCategory() }),
+  };
+
+  return [startEvent, endEvent];
+}

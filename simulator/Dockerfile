@@ -5,7 +5,7 @@ WORKDIR /app
 COPY package.json ./
 RUN npm install
 
-COPY tsconfig.json ./
+COPY tsconfig.json vitest.config.ts ./
 COPY src/ ./src/
 
 CMD ["npm", "start"]
