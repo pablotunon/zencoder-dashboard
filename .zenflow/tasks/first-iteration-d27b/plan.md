@@ -55,7 +55,8 @@ Save to `{@artifacts_path}/plan.md`. If the feature is trivial and doesn't warra
 
 ---
 
-### [ ] Step: Phase 0 — Project Scaffolding
+### [x] Step: Phase 0 — Project Scaffolding
+<!-- chat-id: 346315a1-edd0-477b-82d5-5e97ec217ea1 -->
 
 Set up the monorepo structure, Docker Compose, database init scripts, and minimal Dockerfiles so that `docker compose up` brings up the full stack with empty databases.
 

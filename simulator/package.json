@@ -1,0 +1,12 @@
+{
+  "name": "agenthub-simulator",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/index.ts"
+  },
+  "dependencies": {
+    "tsx": "^4.19.0"
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "name": "agenthub-frontend",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "scripts": {
+    "dev": "echo 'Frontend stub - not yet implemented'",
+    "build": "echo 'Frontend stub - not yet implemented'",
+    "start": "echo 'Frontend stub - not yet implemented'"
+  }
+}
