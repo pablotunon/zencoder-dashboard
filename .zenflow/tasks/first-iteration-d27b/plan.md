@@ -146,7 +146,8 @@ Reference: `specs/02-technical-implementation.md` section 2.4, `specs/03-testing
 
 ---
 
-### [ ] Step: Phase 4 — Analytics API
+### [x] Step: Phase 4 — Analytics API
+<!-- chat-id: b497420c-ef85-4d50-bff6-28c2135ccc3b -->
 
 Build the FastAPI BFF that serves pre-aggregated dashboard data from ClickHouse, PostgreSQL, and Redis.
 
