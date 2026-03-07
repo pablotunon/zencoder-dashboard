@@ -76,7 +76,8 @@ Reference: `specs/04-step-by-step-plan.md` Phase 0, `specs/02-technical-implemen
 
 ---
 
-### [ ] Step: Phase 1 — Ingestion Service (Rust)
+### [x] Step: Phase 1 — Ingestion Service (Rust)
+<!-- chat-id: 8f216001-67f7-4ed4-841a-385cb7f10127 -->
 
 Build the Rust/Axum ingestion service that accepts event batches via HTTP and publishes them to Redis Streams.
 

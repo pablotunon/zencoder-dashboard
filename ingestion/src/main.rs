@@ -1,17 +1,32 @@
-use axum::{routing::get, Json, Router};
-use serde_json::{json, Value};
-
-async fn health() -> Json<Value> {
-    Json(json!({"status": "ok", "message": "Ingestion service stub - Phase 0"}))
-}
+use axum::{routing::{get, post}, Router};
+use ingestion::{config, routes, AppState};
 
 #[tokio::main]
 async fn main() {
-    let app = Router::new().route("/ingest/health", get(health));
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| "ingestion=info".into()),
+        )
+        .init();
 
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:8001")
-        .await
-        .unwrap();
-    println!("Ingestion service listening on :8001");
+    let cfg = config::Config::from_env();
+
+    let redis_client =
+        redis::Client::open(cfg.redis_url.as_str()).expect("Failed to create Redis client");
+
+    let state = AppState {
+        redis: redis_client,
+    };
+
+    let app = Router::new()
+        .route("/ingest/events", post(routes::events::ingest_events))
+        .route("/ingest/health", get(routes::health::health))
+        .with_state(state);
+
+    let addr = format!("{}:{}", cfg.host, cfg.port);
+    tracing::info!("Ingestion service listening on {}", addr);
+
+    let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
     axum::serve(listener, app).await.unwrap();
 }
