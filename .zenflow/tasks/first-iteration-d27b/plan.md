@@ -210,7 +210,7 @@ Reference: `specs/02-technical-implementation.md` section 2.1, `specs/01-require
 
 ---
 
-### [ ] Step: Phase 6 — Polish & Integration Testing
+### [x] Step: Phase 6 — Polish & Integration Testing
 <!-- chat-id: 0efee04e-620d-4f2c-b2b8-05fdca4cc05b -->
 
 End-to-end validation, error handling improvements, documentation, and performance checks.
@@ -235,6 +235,7 @@ Reference: `specs/03-testing.md` section 4, `specs/04-step-by-step-plan.md` Phas
 ---
 
 ### [ ] Step: Phase 7 — Authentication & Authorization
+<!-- chat-id: cb1fe7ca-def5-46b6-b049-da91d972df40 -->
 
 Add JWT-based login, session management, role-based access control, and frontend auth flow.
 

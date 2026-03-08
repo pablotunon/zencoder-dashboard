@@ -209,60 +209,56 @@ def query_active_users_trend(org_id: str, filters: MetricFilters) -> list[dict[s
         parameters={"org_id": org_id, "start": start, "end": end, **extra_params},
     )
 
-    # Compute WAU/MAU using rolling windows over the raw data
     rows = result.result_rows
     dau_by_date: dict[str, int] = {str(row[0]): row[1] for row in rows}
 
-    # For WAU and MAU, query with wider windows
-    wau_query = f"""
-        SELECT
-            d AS date,
-            (SELECT uniq(user_id) FROM agent_runs
-             WHERE org_id = %(org_id)s
-               AND toDate(started_at) >= d - 6
-               AND toDate(started_at) <= d
-               {extra_where}
-            ) AS wau
-        FROM (
-            SELECT toDate(started_at) AS d
-            FROM agent_runs
-            WHERE org_id = %(org_id)s
-              AND toDate(started_at) >= %(start)s
-              AND toDate(started_at) < %(end)s
-            GROUP BY d
-            ORDER BY d
-        )
-    """
-    wau_result = client.query(
-        wau_query,
-        parameters={"org_id": org_id, "start": start, "end": end, **extra_params},
-    )
-    wau_by_date = {str(row[0]): row[1] for row in wau_result.result_rows}
+    # Compute WAU/MAU using a join approach compatible with ClickHouse 24
+    # Get the wider-window data for rolling aggregation
+    wau_start = start - timedelta(days=6)
+    mau_start = start - timedelta(days=29)
 
-    mau_query = f"""
+    wide_query = f"""
         SELECT
-            d AS date,
-            (SELECT uniq(user_id) FROM agent_runs
-             WHERE org_id = %(org_id)s
-               AND toDate(started_at) >= d - 29
-               AND toDate(started_at) <= d
-               {extra_where}
-            ) AS mau
-        FROM (
-            SELECT toDate(started_at) AS d
-            FROM agent_runs
-            WHERE org_id = %(org_id)s
-              AND toDate(started_at) >= %(start)s
-              AND toDate(started_at) < %(end)s
-            GROUP BY d
-            ORDER BY d
-        )
+            toDate(started_at) AS event_date,
+            user_id
+        FROM agent_runs
+        WHERE org_id = %(org_id)s
+          AND toDate(started_at) >= %(wide_start)s
+          AND toDate(started_at) < %(end)s
+          {extra_where}
     """
-    mau_result = client.query(
-        mau_query,
-        parameters={"org_id": org_id, "start": start, "end": end, **extra_params},
+    wide_result = client.query(
+        wide_query,
+        parameters={"org_id": org_id, "wide_start": mau_start, "end": end, **extra_params},
     )
-    mau_by_date = {str(row[0]): row[1] for row in mau_result.result_rows}
+
+    # Build user activity by date for rolling window computation
+    from collections import defaultdict
+    user_dates: dict[str, set[str]] = defaultdict(set)
+    for row in wide_result.result_rows:
+        user_dates[str(row[0])].add(row[1])
+
+    # Compute WAU and MAU for each day in our target range
+    wau_by_date: dict[str, int] = {}
+    mau_by_date: dict[str, int] = {}
+
+    for row in rows:
+        d = row[0]
+        d_str = str(d)
+
+        # WAU: unique users in [d-6, d]
+        wau_users: set[str] = set()
+        for offset in range(7):
+            check_date = str(d - timedelta(days=offset))
+            wau_users.update(user_dates.get(check_date, set()))
+        wau_by_date[d_str] = len(wau_users)
+
+        # MAU: unique users in [d-29, d]
+        mau_users: set[str] = set()
+        for offset in range(30):
+            check_date = str(d - timedelta(days=offset))
+            mau_users.update(user_dates.get(check_date, set()))
+        mau_by_date[d_str] = len(mau_users)
 
     trend = []
     for row in rows:

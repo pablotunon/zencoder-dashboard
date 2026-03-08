@@ -101,7 +101,7 @@ EVENT_BATCH=$(cat <<'EVENTS_JSON'
 {
   "events": [
     {
-      "run_id": "e2e-test-001",
+      "run_id": "e2e00001-0000-4000-8000-000000000001",
       "org_id": "org_acme",
       "team_id": "team_platform",
       "user_id": "user_001",
@@ -111,7 +111,7 @@ EVENT_BATCH=$(cat <<'EVENTS_JSON'
       "timestamp": "__TIMESTAMP__"
     },
     {
-      "run_id": "e2e-test-001",
+      "run_id": "e2e00001-0000-4000-8000-000000000001",
       "org_id": "org_acme",
       "team_id": "team_platform",
       "user_id": "user_001",
@@ -128,7 +128,7 @@ EVENT_BATCH=$(cat <<'EVENTS_JSON'
       "queue_wait_ms": 200
     },
     {
-      "run_id": "e2e-test-002",
+      "run_id": "e2e00002-0000-4000-8000-000000000002",
       "org_id": "org_acme",
       "team_id": "team_backend",
       "user_id": "user_002",
@@ -138,7 +138,7 @@ EVENT_BATCH=$(cat <<'EVENTS_JSON'
       "timestamp": "__TIMESTAMP__"
     },
     {
-      "run_id": "e2e-test-002",
+      "run_id": "e2e00002-0000-4000-8000-000000000002",
       "org_id": "org_acme",
       "team_id": "team_backend",
       "user_id": "user_002",
@@ -155,7 +155,7 @@ EVENT_BATCH=$(cat <<'EVENTS_JSON'
       "queue_wait_ms": 100
     },
     {
-      "run_id": "e2e-test-003",
+      "run_id": "e2e00003-0000-4000-8000-000000000003",
       "org_id": "org_acme",
       "team_id": "team_frontend",
       "user_id": "user_003",
@@ -165,7 +165,7 @@ EVENT_BATCH=$(cat <<'EVENTS_JSON'
       "timestamp": "__TIMESTAMP__"
     },
     {
-      "run_id": "e2e-test-003",
+      "run_id": "e2e00003-0000-4000-8000-000000000003",
       "org_id": "org_acme",
       "team_id": "team_frontend",
       "user_id": "user_003",
