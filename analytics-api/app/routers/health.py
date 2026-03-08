@@ -1,9 +1,13 @@
+import logging
+
 from fastapi import APIRouter
+from fastapi.responses import JSONResponse
 
 from app.services import clickhouse as ch_service
 from app.services import postgres as pg_service
 from app.services import redis_cache
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
@@ -15,14 +19,15 @@ async def health():
         client.query("SELECT 1")
         ch_ok = True
     except Exception:
-        pass
+        logger.warning("ClickHouse health check failed")
 
     pg_ok = await pg_service.check_connection()
     redis_ok = redis_cache.check_connection()
 
-    status = "ok" if (ch_ok and pg_ok and redis_ok) else "degraded"
+    all_ok = ch_ok and pg_ok and redis_ok
+    status = "ok" if all_ok else "degraded"
 
-    return {
+    body = {
         "status": status,
         "dependencies": {
             "clickhouse": "connected" if ch_ok else "disconnected",
@@ -30,3 +35,5 @@ async def health():
             "redis": "connected" if redis_ok else "disconnected",
         },
     }
+
+    return body

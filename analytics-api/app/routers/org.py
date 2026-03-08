@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.auth.dependencies import get_org_context
@@ -7,6 +9,7 @@ from app.services import postgres as pg_service
 from app.services import redis_cache
 from app.config import settings
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
@@ -17,12 +20,22 @@ async def get_current_org(ctx: OrgContext = Depends(get_org_context)):
     if cached:
         return cached
 
-    org = await pg_service.get_org(ctx.org_id)
+    try:
+        org = await pg_service.get_org(ctx.org_id)
+    except Exception:
+        logger.exception("PostgreSQL query failed for org data")
+        raise HTTPException(status_code=503, detail="Organization data temporarily unavailable")
+
     if org is None:
         raise HTTPException(status_code=404, detail="Organization not found")
 
-    teams = await pg_service.get_teams(ctx.org_id)
-    projects = await pg_service.get_projects(ctx.org_id)
+    try:
+        teams = await pg_service.get_teams(ctx.org_id)
+        projects = await pg_service.get_projects(ctx.org_id)
+    except Exception:
+        logger.exception("PostgreSQL query failed for teams/projects")
+        teams = []
+        projects = []
 
     response = OrgResponse(
         org_id=org["org_id"],

@@ -1,6 +1,7 @@
+import logging
 from datetime import date
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 
 from app.auth.dependencies import get_org_context
 from app.config import settings
@@ -19,6 +20,7 @@ from app.services import clickhouse as ch_service
 from app.services import postgres as pg_service
 from app.services import redis_cache
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
@@ -32,19 +34,26 @@ async def get_cost(
     if cached:
         return cached
 
-    cost_trend_data = ch_service.query_cost_trend(ctx.org_id, filters)
-    cost_breakdown_data = ch_service.query_cost_breakdown(ctx.org_id, filters)
-    cost_per_run_data = ch_service.query_cost_per_run_trend(ctx.org_id, filters)
-    token_data = ch_service.query_token_breakdown(ctx.org_id, filters)
+    try:
+        cost_trend_data = ch_service.query_cost_trend(ctx.org_id, filters)
+        cost_breakdown_data = ch_service.query_cost_breakdown(ctx.org_id, filters)
+        cost_per_run_data = ch_service.query_cost_per_run_trend(ctx.org_id, filters)
+        token_data = ch_service.query_token_breakdown(ctx.org_id, filters)
+        current_spend = ch_service.query_current_month_spend(ctx.org_id)
+    except Exception:
+        logger.exception("ClickHouse query failed for cost metrics")
+        raise HTTPException(status_code=503, detail="Analytics data temporarily unavailable")
 
-    # Budget info from PostgreSQL
-    org = await pg_service.get_org(ctx.org_id)
+    try:
+        org = await pg_service.get_org(ctx.org_id)
+    except Exception:
+        logger.exception("PostgreSQL query failed for org budget info")
+        org = None
+
     monthly_budget = float(org["monthly_budget"]) if org and org.get("monthly_budget") else None
-    current_spend = ch_service.query_current_month_spend(ctx.org_id)
 
-    # Project monthly spend
     today = date.today()
-    days_in_month = 30  # approximation
+    days_in_month = 30
     days_elapsed = today.day
     daily_rate = current_spend / days_elapsed if days_elapsed > 0 else 0
     projected_spend = round(daily_rate * days_in_month, 2)

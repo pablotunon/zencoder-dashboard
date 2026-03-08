@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends
+import logging
+
+from fastapi import APIRouter, Depends, HTTPException
 
 from app.auth.dependencies import get_org_context
 from app.config import settings
@@ -16,6 +18,7 @@ from app.services import clickhouse as ch_service
 from app.services import postgres as pg_service
 from app.services import redis_cache
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
@@ -29,20 +32,28 @@ async def get_usage(
     if cached:
         return cached
 
-    # Get data from ClickHouse
-    active_users_trend_data = ch_service.query_active_users_trend(ctx.org_id, filters)
-    agent_type_data = ch_service.query_agent_type_breakdown(ctx.org_id, filters)
-    top_users_data = ch_service.query_top_users(ctx.org_id, filters)
-    project_data = ch_service.query_project_breakdown(ctx.org_id, filters)
+    try:
+        active_users_trend_data = ch_service.query_active_users_trend(ctx.org_id, filters)
+        agent_type_data = ch_service.query_agent_type_breakdown(ctx.org_id, filters)
+        top_users_data = ch_service.query_top_users(ctx.org_id, filters)
+        project_data = ch_service.query_project_breakdown(ctx.org_id, filters)
+        kpis = ch_service.query_overview_kpis(ctx.org_id, filters)
+    except Exception:
+        logger.exception("ClickHouse query failed for usage metrics")
+        raise HTTPException(status_code=503, detail="Analytics data temporarily unavailable")
 
-    # Get enrichment data from PostgreSQL
-    licensed_users = await pg_service.get_total_licensed_users(ctx.org_id)
-    user_info = await pg_service.get_users(ctx.org_id)
+    try:
+        licensed_users = await pg_service.get_total_licensed_users(ctx.org_id)
+        user_info = await pg_service.get_users(ctx.org_id)
+        project_names = await pg_service.get_project_names(ctx.org_id)
+    except Exception:
+        logger.exception("PostgreSQL query failed for usage enrichment")
+        licensed_users = 0
+        user_info = []
+        project_names = {}
+
     user_map = {u["user_id"]: u for u in user_info}
-    project_names = await pg_service.get_project_names(ctx.org_id)
 
-    # Calculate adoption rate from the period's active users
-    kpis = ch_service.query_overview_kpis(ctx.org_id, filters)
     active_users_count = kpis["active_users"]
     adoption = active_users_count / licensed_users * 100 if licensed_users > 0 else 0
 

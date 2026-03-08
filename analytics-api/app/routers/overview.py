@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends
+import logging
+
+from fastapi import APIRouter, Depends, HTTPException
 
 from app.auth.dependencies import get_org_context
 from app.config import settings
@@ -15,6 +17,7 @@ from app.services import clickhouse as ch_service
 from app.services import postgres as pg_service
 from app.services import redis_cache
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
@@ -28,13 +31,21 @@ async def get_overview(
     if cached:
         return cached
 
-    kpis = ch_service.query_overview_kpis(ctx.org_id, filters)
-    usage_trend_data = ch_service.query_usage_trend(ctx.org_id, filters)
-    team_data = ch_service.query_team_breakdown(ctx.org_id, filters)
+    try:
+        kpis = ch_service.query_overview_kpis(ctx.org_id, filters)
+        usage_trend_data = ch_service.query_usage_trend(ctx.org_id, filters)
+        team_data = ch_service.query_team_breakdown(ctx.org_id, filters)
+    except Exception:
+        logger.exception("ClickHouse query failed for overview metrics")
+        raise HTTPException(status_code=503, detail="Analytics data temporarily unavailable")
+
     active_runs = redis_cache.get_active_runs(ctx.org_id)
 
-    # Enrich team breakdown with names from PostgreSQL
-    team_names = await pg_service.get_team_names(ctx.org_id)
+    try:
+        team_names = await pg_service.get_team_names(ctx.org_id)
+    except Exception:
+        logger.exception("PostgreSQL query failed for team names")
+        team_names = {}
 
     response = OverviewResponse(
         kpi_cards=KpiCards(

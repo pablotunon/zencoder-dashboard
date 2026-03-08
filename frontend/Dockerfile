@@ -2,15 +2,26 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-COPY package.json package-lock.json* ./
-RUN npm install --frozen-lockfile 2>/dev/null || npm install
+# Copy dependency manifests first for optimal layer caching
+COPY package.json package-lock.json* .npmrc ./
 
+# Use npm ci when lockfile exists (faster, deterministic), fall back to npm install
+RUN if [ -f package-lock.json ]; then \
+      npm ci --legacy-peer-deps; \
+    else \
+      npm install --legacy-peer-deps; \
+    fi
+
+# Copy source files (respects .dockerignore)
 COPY . .
+
+# Build production bundle
 RUN npm run build
 
+# --- Production stage ---
 FROM nginx:alpine
 
-# SPA routing: serve index.html for all routes
+# SPA routing: all non-file routes serve index.html
 RUN printf 'server {\n\
   listen 80;\n\
   server_name localhost;\n\
