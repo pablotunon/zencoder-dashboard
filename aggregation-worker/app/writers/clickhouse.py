@@ -18,6 +18,8 @@ def create_client(config: Config) -> Client:
         host=config.CLICKHOUSE_HOST,
         port=config.CLICKHOUSE_PORT,
         database=config.CLICKHOUSE_DB,
+        username=config.CLICKHOUSE_USER,
+        password=config.CLICKHOUSE_PASSWORD,
     )
 
 

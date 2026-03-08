@@ -20,6 +20,8 @@ def get_client() -> Client:
             host=settings.clickhouse_host,
             port=settings.clickhouse_port,
             database=settings.clickhouse_db,
+            username=settings.clickhouse_user,
+            password=settings.clickhouse_password,
         )
     return _client
 

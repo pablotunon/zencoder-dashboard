@@ -10,6 +10,8 @@ class Config:
     CLICKHOUSE_HOST: str = os.environ.get("CLICKHOUSE_HOST", "localhost")
     CLICKHOUSE_PORT: int = int(os.environ.get("CLICKHOUSE_PORT", "8123"))
     CLICKHOUSE_DB: str = os.environ.get("CLICKHOUSE_DB", "default")
+    CLICKHOUSE_USER: str = os.environ.get("CLICKHOUSE_USER", "default")
+    CLICKHOUSE_PASSWORD: str = os.environ.get("CLICKHOUSE_PASSWORD", "")
 
     # PostgreSQL
     POSTGRES_HOST: str = os.environ.get("POSTGRES_HOST", "localhost")

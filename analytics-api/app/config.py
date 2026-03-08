@@ -6,6 +6,8 @@ class Settings(BaseSettings):
     clickhouse_host: str = "localhost"
     clickhouse_port: int = 8123
     clickhouse_db: str = "default"
+    clickhouse_user: str = "default"
+    clickhouse_password: str = ""
 
     # PostgreSQL
     postgres_host: str = "localhost"
