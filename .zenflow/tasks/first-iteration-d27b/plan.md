@@ -309,3 +309,11 @@ Reference: `specs/01-requirements.md` FR-9, `specs/04-step-by-step-plan.md` Phas
 5. Write tests: WS-I01–I05, WS-FE01–FE02.
 
 **Milestone:** Dashboard active runs counter updates in real-time as simulator sends events. No page refresh needed.
+
+### [ ] Step: Phase 6.1 - Improve testing
+
+Before going on with new features we need to take care of a couple of things:
+- testing vs production environments. Right now the Dockerfiles are a single entity that try to fit all environments, but some separation of concerns should be implemented. Production images shouldn't have testing dependencies. While development images should be easy to iterate over. Sharing volumes with the code, for instance, speeds up the feedback loop for changes in the code base. Each service should have clear tests suites and commands for running tests.
+- parametrized testing should be used wherever is possible. Try to reduce verbosity by collapsing test cases together where it makes sense
+- E2E tests shouldn't be just a shell script. Do set up a playwright testing suite
+- Add a test case for a frontend bug where it makes more sense: graphs like "Agent Type Distribution" display all entries with the same black color, which makes items indistinguishable
