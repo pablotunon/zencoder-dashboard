@@ -30,9 +30,16 @@ Do not make assumptions on important decisions — get clarification first.
 - Upgraded Python services from `python:3.13-slim` to `python:3.14-slim` — changed both `analytics-api/Dockerfile` and `aggregation-worker/Dockerfile`
 - Upgraded analytics-api Python dependencies: fastapi 0.115.6→0.135.1, uvicorn 0.34.0→0.41.0, pydantic 2.10.4→2.12.5, pydantic-settings 2.7.1→2.13.1, clickhouse-connect 0.8.14→0.13.0, asyncpg 0.30.0→0.31.0, redis 5.2.1→7.1.0, pytest 8.3.4→9.0.2, pytest-asyncio 0.25.0→1.3.0, pytest-httpx 0.35.0→0.36.0
 - Upgraded aggregation-worker Python dependencies: redis 5.2.1→7.1.0, clickhouse-connect 0.8.14→0.13.0, psycopg2-binary 2.9.10→2.9.11, pytest 8.3.4→9.0.2
+- Added dev target to `ingestion/Dockerfile` with Rust toolchain + curl for runtime testing
+- Added ingestion dev override in `docker-compose.override.yml` with volume mounts and extended healthcheck start_period
+- Added `prod` build target to ingestion in `docker-compose.yml` (previously defaulted to last stage)
+- Created `scripts/test.sh` — unified test runner for all services
+- Updated `CLAUDE.md` with unified test command documentation
 
 **Verification:**
-- All services build successfully (Python 3.14.3)
-- Simulator: 30 tests passed
-- Aggregation worker: 26 tests passed (Python 3.14.3)
-- Analytics API: 29 tests passed (Python 3.14.3)
+- All services build and start successfully
+- `./scripts/test.sh` runs all 104 tests across all services:
+  - Simulator: 30 tests passed
+  - Ingestion: 19 tests passed (11 unit + 8 integration)
+  - Aggregation worker: 26 tests passed (Python 3.14.3)
+  - Analytics API: 29 tests passed (Python 3.14.3)

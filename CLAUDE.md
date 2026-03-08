@@ -9,6 +9,8 @@ This file provides project-specific commands and coding style requirements for t
 
 ## Testing Commands
 All tests MUST be executed within Docker containers.
+- **All services**: `./scripts/test.sh`
+- **Single service**: `./scripts/test.sh <service_name>` (e.g., `./scripts/test.sh ingestion`)
 - **Simulator**: `docker-compose exec simulator npm run test`
 - **Ingestion**: `docker-compose exec ingestion cargo test`
 - **Aggregation Worker**: `docker-compose exec aggregation-worker pytest`

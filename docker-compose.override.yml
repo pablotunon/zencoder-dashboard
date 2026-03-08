@@ -16,6 +16,20 @@ services:
     volumes:
       - ./aggregation-worker:/app
 
+  ingestion:
+    build:
+      context: ./ingestion
+      target: dev
+    volumes:
+      - ./ingestion:/app
+      - /app/target
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8001/ingest/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 120s
+
   simulator:
     build:
       context: ./simulator
