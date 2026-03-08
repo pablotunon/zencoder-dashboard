@@ -11,7 +11,7 @@ COPY tests/ ./tests/
 RUN cargo build
 RUN cargo test --no-run
 EXPOSE 8001
-CMD ["cargo", "run"]
+CMD ["./target/debug/ingestion"]
 
 # ---------- builder: release binary ----------
 FROM base AS builder
