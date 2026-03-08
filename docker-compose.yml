@@ -45,7 +45,9 @@ services:
   # --- Application Services ---
 
   ingestion:
-    build: ./ingestion
+    build:
+      context: ./ingestion
+      target: prod
     environment:
       REDIS_HOST: redis
       REDIS_PORT: "6379"
