@@ -15,7 +15,13 @@ RUN if [ -f package-lock.json ]; then \
 # Copy source files (respects .dockerignore)
 COPY . .
 
-# Build production bundle
+# --- Development stage ---
+FROM builder AS dev
+EXPOSE 5173
+CMD ["npm", "run", "dev"]
+
+# --- Production build stage ---
+FROM builder AS prod-build
 RUN npm run build
 
 # --- Production stage ---
@@ -38,7 +44,7 @@ RUN printf 'server {\n\
   }\n\
 }\n' > /etc/nginx/conf.d/default.conf
 
-COPY --from=builder /app/dist /usr/share/nginx/html
+COPY --from=prod-build /app/dist /usr/share/nginx/html
 
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]
