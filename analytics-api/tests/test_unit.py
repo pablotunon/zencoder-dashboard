@@ -18,10 +18,10 @@ from app.services.redis_cache import make_cache_key
 
 # API-U01: Filter parsing — valid period values accepted
 class TestFilterParsing:
-    def test_valid_periods(self):
-        for period in ("7d", "30d", "90d"):
-            f = MetricFilters(period=period)
-            assert f.period == period
+    @pytest.mark.parametrize("period", ["7d", "30d", "90d"])
+    def test_valid_periods(self, period):
+        f = MetricFilters(period=period)
+        assert f.period == period
 
     def test_invalid_period_rejected(self):
         with pytest.raises(Exception):
@@ -34,25 +34,17 @@ class TestFilterParsing:
 
 # API-U02: Filter parsing — team slugs validated
 class TestTeamSlugParsing:
-    def test_csv_parsing(self):
-        result = parse_csv("platform,backend,frontend")
-        assert result == ["platform", "backend", "frontend"]
+    @pytest.mark.parametrize("input_val,expected", [
+        ("platform,backend,frontend", ["platform", "backend", "frontend"]),
+        (" platform , backend ", ["platform", "backend"]),
+        ("platform", ["platform"]),
+    ])
+    def test_csv_parsing(self, input_val, expected):
+        assert parse_csv(input_val) == expected
 
-    def test_csv_with_spaces(self):
-        result = parse_csv(" platform , backend ")
-        assert result == ["platform", "backend"]
-
-    def test_empty_string(self):
-        result = parse_csv("")
-        assert result is None
-
-    def test_none_value(self):
-        result = parse_csv(None)
-        assert result is None
-
-    def test_single_value(self):
-        result = parse_csv("platform")
-        assert result == ["platform"]
+    @pytest.mark.parametrize("input_val", ["", None])
+    def test_csv_empty_or_none(self, input_val):
+        assert parse_csv(input_val) is None
 
 
 # API-U03: Cache key generation is deterministic
@@ -119,20 +111,11 @@ class TestResponseSerialization:
 
 # API-U05: Date range calculation from period
 class TestDateRangeCalculation:
-    def test_30d_period(self):
-        start, end = period_to_dates("30d")
+    @pytest.mark.parametrize("period,days", [("7d", 7), ("30d", 30), ("90d", 90)])
+    def test_period_to_dates(self, period, days):
+        start, end = period_to_dates(period)
         assert end == date.today()
-        assert start == date.today() - timedelta(days=30)
-
-    def test_7d_period(self):
-        start, end = period_to_dates("7d")
-        assert end == date.today()
-        assert start == date.today() - timedelta(days=7)
-
-    def test_90d_period(self):
-        start, end = period_to_dates("90d")
-        assert end == date.today()
-        assert start == date.today() - timedelta(days=90)
+        assert start == date.today() - timedelta(days=days)
 
     def test_previous_period_contiguous(self):
         current_start, current_end = period_to_dates("30d")

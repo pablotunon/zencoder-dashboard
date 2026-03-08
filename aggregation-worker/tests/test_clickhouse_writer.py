@@ -4,52 +4,39 @@ Tests event filtering (only completed/failed events are inserted)
 and field mapping to the agent_runs schema.
 """
 
+import pytest
 from app.consumer import AgentEvent
 from app.writers.clickhouse import _compute_status, _parse_timestamp
 
 
 class TestComputeStatus:
-    def test_completed_event(self):
+    @pytest.mark.parametrize("event_type,expected_status", [
+        ("run_completed", "completed"),
+        ("run_failed", "failed"),
+        ("run_started", "running"),
+    ])
+    def test_compute_status(self, event_type, expected_status):
         event = AgentEvent(
             run_id="r1", org_id="o", team_id="t", user_id="u",
             project_id="p", agent_type="coding",
-            event_type="run_completed", timestamp="2024-01-01T00:00:00Z",
+            event_type=event_type, timestamp="2024-01-01T00:00:00Z",
         )
-        assert _compute_status(event) == "completed"
-
-    def test_failed_event(self):
-        event = AgentEvent(
-            run_id="r1", org_id="o", team_id="t", user_id="u",
-            project_id="p", agent_type="coding",
-            event_type="run_failed", timestamp="2024-01-01T00:00:00Z",
-        )
-        assert _compute_status(event) == "failed"
-
-    def test_started_event(self):
-        event = AgentEvent(
-            run_id="r1", org_id="o", team_id="t", user_id="u",
-            project_id="p", agent_type="coding",
-            event_type="run_started", timestamp="2024-01-01T00:00:00Z",
-        )
-        assert _compute_status(event) == "running"
+        assert _compute_status(event) == expected_status
 
 
 class TestParseTimestamp:
-    def test_utc_z_suffix(self):
-        dt = _parse_timestamp("2024-01-15T10:30:00Z")
+    @pytest.mark.parametrize("ts_string,expected_hour,expected_microsecond", [
+        ("2024-01-15T10:30:00Z", 10, 0),
+        ("2024-01-15T10:30:00+00:00", 10, 0),
+        ("2024-01-15T10:30:00.123Z", 10, 123000),
+    ])
+    def test_parse_timestamp(self, ts_string, expected_hour, expected_microsecond):
+        dt = _parse_timestamp(ts_string)
         assert dt.year == 2024
         assert dt.month == 1
         assert dt.day == 15
-        assert dt.hour == 10
-        assert dt.minute == 30
-
-    def test_utc_offset(self):
-        dt = _parse_timestamp("2024-01-15T10:30:00+00:00")
-        assert dt.hour == 10
-
-    def test_fractional_seconds(self):
-        dt = _parse_timestamp("2024-01-15T10:30:00.123Z")
-        assert dt.microsecond == 123000
+        assert dt.hour == expected_hour
+        assert dt.microsecond == expected_microsecond
 
 
 class TestInsertEventsFiltering:

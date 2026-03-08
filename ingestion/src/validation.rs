@@ -41,6 +41,7 @@ mod tests {
     use super::*;
     use crate::models::event::{AgentType, EventType};
     use chrono::Duration;
+    use rstest::rstest;
     use uuid::Uuid;
 
     fn make_valid_event() -> AgentEvent {
@@ -64,48 +65,31 @@ mod tests {
         }
     }
 
-    // ING-U01: Valid event passes schema validation
     #[test]
     fn test_valid_event_passes() {
         let event = make_valid_event();
         assert!(validate_event(&event).is_ok());
     }
 
-    // ING-U02: Missing required fields rejected
-    #[test]
-    fn test_missing_org_id_rejected() {
+    #[rstest]
+    #[case("org_id")]
+    #[case("team_id")]
+    #[case("user_id")]
+    #[case("project_id")]
+    fn test_missing_required_field_rejected(#[case] field: &str) {
         let mut event = make_valid_event();
-        event.org_id = "".to_string();
+        match field {
+            "org_id" => event.org_id = "".to_string(),
+            "team_id" => event.team_id = "".to_string(),
+            "user_id" => event.user_id = "".to_string(),
+            "project_id" => event.project_id = "".to_string(),
+            _ => unreachable!(),
+        }
         let result = validate_event(&event);
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("org_id"));
+        assert!(result.unwrap_err().contains(field));
     }
 
-    #[test]
-    fn test_missing_team_id_rejected() {
-        let mut event = make_valid_event();
-        event.team_id = "".to_string();
-        assert!(validate_event(&event).is_err());
-    }
-
-    #[test]
-    fn test_missing_user_id_rejected() {
-        let mut event = make_valid_event();
-        event.user_id = "".to_string();
-        assert!(validate_event(&event).is_err());
-    }
-
-    #[test]
-    fn test_missing_project_id_rejected() {
-        let mut event = make_valid_event();
-        event.project_id = "".to_string();
-        assert!(validate_event(&event).is_err());
-    }
-
-    // ING-U03: Invalid agent_type rejected — tested via serde deserialization
-    // (the enum won't deserialize an invalid value)
-
-    // ING-U07: Event timestamp in the future rejected
     #[test]
     fn test_future_timestamp_rejected() {
         let mut event = make_valid_event();
@@ -122,27 +106,15 @@ mod tests {
         assert!(validate_event(&event).is_ok());
     }
 
-    // ING-U08: cost_usd must be non-negative
-    #[test]
-    fn test_negative_cost_rejected() {
+    #[rstest]
+    #[case(Some(-0.01), true)]
+    #[case(Some(0.0), false)]
+    #[case(Some(1.50), false)]
+    #[case(None, false)]
+    fn test_cost_validation(#[case] cost: Option<f64>, #[case] should_fail: bool) {
         let mut event = make_valid_event();
-        event.cost_usd = Some(-0.01);
+        event.cost_usd = cost;
         let result = validate_event(&event);
-        assert!(result.is_err());
-        assert!(result.unwrap_err().contains("cost_usd"));
-    }
-
-    #[test]
-    fn test_zero_cost_accepted() {
-        let mut event = make_valid_event();
-        event.cost_usd = Some(0.0);
-        assert!(validate_event(&event).is_ok());
-    }
-
-    #[test]
-    fn test_positive_cost_accepted() {
-        let mut event = make_valid_event();
-        event.cost_usd = Some(1.50);
-        assert!(validate_event(&event).is_ok());
+        assert_eq!(result.is_err(), should_fail);
     }
 }
