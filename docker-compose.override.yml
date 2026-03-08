@@ -22,3 +22,13 @@ services:
       target: dev
     volumes:
       - ./simulator:/app
+
+  e2e:
+    build:
+      context: ./tests/e2e
+    environment:
+      BASE_URL: http://nginx:80
+    depends_on:
+      - nginx
+    profiles:
+      - testing
