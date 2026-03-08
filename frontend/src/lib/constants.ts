@@ -24,6 +24,15 @@ export const AGENT_TYPE_COLORS: Record<string, string> = {
   general: "#64748b",
 };
 
+export const AGENT_TYPE_TREMOR_COLORS: Record<string, string> = {
+  coding: "indigo",
+  review: "violet",
+  testing: "cyan",
+  ci: "amber",
+  debugging: "red",
+  general: "slate",
+};
+
 export const ERROR_CATEGORY_LABELS: Record<string, string> = {
   timeout: "Timeout",
   rate_limit: "Rate Limit",

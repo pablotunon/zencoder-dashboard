@@ -11,7 +11,7 @@ import {
   formatPercent,
   formatCurrency,
 } from "@/lib/formatters";
-import { AGENT_TYPE_LABELS, AGENT_TYPE_COLORS } from "@/lib/constants";
+import { AGENT_TYPE_LABELS, AGENT_TYPE_TREMOR_COLORS } from "@/lib/constants";
 import { AreaChart, DonutChart } from "@tremor/react";
 
 export function UsagePage() {
@@ -84,17 +84,7 @@ export function UsagePage() {
               index="name"
               colors={data.agent_type_breakdown.map(
                 (item) =>
-                  (
-                    {
-                      "#6366f1": "indigo",
-                      "#8b5cf6": "violet",
-                      "#06b6d4": "cyan",
-                      "#f59e0b": "amber",
-                      "#ef4444": "red",
-                      "#64748b": "slate",
-                    } as Record<string, string>
-                  )[AGENT_TYPE_COLORS[item.agent_type] ?? "#64748b"] ??
-                  "slate",
+                  AGENT_TYPE_TREMOR_COLORS[item.agent_type] ?? "gray",
               )}
               valueFormatter={formatNumber}
               showAnimation
