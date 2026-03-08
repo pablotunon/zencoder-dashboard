@@ -41,9 +41,11 @@ test.describe("E2E-03: Dashboard Accessibility", () => {
     await expect(page.getByRole("heading", { name: /performance & reliability/i })).toBeVisible();
   });
 
-  test("frontend HTML references JS bundles", async ({ request }) => {
+  test("frontend HTML references script modules", async ({ request }) => {
     const resp = await request.get("/");
     const html = await resp.text();
-    expect(html).toMatch(/src="[^"]*\.js"/);
+    // Dev mode serves .ts/.tsx modules; prod serves .js bundles — both are valid
+    expect(html).toMatch(/type="module"/);
+    expect(html).toMatch(/src="[^"]*\.(js|ts|tsx)"/);
   });
 });
