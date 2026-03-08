@@ -1,0 +1,24 @@
+# Development overrides — auto-merged by `docker compose up`.
+# To run production images: docker compose -f docker-compose.yml up --build
+services:
+  analytics-api:
+    build:
+      context: ./analytics-api
+      target: dev
+    volumes:
+      - ./analytics-api:/app
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+
+  aggregation-worker:
+    build:
+      context: ./aggregation-worker
+      target: dev
+    volumes:
+      - ./aggregation-worker:/app
+
+  simulator:
+    build:
+      context: ./simulator
+      target: dev
+    volumes:
+      - ./simulator:/app

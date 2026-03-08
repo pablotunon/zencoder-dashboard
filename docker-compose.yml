@@ -58,7 +58,9 @@ services:
       start_period: 30s
 
   analytics-api:
-    build: ./analytics-api
+    build:
+      context: ./analytics-api
+      target: prod
     environment:
       CLICKHOUSE_HOST: clickhouse
       CLICKHOUSE_PORT: "8123"
@@ -84,7 +86,9 @@ services:
       start_period: 10s
 
   aggregation-worker:
-    build: ./aggregation-worker
+    build:
+      context: ./aggregation-worker
+      target: prod
     environment:
       CLICKHOUSE_HOST: clickhouse
       CLICKHOUSE_PORT: "8123"
@@ -104,7 +108,9 @@ services:
         condition: service_healthy
 
   simulator:
-    build: ./simulator
+    build:
+      context: ./simulator
+      target: prod
     environment:
       INGESTION_URL: http://ingestion:8001
       POSTGRES_HOST: postgres
