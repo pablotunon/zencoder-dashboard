@@ -18,21 +18,21 @@ Do not make assumptions on important decisions — get clarification first.
 
 ## Workflow Steps
 
-### [ ] Step: Implementation
+### [x] Step: Implementation
+<!-- chat-id: b8ad49b9-4175-4ca5-902a-35d5e36198a9 -->
 
-**Debug requests, questions, and investigations:** answer or investigate first. Do not create a plan upfront — the user needs an answer, not a plan. A plan may become relevant later once the investigation reveals what needs to change.
+**Scope:** Medium — multiple Dockerfiles and dependency files to update, need to verify builds.
 
-**For all other tasks**, before writing any code, assess the scope of the actual change (not the prompt length — a one-sentence prompt can describe a large feature). Scale your approach:
+**Problem:** Two Node.js services use different base images (simulator: `node:24-alpine`, frontend: `node:25-alpine`). Python dependencies need upgrading.
 
-- **Trivial** (typo, config tweak, single obvious change): implement directly, no plan needed.
-- **Small** (a few files, clear what to do): write 2–3 sentences in `plan.md` describing what and why, then implement. No substeps.
-- **Medium** (multiple components, design decisions, edge cases): write a plan in `plan.md` with requirements, affected files, key decisions, verification. Break into 3–5 steps.
-- **Large** (new feature, cross-cutting, unclear scope): gather requirements and write a technical spec first (`requirements.md`, `spec.md` in `{@artifacts_path}/`). Then write `plan.md` with concrete steps referencing the spec.
+**Changes applied:**
+- Standardized Node.js to `node:24-alpine` (latest even/LTS-track release) — changed `frontend/Dockerfile` from `node:25-alpine`
+- Python services already consistent on `python:3.13-slim` — no Dockerfile changes needed
+- Upgraded analytics-api Python dependencies: fastapi 0.115.6→0.135.1, uvicorn 0.34.0→0.41.0, pydantic 2.10.4→2.12.5, pydantic-settings 2.7.1→2.13.1, clickhouse-connect 0.8.14→0.13.0, asyncpg 0.30.0→0.31.0, redis 5.2.1→7.1.0, pytest 8.3.4→9.0.2, pytest-asyncio 0.25.0→1.3.0, pytest-httpx 0.35.0→0.36.0
+- Upgraded aggregation-worker Python dependencies: redis 5.2.1→7.1.0, clickhouse-connect 0.8.14→0.13.0, psycopg2-binary 2.9.10→2.9.11, pytest 8.3.4→9.0.2
 
-**Skip planning and implement directly when** the task is trivial, or the user explicitly asks to "just do it" / gives a clear direct instruction.
-
-To reflect the actual purpose of the first step, you can rename it to something more relevant (e.g., Planning, Investigation). Do NOT remove meta information like comments for any step.
-
-Rule of thumb for step size: each step = a coherent unit of work (component, endpoint, test suite). Not too granular (single function), not too broad (entire feature). Unit tests are part of each step, not separate.
-
-Update `{@artifacts_path}/plan.md`.
+**Verification:**
+- All services build successfully
+- Simulator: 30 tests passed
+- Aggregation worker: 26 tests passed
+- Analytics API: 29 tests passed
