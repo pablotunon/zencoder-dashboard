@@ -28,7 +28,8 @@ set -euo pipefail
 #   Offset 200 → nginx at :8280, postgres at :5632
 #
 # FILES:
-#   .ports.env                   — committed per-branch port config
+#   .ports.env                   — gitignored per-branch port config
+#   .env                         — gitignored, auto-read by docker-compose
 #   ~/.agenthub-ports.json       — global registry (not in repo)
 # ============================================================================
 

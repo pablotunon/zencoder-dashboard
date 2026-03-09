@@ -9,7 +9,7 @@ Each branch needs unique host ports so multiple branches can run simultaneously.
 - **Check current ports**: `./scripts/setup-ports.sh --status`
 - **Use specific offset**: `./scripts/setup-ports.sh --offset 200`
 
-This writes `.ports.env` (committed) which docker-compose reads automatically. Ports are `base + offset`:
+This writes `.ports.env` and `.env` (both gitignored) which docker-compose reads automatically. Ports are `base + offset`:
 - nginx: `8080 + offset`, Redis: `6379 + offset`, PostgreSQL: `5432 + offset`
 - ClickHouse HTTP: `8123 + offset`, ClickHouse native: `9000 + offset`
 

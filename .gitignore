@@ -23,6 +23,7 @@ venv/
 
 # Environment
 .env
+.ports.env
 
 # IDE
 .idea/
