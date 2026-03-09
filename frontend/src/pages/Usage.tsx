@@ -13,6 +13,8 @@ import {
 } from "@/lib/formatters";
 import { AGENT_TYPE_LABELS, AGENT_TYPE_TREMOR_COLORS } from "@/lib/constants";
 import { AreaChart, DonutChart } from "@tremor/react";
+import { PartialDayTooltip } from "@/components/charts/PartialDayTooltip";
+import { PartialDayNote } from "@/components/charts/PartialDayNote";
 
 export function UsagePage() {
   const { filters } = useFilters();
@@ -61,7 +63,11 @@ export function UsagePage() {
               colors={["indigo", "cyan", "amber"]}
               valueFormatter={formatNumber}
               showAnimation
+              customTooltip={(props) => (
+                <PartialDayTooltip {...props} valueFormatter={formatNumber} />
+              )}
             />
+            <PartialDayNote data={data.active_users_trend} />
           </div>
         ) : null}
 

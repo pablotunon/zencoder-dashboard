@@ -14,6 +14,7 @@ class TimeSeriesPoint(BaseModel):
     date: str
     runs: int = 0
     cost: float = 0.0
+    is_partial: bool = False
 
 
 # --- Overview ---
@@ -56,6 +57,7 @@ class ActiveUsersTrendPoint(BaseModel):
     dau: int = 0
     wau: int = 0
     mau: int = 0
+    is_partial: bool = False
 
 
 class AgentTypeBreakdown(BaseModel):
@@ -95,6 +97,7 @@ class UsageResponse(BaseModel):
 class CostTrendPoint(BaseModel):
     date: str
     cost: float
+    is_partial: bool = False
 
 
 class CostBreakdownItem(BaseModel):
@@ -107,6 +110,7 @@ class CostBreakdownItem(BaseModel):
 class CostPerRunTrendPoint(BaseModel):
     date: str
     avg_cost_per_run: float
+    is_partial: bool = False
 
 
 class TokenBreakdownByModel(BaseModel):
@@ -144,6 +148,7 @@ class SuccessRateTrendPoint(BaseModel):
     success_rate: float
     failure_rate: float
     error_rate: float
+    is_partial: bool = False
 
 
 class LatencyTrendPoint(BaseModel):
@@ -151,6 +156,7 @@ class LatencyTrendPoint(BaseModel):
     p50: float
     p95: float
     p99: float
+    is_partial: bool = False
 
 
 class ErrorBreakdownItem(BaseModel):
@@ -163,6 +169,7 @@ class QueueWaitTrendPoint(BaseModel):
     date: str
     avg_wait_ms: float
     p95_wait_ms: float
+    is_partial: bool = False
 
 
 class Availability(BaseModel):

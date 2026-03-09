@@ -9,6 +9,8 @@ import {
 import { ErrorState } from "@/components/ui/ErrorState";
 import { formatCurrency, formatNumber } from "@/lib/formatters";
 import { AreaChart, BarChart } from "@tremor/react";
+import { PartialDayTooltip } from "@/components/charts/PartialDayTooltip";
+import { PartialDayNote } from "@/components/charts/PartialDayNote";
 
 type GroupBy = "team" | "project" | "agent_type";
 
@@ -98,7 +100,11 @@ export function CostPage() {
               colors={["emerald"]}
               valueFormatter={formatCurrency}
               showAnimation
+              customTooltip={(props) => (
+                <PartialDayTooltip {...props} valueFormatter={formatCurrency} />
+              )}
             />
+            <PartialDayNote data={data.cost_trend} />
           </div>
         ) : null}
 
@@ -118,7 +124,11 @@ export function CostPage() {
               colors={["violet"]}
               valueFormatter={formatCurrency}
               showAnimation
+              customTooltip={(props) => (
+                <PartialDayTooltip {...props} valueFormatter={formatCurrency} />
+              )}
             />
+            <PartialDayNote data={data.cost_per_run_trend} />
           </div>
         ) : null}
       </div>

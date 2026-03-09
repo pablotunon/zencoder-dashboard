@@ -13,6 +13,8 @@ import {
 } from "@/lib/formatters";
 import { ERROR_CATEGORY_LABELS } from "@/lib/constants";
 import { AreaChart, DonutChart, LineChart } from "@tremor/react";
+import { PartialDayTooltip } from "@/components/charts/PartialDayTooltip";
+import { PartialDayNote } from "@/components/charts/PartialDayNote";
 
 export function PerformancePage() {
   const { filters } = useFilters();
@@ -65,7 +67,11 @@ export function PerformancePage() {
               colors={["emerald", "red", "amber"]}
               valueFormatter={(v) => formatPercent(v)}
               showAnimation
+              customTooltip={(props) => (
+                <PartialDayTooltip {...props} valueFormatter={(v) => formatPercent(v)} />
+              )}
             />
+            <PartialDayNote data={data.success_rate_trend} />
           </div>
         ) : null}
 
@@ -85,7 +91,11 @@ export function PerformancePage() {
               colors={["indigo", "amber", "red"]}
               valueFormatter={formatDuration}
               showAnimation
+              customTooltip={(props) => (
+                <PartialDayTooltip {...props} valueFormatter={formatDuration} />
+              )}
             />
+            <PartialDayNote data={data.latency_trend} />
           </div>
         ) : null}
       </div>
@@ -138,7 +148,11 @@ export function PerformancePage() {
               colors={["cyan", "rose"]}
               valueFormatter={formatDuration}
               showAnimation
+              customTooltip={(props) => (
+                <PartialDayTooltip {...props} valueFormatter={formatDuration} />
+              )}
             />
+            <PartialDayNote data={data.queue_wait_trend} />
           </div>
         ) : null}
       </div>

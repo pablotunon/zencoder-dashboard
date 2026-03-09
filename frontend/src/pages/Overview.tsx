@@ -16,6 +16,8 @@ import {
   AreaChart,
   BarList,
 } from "@tremor/react";
+import { PartialDayTooltip } from "@/components/charts/PartialDayTooltip";
+import { PartialDayNote } from "@/components/charts/PartialDayNote";
 
 export function OverviewPage() {
   const { filters } = useFilters();
@@ -90,7 +92,11 @@ export function OverviewPage() {
             colors={["indigo"]}
             valueFormatter={formatNumber}
             showAnimation
+            customTooltip={(props) => (
+              <PartialDayTooltip {...props} valueFormatter={formatNumber} />
+            )}
           />
+          <PartialDayNote data={data.usage_trend} />
         </div>
       ) : null}
 
