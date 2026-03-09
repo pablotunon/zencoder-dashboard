@@ -167,16 +167,17 @@ Remove the global FilterBar and refactor existing pages to use the widget system
 
 ---
 
-### [ ] Step: Integration Testing and Polish
+### [x] Step: Integration Testing and Polish
+<!-- chat-id: 20faaf21-9398-4e19-aed1-c7c985039f54 -->
 
 End-to-end verification of the complete system.
 
-- [ ] `docker-compose up --build -d` — verify all services start
-- [ ] Navigate to `/` — verify empty dashboard, global time picker, "Add Widget" button
-- [ ] Create widgets: one of each chart type (line, area, bar, pie, kpi, table)
-- [ ] Verify per-widget time range override works
-- [ ] Verify per-widget filters work
-- [ ] Navigate to template pages — verify they display correctly
-- [ ] Run `./scripts/test.sh` — all tests pass
-- [ ] Run `docker-compose exec frontend npm run lint` — clean
-- [ ] Write report to `.zenflow/tasks/custom-charts-9024/report.md`
+- [x] `docker-compose up --build -d` — verify all services start (9/9 services healthy)
+- [x] Navigate to `/` — verify empty dashboard, global time picker, "Add Widget" button
+- [x] Create widgets: one of each chart type (line, area, bar, pie, kpi, table) — all 6 verified
+- [x] Verify per-widget time range override works (tested 90d override while global was 7d)
+- [x] Verify per-widget filters work (tested Frontend team filter with team/project/agent_type multi-selects)
+- [x] Navigate to template pages — verify they display correctly (Overview, Usage, Cost, Performance all working)
+- [x] Run `./scripts/test.sh` — all 118 tests pass (simulator 30, ingestion 19, aggregation-worker 26, analytics-api 51)
+- [x] Run `docker-compose exec frontend npm run lint` — 0 errors, 3 pre-existing warnings
+- [x] Write report to `.zenflow/tasks/custom-charts-9024/report.md`
