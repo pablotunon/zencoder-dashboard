@@ -1,60 +1,93 @@
-import type { ChartConfig } from "@/components/ui/chart";
 import type { Period } from "./api";
 
-// Which chart visualization to use
-export type ChartType = "area" | "line" | "bar" | "pie";
+// 6 chart types supported by the widget system
+export type ChartType = "line" | "area" | "bar" | "pie" | "kpi" | "table";
 
-// Which backend endpoint supplies the data
-export type DataSource = "overview" | "usage" | "cost" | "performance";
+// 14 metrics matching the backend METRIC_REGISTRY
+export type MetricKey =
+  | "run_count"
+  | "active_users"
+  | "cost"
+  | "cost_per_run"
+  | "success_rate"
+  | "failure_rate"
+  | "error_rate"
+  | "latency_p50"
+  | "latency_p95"
+  | "latency_p99"
+  | "tokens_input"
+  | "tokens_output"
+  | "queue_wait_avg"
+  | "queue_wait_p95";
 
-// Available metrics users can chart, grouped by data source
-export type MetricId =
-  // overview
-  | "usage_trend"
-  // usage
-  | "active_users_trend"
-  | "agent_type_breakdown"
-  // cost
-  | "cost_trend"
-  | "cost_per_run_trend"
-  | "cost_breakdown"
-  // performance
-  | "success_rate_trend"
-  | "latency_trend"
-  | "error_breakdown"
-  | "queue_wait_trend";
+// 5 breakdown dimensions matching the backend DIMENSION_REGISTRY
+export type BreakdownDimension =
+  | "team"
+  | "project"
+  | "agent_type"
+  | "error_category"
+  | "model";
 
-// Series configuration for a metric — which keys to plot
-export interface MetricMeta {
-  id: MetricId;
-  label: string;
-  dataSource: DataSource;
-  /** Keys in the data rows to plot as series */
-  seriesKeys: string[];
-  /** Default chart type for this metric */
-  defaultChartType: ChartType;
-  /** Compatible chart types */
-  compatibleChartTypes: ChartType[];
-  /** Chart config (labels + colors) for the series */
-  chartConfig: ChartConfig;
-  /** Formatter name for Y axis */
-  yFormat: "number" | "currency" | "percent" | "duration";
-  /** Data key for X axis (usually "date" for time series) */
-  indexKey: string;
-}
+// Y-axis formatter type
+export type ValueFormat = "number" | "currency" | "percent" | "duration";
+
+// Metric category for grouping in the modal dropdown
+export type MetricCategory = "Usage" | "Cost" | "Performance";
 
 // A widget definition — what the user configures
-export interface WidgetDefinition {
+export interface WidgetConfig {
   id: string;
   title: string;
-  metricId: MetricId;
   chartType: ChartType;
-  period: Period;
+  metric: MetricKey;
+  breakdownDimension?: BreakdownDimension;
+  timeRange: { useGlobal: true } | { useGlobal: false; period: Period };
+  filters?: {
+    teams?: string[];
+    projects?: string[];
+    agent_types?: string[];
+  };
 }
 
-// A page template — a named collection of widget definitions
-export interface DashboardTemplate {
-  id: string;
-  name: string;
-  widgets: WidgetDefinition[];
+// Metric metadata used by the widget registry
+export interface MetricMeta {
+  key: MetricKey;
+  label: string;
+  category: MetricCategory;
+  defaultChartType: ChartType;
+  compatibleChartTypes: ChartType[];
+  format: ValueFormat;
+  validBreakdowns: BreakdownDimension[];
+  color: string;
 }
+
+// Backend response types for POST /api/metrics/widget
+
+export interface WidgetTimeseriesPoint {
+  date: string;
+  value: number;
+  is_partial: boolean;
+}
+
+export interface WidgetTimeseriesResponse {
+  type: "timeseries";
+  metric: string;
+  summary: { value: number; change_pct: number | null };
+  data: WidgetTimeseriesPoint[];
+}
+
+export interface WidgetBreakdownItem {
+  label: string;
+  value: number;
+}
+
+export interface WidgetBreakdownResponse {
+  type: "breakdown";
+  metric: string;
+  dimension: string;
+  data: WidgetBreakdownItem[];
+}
+
+export type WidgetQueryResponse =
+  | WidgetTimeseriesResponse
+  | WidgetBreakdownResponse;

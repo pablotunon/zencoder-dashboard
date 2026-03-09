@@ -1,154 +1,204 @@
-import type { MetricMeta } from "@/types/widget";
+import type {
+  MetricKey,
+  MetricMeta,
+  BreakdownDimension,
+  ChartType,
+} from "@/types/widget";
 
 /**
  * Central registry of all chartable metrics.
  *
- * Each entry maps a MetricId to everything the widget renderer needs:
- * which endpoint to fetch, which keys to plot, colors, labels, formatters.
+ * Each entry describes a metric the widget system can display:
+ * label, category (for modal grouping), compatible chart types,
+ * valid breakdown dimensions, formatter, and default color.
+ *
+ * Adding a metric = one entry here + one entry in the backend METRIC_REGISTRY.
  */
-export const METRIC_REGISTRY: Record<string, MetricMeta> = {
-  usage_trend: {
-    id: "usage_trend",
-    label: "Usage Trend (Runs)",
-    dataSource: "overview",
-    seriesKeys: ["runs"],
+export const METRIC_REGISTRY: Record<MetricKey, MetricMeta> = {
+  // ── Usage ──────────────────────────────────────────────
+  run_count: {
+    key: "run_count",
+    label: "Run Count",
+    category: "Usage",
     defaultChartType: "area",
-    compatibleChartTypes: ["area", "line", "bar"],
-    chartConfig: {
-      runs: { label: "Runs", color: "#6366f1" },
-    },
-    yFormat: "number",
-    indexKey: "date",
+    compatibleChartTypes: ["line", "area", "bar", "kpi", "table"],
+    format: "number",
+    validBreakdowns: ["team", "project", "agent_type", "model"],
+    color: "#6366f1",
   },
-
-  active_users_trend: {
-    id: "active_users_trend",
-    label: "Active Users (DAU / WAU / MAU)",
-    dataSource: "usage",
-    seriesKeys: ["dau", "wau", "mau"],
+  active_users: {
+    key: "active_users",
+    label: "Active Users",
+    category: "Usage",
     defaultChartType: "area",
-    compatibleChartTypes: ["area", "line"],
-    chartConfig: {
-      dau: { label: "DAU", color: "#6366f1" },
-      wau: { label: "WAU", color: "#06b6d4" },
-      mau: { label: "MAU", color: "#f59e0b" },
-    },
-    yFormat: "number",
-    indexKey: "date",
+    compatibleChartTypes: ["line", "area", "bar", "kpi", "table"],
+    format: "number",
+    validBreakdowns: ["team", "project"],
+    color: "#8b5cf6",
   },
 
-  agent_type_breakdown: {
-    id: "agent_type_breakdown",
-    label: "Agent Type Distribution",
-    dataSource: "usage",
-    seriesKeys: ["runs"],
-    defaultChartType: "pie",
-    compatibleChartTypes: ["pie", "bar"],
-    chartConfig: {},
-    yFormat: "number",
-    indexKey: "agent_type",
-  },
-
-  cost_trend: {
-    id: "cost_trend",
-    label: "Cost Trend",
-    dataSource: "cost",
-    seriesKeys: ["cost"],
+  // ── Cost ───────────────────────────────────────────────
+  cost: {
+    key: "cost",
+    label: "Cost (USD)",
+    category: "Cost",
     defaultChartType: "area",
-    compatibleChartTypes: ["area", "line", "bar"],
-    chartConfig: {
-      cost: { label: "Cost", color: "#10b981" },
-    },
-    yFormat: "currency",
-    indexKey: "date",
+    compatibleChartTypes: ["line", "area", "bar", "kpi", "pie", "table"],
+    format: "currency",
+    validBreakdowns: ["team", "project", "agent_type", "model"],
+    color: "#10b981",
   },
-
-  cost_per_run_trend: {
-    id: "cost_per_run_trend",
+  cost_per_run: {
+    key: "cost_per_run",
     label: "Cost Per Run",
-    dataSource: "cost",
-    seriesKeys: ["avg_cost_per_run"],
+    category: "Cost",
     defaultChartType: "line",
-    compatibleChartTypes: ["area", "line", "bar"],
-    chartConfig: {
-      avg_cost_per_run: { label: "Avg Cost/Run", color: "#8b5cf6" },
-    },
-    yFormat: "currency",
-    indexKey: "date",
+    compatibleChartTypes: ["line", "area", "bar", "kpi"],
+    format: "currency",
+    validBreakdowns: ["team", "project", "agent_type", "model"],
+    color: "#059669",
   },
-
-  cost_breakdown: {
-    id: "cost_breakdown",
-    label: "Cost Breakdown",
-    dataSource: "cost",
-    seriesKeys: ["cost"],
-    defaultChartType: "bar",
-    compatibleChartTypes: ["bar", "pie"],
-    chartConfig: {
-      cost: { label: "Cost", color: "#10b981" },
-    },
-    yFormat: "currency",
-    indexKey: "dimension_value",
-  },
-
-  success_rate_trend: {
-    id: "success_rate_trend",
-    label: "Success / Failure Rate",
-    dataSource: "performance",
-    seriesKeys: ["success_rate", "failure_rate", "error_rate"],
+  tokens_input: {
+    key: "tokens_input",
+    label: "Input Tokens",
+    category: "Cost",
     defaultChartType: "area",
-    compatibleChartTypes: ["area", "line"],
-    chartConfig: {
-      success_rate: { label: "Success", color: "#10b981" },
-      failure_rate: { label: "Failure", color: "#ef4444" },
-      error_rate: { label: "Error", color: "#f59e0b" },
-    },
-    yFormat: "percent",
-    indexKey: "date",
+    compatibleChartTypes: ["line", "area", "bar", "kpi", "table"],
+    format: "number",
+    validBreakdowns: ["team", "project", "agent_type", "model"],
+    color: "#14b8a6",
+  },
+  tokens_output: {
+    key: "tokens_output",
+    label: "Output Tokens",
+    category: "Cost",
+    defaultChartType: "area",
+    compatibleChartTypes: ["line", "area", "bar", "kpi", "table"],
+    format: "number",
+    validBreakdowns: ["team", "project", "agent_type", "model"],
+    color: "#0d9488",
   },
 
-  latency_trend: {
-    id: "latency_trend",
-    label: "Latency Percentiles",
-    dataSource: "performance",
-    seriesKeys: ["p50", "p95", "p99"],
+  // ── Performance ────────────────────────────────────────
+  success_rate: {
+    key: "success_rate",
+    label: "Success Rate",
+    category: "Performance",
     defaultChartType: "line",
-    compatibleChartTypes: ["line", "area"],
-    chartConfig: {
-      p50: { label: "P50", color: "#6366f1" },
-      p95: { label: "P95", color: "#f59e0b" },
-      p99: { label: "P99", color: "#ef4444" },
-    },
-    yFormat: "duration",
-    indexKey: "date",
+    compatibleChartTypes: ["line", "area", "kpi"],
+    format: "percent",
+    validBreakdowns: ["team", "project", "agent_type"],
+    color: "#10b981",
   },
-
-  error_breakdown: {
-    id: "error_breakdown",
-    label: "Error Distribution",
-    dataSource: "performance",
-    seriesKeys: ["count"],
-    defaultChartType: "pie",
-    compatibleChartTypes: ["pie", "bar"],
-    chartConfig: {},
-    yFormat: "number",
-    indexKey: "error_category",
-  },
-
-  queue_wait_trend: {
-    id: "queue_wait_trend",
-    label: "Queue Wait Time",
-    dataSource: "performance",
-    seriesKeys: ["avg_wait_ms", "p95_wait_ms"],
+  failure_rate: {
+    key: "failure_rate",
+    label: "Failure Rate",
+    category: "Performance",
     defaultChartType: "line",
-    compatibleChartTypes: ["line", "area"],
-    chartConfig: {
-      avg_wait_ms: { label: "Avg Wait", color: "#06b6d4" },
-      p95_wait_ms: { label: "P95 Wait", color: "#f43f5e" },
-    },
-    yFormat: "duration",
-    indexKey: "date",
+    compatibleChartTypes: ["line", "area", "kpi"],
+    format: "percent",
+    validBreakdowns: ["team", "project", "agent_type"],
+    color: "#ef4444",
+  },
+  error_rate: {
+    key: "error_rate",
+    label: "Error Rate",
+    category: "Performance",
+    defaultChartType: "line",
+    compatibleChartTypes: ["line", "area", "bar", "kpi", "pie", "table"],
+    format: "percent",
+    validBreakdowns: ["team", "project", "agent_type", "error_category"],
+    color: "#f59e0b",
+  },
+  latency_p50: {
+    key: "latency_p50",
+    label: "Latency P50",
+    category: "Performance",
+    defaultChartType: "line",
+    compatibleChartTypes: ["line", "area", "kpi"],
+    format: "duration",
+    validBreakdowns: ["team", "project", "agent_type", "model"],
+    color: "#6366f1",
+  },
+  latency_p95: {
+    key: "latency_p95",
+    label: "Latency P95",
+    category: "Performance",
+    defaultChartType: "line",
+    compatibleChartTypes: ["line", "area", "kpi"],
+    format: "duration",
+    validBreakdowns: ["team", "project", "agent_type", "model"],
+    color: "#f59e0b",
+  },
+  latency_p99: {
+    key: "latency_p99",
+    label: "Latency P99",
+    category: "Performance",
+    defaultChartType: "line",
+    compatibleChartTypes: ["line", "area", "kpi"],
+    format: "duration",
+    validBreakdowns: ["team", "project", "agent_type", "model"],
+    color: "#ef4444",
+  },
+  queue_wait_avg: {
+    key: "queue_wait_avg",
+    label: "Avg Queue Wait",
+    category: "Performance",
+    defaultChartType: "line",
+    compatibleChartTypes: ["line", "area", "kpi", "table"],
+    format: "duration",
+    validBreakdowns: ["team", "project", "agent_type"],
+    color: "#06b6d4",
+  },
+  queue_wait_p95: {
+    key: "queue_wait_p95",
+    label: "Queue Wait P95",
+    category: "Performance",
+    defaultChartType: "line",
+    compatibleChartTypes: ["line", "area", "kpi"],
+    format: "duration",
+    validBreakdowns: ["team", "project", "agent_type"],
+    color: "#f43f5e",
   },
 };
 
-export const METRIC_OPTIONS = Object.values(METRIC_REGISTRY);
+/** All metrics as a flat array, useful for iteration. */
+export const METRIC_OPTIONS: MetricMeta[] = Object.values(METRIC_REGISTRY);
+
+/** Metrics grouped by category, for the modal grouped dropdown. */
+export const METRIC_BY_CATEGORY = METRIC_OPTIONS.reduce(
+  (acc, m) => {
+    (acc[m.category] ??= []).push(m);
+    return acc;
+  },
+  {} as Record<string, MetricMeta[]>,
+);
+
+/** Breakdown dimension labels for display. */
+export const BREAKDOWN_LABELS: Record<BreakdownDimension, string> = {
+  team: "Team",
+  project: "Project",
+  agent_type: "Agent Type",
+  error_category: "Error Category",
+  model: "Model",
+};
+
+/**
+ * Whether a chart type requires, supports, or disallows a breakdown dimension.
+ * - "required": must have a breakdown (pie)
+ * - "optional": breakdown is allowed but not required (bar, table)
+ * - "none": no breakdown dimension (line, area, kpi)
+ */
+export function breakdownModeForChartType(
+  chartType: ChartType,
+): "required" | "optional" | "none" {
+  switch (chartType) {
+    case "pie":
+      return "required";
+    case "bar":
+    case "table":
+      return "optional";
+    default:
+      return "none";
+  }
+}

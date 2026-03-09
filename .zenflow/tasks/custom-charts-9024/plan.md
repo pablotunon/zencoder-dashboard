@@ -60,21 +60,27 @@ Implement the new `POST /api/metrics/widget` endpoint and dynamic query builder.
 
 ---
 
-### [ ] Step: Frontend — Widget Types, Registry, and Data Hook
+### [x] Step: Frontend — Widget Types, Registry, and Data Hook
+<!-- chat-id: 5064398c-884c-4d84-a53e-960c374d6dcf -->
 
 Redesign the widget type system and data fetching to use the new backend endpoint.
 
-- [ ] Rewrite `frontend/src/types/widget.ts`:
+- [x] Rewrite `frontend/src/types/widget.ts`:
   - `WidgetConfig` with `metric: MetricKey`, `chartType` (6 types incl. kpi + table), `breakdownDimension?`, `timeRange` (useGlobal toggle), `filters?`
   - `MetricKey` type (14 values), `BreakdownDimension` type (5 values), `ChartType` type (6 values)
-- [ ] Rewrite `frontend/src/lib/widget-registry.ts`:
+  - Added `MetricMeta`, `MetricCategory`, `ValueFormat` types
+  - Added backend response types: `WidgetTimeseriesResponse`, `WidgetBreakdownResponse`, `WidgetQueryResponse`
+- [x] Rewrite `frontend/src/lib/widget-registry.ts`:
   - Metric metadata: label, category (Usage/Cost/Performance), valid chart types, formatter, valid breakdown dimensions
-  - Organized for the widget creation modal's grouped dropdown
-- [ ] Create `frontend/src/api/widget.ts`:
+  - `METRIC_BY_CATEGORY` for the modal's grouped dropdown
+  - `BREAKDOWN_LABELS` for display
+  - `breakdownModeForChartType()` helper for modal contextual show/hide
+- [x] Create `frontend/src/api/widget.ts`:
   - `postWidgetQuery()` function calling `POST /api/metrics/widget`
-  - `useWidgetData()` React Query hook
-- [ ] Update `frontend/src/api/hooks.ts`: remove the current `useWidgetData` mapping approach and related code (`DATA_SOURCE_FETCHERS`, `METRIC_TO_RESPONSE_KEY`). Keep existing endpoint hooks for template pages.
-- [ ] Run `docker-compose exec frontend npm run lint` and fix any issues
+  - `useWidgetData()` React Query hook with stable query key
+- [x] Update `frontend/src/api/hooks.ts`: removed `useWidgetData`, `DATA_SOURCE_FETCHERS`, `METRIC_TO_RESPONSE_KEY`, and unused imports. Kept existing endpoint hooks for template pages.
+- [x] Updated `WidgetRenderer.tsx` to compile against new types (placeholder pending full replacement in next step)
+- [x] Run `docker-compose exec frontend npm run lint` — 0 errors, 3 pre-existing warnings
 
 ---
 
