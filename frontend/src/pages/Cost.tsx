@@ -9,8 +9,6 @@ import {
 import { ErrorState } from "@/components/ui/ErrorState";
 import { formatCurrency, formatNumber } from "@/lib/formatters";
 import {
-  Area,
-  AreaChart,
   Bar,
   BarChart,
   CartesianGrid,
@@ -19,7 +17,7 @@ import {
   YAxis,
 } from "recharts";
 import { ChartContainer, type ChartConfig } from "@/components/ui/chart";
-import { PartialDayTooltip } from "@/components/charts/PartialDayTooltip";
+import { TimeSeriesChart } from "@/components/charts/TimeSeriesChart";
 
 type GroupBy = "team" | "project" | "agent_type";
 
@@ -113,47 +111,12 @@ export function CostPage() {
             <h2 className="mb-4 text-base font-medium text-gray-900">
               Cost Trend
             </h2>
-            <ChartContainer config={costTrendConfig} className="h-64 w-full">
-              <AreaChart data={data.cost_trend} accessibilityLayer>
-                <CartesianGrid vertical={false} strokeDasharray="3 3" />
-                <XAxis dataKey="date" tickLine={false} axisLine={false} />
-                <YAxis tickLine={false} axisLine={false} tickFormatter={formatCurrency} />
-                <Tooltip
-                  content={(props) => (
-                    <PartialDayTooltip
-                      {...props}
-                      config={costTrendConfig}
-                      valueFormatter={formatCurrency}
-                    />
-                  )}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="cost"
-                  stroke="var(--color-cost)"
-                  fill="var(--color-cost)"
-                  fillOpacity={0.15}
-                  dot={(props) => {
-                    const { cx, cy, payload } = props;
-                    if (!payload?.is_partial) return <circle key={`dot-${cx}`} r={0} />;
-                    return (
-                      <circle
-                        key={`dot-${cx}`}
-                        cx={cx}
-                        cy={cy}
-                        r={4}
-                        fill="var(--color-cost)"
-                        fillOpacity={0.4}
-                        stroke="var(--color-cost)"
-                        strokeOpacity={0.4}
-                        strokeWidth={2}
-                      />
-                    );
-                  }}
-                  activeDot={{ r: 4 }}
-                />
-              </AreaChart>
-            </ChartContainer>
+            <TimeSeriesChart
+              data={data.cost_trend}
+              config={costTrendConfig}
+              yFormatter={formatCurrency}
+              valueFormatter={formatCurrency}
+            />
           </div>
         ) : null}
 
@@ -165,47 +128,12 @@ export function CostPage() {
             <h2 className="mb-4 text-base font-medium text-gray-900">
               Cost Per Run
             </h2>
-            <ChartContainer config={costPerRunConfig} className="h-64 w-full">
-              <AreaChart data={data.cost_per_run_trend} accessibilityLayer>
-                <CartesianGrid vertical={false} strokeDasharray="3 3" />
-                <XAxis dataKey="date" tickLine={false} axisLine={false} />
-                <YAxis tickLine={false} axisLine={false} tickFormatter={formatCurrency} />
-                <Tooltip
-                  content={(props) => (
-                    <PartialDayTooltip
-                      {...props}
-                      config={costPerRunConfig}
-                      valueFormatter={formatCurrency}
-                    />
-                  )}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="avg_cost_per_run"
-                  stroke="var(--color-avg_cost_per_run)"
-                  fill="var(--color-avg_cost_per_run)"
-                  fillOpacity={0.15}
-                  dot={(props) => {
-                    const { cx, cy, payload } = props;
-                    if (!payload?.is_partial) return <circle key={`dot-${cx}`} r={0} />;
-                    return (
-                      <circle
-                        key={`dot-${cx}`}
-                        cx={cx}
-                        cy={cy}
-                        r={4}
-                        fill="var(--color-avg_cost_per_run)"
-                        fillOpacity={0.4}
-                        stroke="var(--color-avg_cost_per_run)"
-                        strokeOpacity={0.4}
-                        strokeWidth={2}
-                      />
-                    );
-                  }}
-                  activeDot={{ r: 4 }}
-                />
-              </AreaChart>
-            </ChartContainer>
+            <TimeSeriesChart
+              data={data.cost_per_run_trend}
+              config={costPerRunConfig}
+              yFormatter={formatCurrency}
+              valueFormatter={formatCurrency}
+            />
           </div>
         ) : null}
       </div>

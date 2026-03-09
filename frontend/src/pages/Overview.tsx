@@ -12,16 +12,8 @@ import {
   formatCurrency,
   formatPercent,
 } from "@/lib/formatters";
-import {
-  Area,
-  AreaChart,
-  CartesianGrid,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
-import { ChartContainer, type ChartConfig } from "@/components/ui/chart";
-import { PartialDayTooltip } from "@/components/charts/PartialDayTooltip";
+import type { ChartConfig } from "@/components/ui/chart";
+import { TimeSeriesChart } from "@/components/charts/TimeSeriesChart";
 
 const usageTrendConfig = {
   runs: { label: "Runs", color: "#6366f1" },
@@ -92,47 +84,13 @@ export function OverviewPage() {
           <h2 className="mb-4 text-base font-medium text-gray-900">
             Usage Trend
           </h2>
-          <ChartContainer config={usageTrendConfig} className="h-72 w-full">
-            <AreaChart data={data.usage_trend} accessibilityLayer>
-              <CartesianGrid vertical={false} strokeDasharray="3 3" />
-              <XAxis dataKey="date" tickLine={false} axisLine={false} />
-              <YAxis tickLine={false} axisLine={false} tickFormatter={formatNumber} />
-              <Tooltip
-                content={(props) => (
-                  <PartialDayTooltip
-                    {...props}
-                    config={usageTrendConfig}
-                    valueFormatter={formatNumber}
-                  />
-                )}
-              />
-              <Area
-                type="monotone"
-                dataKey="runs"
-                stroke="var(--color-runs)"
-                fill="var(--color-runs)"
-                fillOpacity={0.15}
-                dot={(props) => {
-                  const { cx, cy, payload } = props;
-                  if (!payload?.is_partial) return <circle key={`dot-${cx}`} r={0} />;
-                  return (
-                    <circle
-                      key={`dot-${cx}`}
-                      cx={cx}
-                      cy={cy}
-                      r={4}
-                      fill="var(--color-runs)"
-                      fillOpacity={0.4}
-                      stroke="var(--color-runs)"
-                      strokeOpacity={0.4}
-                      strokeWidth={2}
-                    />
-                  );
-                }}
-                activeDot={{ r: 4 }}
-              />
-            </AreaChart>
-          </ChartContainer>
+          <TimeSeriesChart
+            data={data.usage_trend}
+            config={usageTrendConfig}
+            yFormatter={formatNumber}
+            valueFormatter={formatNumber}
+            className="h-72 w-full"
+          />
         </div>
       ) : null}
 

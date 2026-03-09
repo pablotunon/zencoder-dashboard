@@ -13,18 +13,13 @@ import {
 } from "@/lib/formatters";
 import { AGENT_TYPE_LABELS, AGENT_TYPE_COLORS } from "@/lib/constants";
 import {
-  Area,
-  AreaChart,
-  CartesianGrid,
   Cell,
   Pie,
   PieChart,
   Tooltip,
-  XAxis,
-  YAxis,
 } from "recharts";
 import { ChartContainer, type ChartConfig } from "@/components/ui/chart";
-import { PartialDayTooltip } from "@/components/charts/PartialDayTooltip";
+import { TimeSeriesChart } from "@/components/charts/TimeSeriesChart";
 
 const activeUsersConfig = {
   dau: { label: "DAU", color: "#6366f1" },
@@ -71,50 +66,12 @@ export function UsagePage() {
             <h2 className="mb-4 text-base font-medium text-gray-900">
               Active Users Trend
             </h2>
-            <ChartContainer config={activeUsersConfig} className="h-64 w-full">
-              <AreaChart data={data.active_users_trend} accessibilityLayer>
-                <CartesianGrid vertical={false} strokeDasharray="3 3" />
-                <XAxis dataKey="date" tickLine={false} axisLine={false} />
-                <YAxis tickLine={false} axisLine={false} tickFormatter={formatNumber} />
-                <Tooltip
-                  content={(props) => (
-                    <PartialDayTooltip
-                      {...props}
-                      config={activeUsersConfig}
-                      valueFormatter={formatNumber}
-                    />
-                  )}
-                />
-                {(["dau", "wau", "mau"] as const).map((key) => (
-                  <Area
-                    key={key}
-                    type="monotone"
-                    dataKey={key}
-                    stroke={`var(--color-${key})`}
-                    fill={`var(--color-${key})`}
-                    fillOpacity={0.1}
-                    dot={(props) => {
-                      const { cx, cy, payload } = props;
-                      if (!payload?.is_partial) return <circle key={`dot-${key}-${cx}`} r={0} />;
-                      return (
-                        <circle
-                          key={`dot-${key}-${cx}`}
-                          cx={cx}
-                          cy={cy}
-                          r={4}
-                          fill={`var(--color-${key})`}
-                          fillOpacity={0.4}
-                          stroke={`var(--color-${key})`}
-                          strokeOpacity={0.4}
-                          strokeWidth={2}
-                        />
-                      );
-                    }}
-                    activeDot={{ r: 4 }}
-                  />
-                ))}
-              </AreaChart>
-            </ChartContainer>
+            <TimeSeriesChart
+              data={data.active_users_trend}
+              config={activeUsersConfig}
+              yFormatter={formatNumber}
+              valueFormatter={formatNumber}
+            />
           </div>
         ) : null}
 

@@ -12,20 +12,13 @@ import {
 } from "@/lib/formatters";
 import { ERROR_CATEGORY_LABELS } from "@/lib/constants";
 import {
-  Area,
-  AreaChart,
-  CartesianGrid,
   Cell,
-  Line,
-  LineChart,
   Pie,
   PieChart,
   Tooltip,
-  XAxis,
-  YAxis,
 } from "recharts";
 import { ChartContainer, type ChartConfig } from "@/components/ui/chart";
-import { PartialDayTooltip } from "@/components/charts/PartialDayTooltip";
+import { TimeSeriesChart } from "@/components/charts/TimeSeriesChart";
 
 const successRateConfig = {
   success_rate: { label: "Success", color: "#10b981" },
@@ -89,50 +82,12 @@ export function PerformancePage() {
             <h2 className="mb-4 text-base font-medium text-gray-900">
               Success / Failure Rate
             </h2>
-            <ChartContainer config={successRateConfig} className="h-64 w-full">
-              <AreaChart data={data.success_rate_trend} accessibilityLayer>
-                <CartesianGrid vertical={false} strokeDasharray="3 3" />
-                <XAxis dataKey="date" tickLine={false} axisLine={false} />
-                <YAxis tickLine={false} axisLine={false} tickFormatter={(v) => formatPercent(v)} />
-                <Tooltip
-                  content={(props) => (
-                    <PartialDayTooltip
-                      {...props}
-                      config={successRateConfig}
-                      valueFormatter={(v) => formatPercent(v)}
-                    />
-                  )}
-                />
-                {(["success_rate", "failure_rate", "error_rate"] as const).map((key) => (
-                  <Area
-                    key={key}
-                    type="monotone"
-                    dataKey={key}
-                    stroke={`var(--color-${key})`}
-                    fill={`var(--color-${key})`}
-                    fillOpacity={0.1}
-                    dot={(props) => {
-                      const { cx, cy, payload } = props;
-                      if (!payload?.is_partial) return <circle key={`dot-${key}-${cx}`} r={0} />;
-                      return (
-                        <circle
-                          key={`dot-${key}-${cx}`}
-                          cx={cx}
-                          cy={cy}
-                          r={4}
-                          fill={`var(--color-${key})`}
-                          fillOpacity={0.4}
-                          stroke={`var(--color-${key})`}
-                          strokeOpacity={0.4}
-                          strokeWidth={2}
-                        />
-                      );
-                    }}
-                    activeDot={{ r: 4 }}
-                  />
-                ))}
-              </AreaChart>
-            </ChartContainer>
+            <TimeSeriesChart
+              data={data.success_rate_trend}
+              config={successRateConfig}
+              yFormatter={(v) => formatPercent(v)}
+              valueFormatter={(v) => formatPercent(v)}
+            />
           </div>
         ) : null}
 
@@ -144,49 +99,13 @@ export function PerformancePage() {
             <h2 className="mb-4 text-base font-medium text-gray-900">
               Latency Percentiles
             </h2>
-            <ChartContainer config={latencyConfig} className="h-64 w-full">
-              <LineChart data={data.latency_trend} accessibilityLayer>
-                <CartesianGrid vertical={false} strokeDasharray="3 3" />
-                <XAxis dataKey="date" tickLine={false} axisLine={false} />
-                <YAxis tickLine={false} axisLine={false} tickFormatter={formatDuration} />
-                <Tooltip
-                  content={(props) => (
-                    <PartialDayTooltip
-                      {...props}
-                      config={latencyConfig}
-                      valueFormatter={formatDuration}
-                    />
-                  )}
-                />
-                {(["p50", "p95", "p99"] as const).map((key) => (
-                  <Line
-                    key={key}
-                    type="monotone"
-                    dataKey={key}
-                    stroke={`var(--color-${key})`}
-                    strokeWidth={2}
-                    dot={(props) => {
-                      const { cx, cy, payload } = props;
-                      if (!payload?.is_partial) return <circle key={`dot-${key}-${cx}`} r={0} />;
-                      return (
-                        <circle
-                          key={`dot-${key}-${cx}`}
-                          cx={cx}
-                          cy={cy}
-                          r={4}
-                          fill={`var(--color-${key})`}
-                          fillOpacity={0.4}
-                          stroke={`var(--color-${key})`}
-                          strokeOpacity={0.4}
-                          strokeWidth={2}
-                        />
-                      );
-                    }}
-                    activeDot={{ r: 4 }}
-                  />
-                ))}
-              </LineChart>
-            </ChartContainer>
+            <TimeSeriesChart
+              variant="line"
+              data={data.latency_trend}
+              config={latencyConfig}
+              yFormatter={formatDuration}
+              valueFormatter={formatDuration}
+            />
           </div>
         ) : null}
       </div>
@@ -265,49 +184,13 @@ export function PerformancePage() {
             <h2 className="mb-4 text-base font-medium text-gray-900">
               Queue Wait Time
             </h2>
-            <ChartContainer config={queueWaitConfig} className="h-64 w-full">
-              <LineChart data={data.queue_wait_trend} accessibilityLayer>
-                <CartesianGrid vertical={false} strokeDasharray="3 3" />
-                <XAxis dataKey="date" tickLine={false} axisLine={false} />
-                <YAxis tickLine={false} axisLine={false} tickFormatter={formatDuration} />
-                <Tooltip
-                  content={(props) => (
-                    <PartialDayTooltip
-                      {...props}
-                      config={queueWaitConfig}
-                      valueFormatter={formatDuration}
-                    />
-                  )}
-                />
-                {(["avg_wait_ms", "p95_wait_ms"] as const).map((key) => (
-                  <Line
-                    key={key}
-                    type="monotone"
-                    dataKey={key}
-                    stroke={`var(--color-${key})`}
-                    strokeWidth={2}
-                    dot={(props) => {
-                      const { cx, cy, payload } = props;
-                      if (!payload?.is_partial) return <circle key={`dot-${key}-${cx}`} r={0} />;
-                      return (
-                        <circle
-                          key={`dot-${key}-${cx}`}
-                          cx={cx}
-                          cy={cy}
-                          r={4}
-                          fill={`var(--color-${key})`}
-                          fillOpacity={0.4}
-                          stroke={`var(--color-${key})`}
-                          strokeOpacity={0.4}
-                          strokeWidth={2}
-                        />
-                      );
-                    }}
-                    activeDot={{ r: 4 }}
-                  />
-                ))}
-              </LineChart>
-            </ChartContainer>
+            <TimeSeriesChart
+              variant="line"
+              data={data.queue_wait_trend}
+              config={queueWaitConfig}
+              yFormatter={formatDuration}
+              valueFormatter={formatDuration}
+            />
           </div>
         ) : null}
       </div>
