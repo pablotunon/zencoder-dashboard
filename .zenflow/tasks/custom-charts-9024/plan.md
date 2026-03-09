@@ -108,32 +108,33 @@ Build the shared widget renderer that fetches data and dispatches to chart compo
 
 ---
 
-### [ ] Step: Frontend — Dashboard Page and Widget Modal
+### [x] Step: Frontend — Dashboard Page and Widget Modal
+<!-- chat-id: c33652db-2b32-4fb9-8c2b-7c7f9535445e -->
 
 Build the custom dashboard page at `/` and the widget creation modal.
 
-- [ ] Create `frontend/src/hooks/useDashboard.ts`:
+- [x] Create `frontend/src/hooks/useDashboard.ts`:
   - In-memory state: `widgets: WidgetConfig[]`
   - Functions: `addWidget()`, `removeWidget()`, `updateWidget()`
-  - Generates UUID for new widget IDs
-- [ ] Create `frontend/src/components/widgets/WidgetModal.tsx`:
+  - Generates incremental IDs for new widget IDs
+- [x] Create `frontend/src/components/widgets/WidgetModal.tsx`:
   - Single form with all fields visible, contextual show/hide based on chart type:
     - Chart type: 6 icon cards
     - Metric: grouped dropdown (Usage / Cost / Performance)
     - Breakdown dimension: dropdown — hidden/disabled for line/area/kpi, required for pie, optional for bar/table
     - Time range: "Use global" toggle + period picker when unchecked
     - Filters: expandable section with team/project/agent_type multi-selects (uses `useOrg()` for team/project lists)
-    - Title: auto-generated, editable
+    - Title: auto-generated from metric + chart type, editable
   - Validation: metric + chart type compatibility, breakdown required for pie
-  - Submit adds widget via `useDashboard.addWidget()`
-- [ ] Create `frontend/src/pages/Dashboard.tsx`:
+  - Submit adds widget via `addWidget()` callback
+- [x] Create `frontend/src/pages/Dashboard.tsx`:
   - Page header: "Dashboard" title + global period `<select>` + "Add Widget" button
-  - Widget grid: responsive CSS grid (1/2/3 cols)
-  - Maps over `widgets` from `useDashboard()`, renders `<Widget>` for each
-  - Empty state when no widgets
-- [ ] Update `frontend/src/App.tsx`: add `/` route for `<DashboardPage>`, change catch-all to `/`
-- [ ] Update `frontend/src/components/layout/Sidebar.tsx`: add "Dashboard" nav item at top (with Squares2X2Icon or similar)
-- [ ] Run `docker-compose exec frontend npm run lint`
+  - Widget grid: responsive CSS grid (1/2/3 cols via `md:grid-cols-2 xl:grid-cols-3`)
+  - Maps over `widgets` from `useDashboard()`, renders `<WidgetRenderer>` for each
+  - Empty state with dashed border and prompt when no widgets
+- [x] Update `frontend/src/App.tsx`: add `/` route for `<DashboardPage>`, change catch-all to `/`
+- [x] Update `frontend/src/components/layout/Sidebar.tsx`: add "Dashboard" nav item at top with `Squares2X2Icon`, `end` prop for exact match
+- [x] Run `docker-compose exec frontend npm run lint` — 0 errors, 3 pre-existing warnings
 
 ---
 
