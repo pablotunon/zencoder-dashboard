@@ -12,13 +12,19 @@ import {
   formatCurrency,
 } from "@/lib/formatters";
 import { AGENT_TYPE_LABELS, AGENT_TYPE_TREMOR_COLORS } from "@/lib/constants";
+import { useMemo } from "react";
 import { AreaChart, DonutChart } from "@tremor/react";
 import { PartialDayTooltip } from "@/components/charts/PartialDayTooltip";
-import { PartialDayNote } from "@/components/charts/PartialDayNote";
+import { splitPartialData } from "@/components/charts/splitPartialData";
 
 export function UsagePage() {
   const { filters } = useFilters();
   const { data, isLoading, error, refetch } = useUsageMetrics(filters);
+
+  const activeUsersTrend = useMemo(
+    () => data ? splitPartialData(data.active_users_trend, ["dau", "wau", "mau"], ["indigo", "cyan", "amber"], ["gray", "gray", "gray"]) : null,
+    [data],
+  );
 
   if (error) {
     return <ErrorState message="Failed to load usage data" onRetry={refetch} />;
@@ -57,17 +63,18 @@ export function UsagePage() {
             </h2>
             <AreaChart
               className="h-64"
-              data={data.active_users_trend}
+              data={activeUsersTrend!.data}
               index="date"
-              categories={["dau", "wau", "mau"]}
-              colors={["indigo", "cyan", "amber"]}
+              categories={activeUsersTrend!.categories}
+              colors={activeUsersTrend!.colors}
+              connectNulls
+              showLegend={false}
               valueFormatter={formatNumber}
               showAnimation
               customTooltip={(props) => (
                 <PartialDayTooltip {...props} valueFormatter={formatNumber} />
               )}
             />
-            <PartialDayNote data={data.active_users_trend} />
           </div>
         ) : null}
 

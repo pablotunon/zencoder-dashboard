@@ -12,13 +12,27 @@ import {
   formatNumber,
 } from "@/lib/formatters";
 import { ERROR_CATEGORY_LABELS } from "@/lib/constants";
+import { useMemo } from "react";
 import { AreaChart, DonutChart, LineChart } from "@tremor/react";
 import { PartialDayTooltip } from "@/components/charts/PartialDayTooltip";
-import { PartialDayNote } from "@/components/charts/PartialDayNote";
+import { splitPartialData } from "@/components/charts/splitPartialData";
 
 export function PerformancePage() {
   const { filters } = useFilters();
   const { data, isLoading, error, refetch } = usePerformanceMetrics(filters);
+
+  const successRateTrend = useMemo(
+    () => data ? splitPartialData(data.success_rate_trend, ["success_rate", "failure_rate", "error_rate"], ["emerald", "red", "amber"], ["gray", "gray", "gray"]) : null,
+    [data],
+  );
+  const latencyTrend = useMemo(
+    () => data ? splitPartialData(data.latency_trend, ["p50", "p95", "p99"], ["indigo", "amber", "red"], ["gray", "gray", "gray"]) : null,
+    [data],
+  );
+  const queueWaitTrend = useMemo(
+    () => data ? splitPartialData(data.queue_wait_trend, ["avg_wait_ms", "p95_wait_ms"], ["cyan", "rose"], ["gray", "gray"]) : null,
+    [data],
+  );
 
   if (error) {
     return (
@@ -61,17 +75,18 @@ export function PerformancePage() {
             </h2>
             <AreaChart
               className="h-64"
-              data={data.success_rate_trend}
+              data={successRateTrend!.data}
               index="date"
-              categories={["success_rate", "failure_rate", "error_rate"]}
-              colors={["emerald", "red", "amber"]}
+              categories={successRateTrend!.categories}
+              colors={successRateTrend!.colors}
+              connectNulls
+              showLegend={false}
               valueFormatter={(v) => formatPercent(v)}
               showAnimation
               customTooltip={(props) => (
                 <PartialDayTooltip {...props} valueFormatter={(v) => formatPercent(v)} />
               )}
             />
-            <PartialDayNote data={data.success_rate_trend} />
           </div>
         ) : null}
 
@@ -85,17 +100,18 @@ export function PerformancePage() {
             </h2>
             <LineChart
               className="h-64"
-              data={data.latency_trend}
+              data={latencyTrend!.data}
               index="date"
-              categories={["p50", "p95", "p99"]}
-              colors={["indigo", "amber", "red"]}
+              categories={latencyTrend!.categories}
+              colors={latencyTrend!.colors}
+              connectNulls
+              showLegend={false}
               valueFormatter={formatDuration}
               showAnimation
               customTooltip={(props) => (
                 <PartialDayTooltip {...props} valueFormatter={formatDuration} />
               )}
             />
-            <PartialDayNote data={data.latency_trend} />
           </div>
         ) : null}
       </div>
@@ -142,17 +158,18 @@ export function PerformancePage() {
             </h2>
             <LineChart
               className="h-64"
-              data={data.queue_wait_trend}
+              data={queueWaitTrend!.data}
               index="date"
-              categories={["avg_wait_ms", "p95_wait_ms"]}
-              colors={["cyan", "rose"]}
+              categories={queueWaitTrend!.categories}
+              colors={queueWaitTrend!.colors}
+              connectNulls
+              showLegend={false}
               valueFormatter={formatDuration}
               showAnimation
               customTooltip={(props) => (
                 <PartialDayTooltip {...props} valueFormatter={formatDuration} />
               )}
             />
-            <PartialDayNote data={data.queue_wait_trend} />
           </div>
         ) : null}
       </div>

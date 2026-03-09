@@ -8,9 +8,10 @@ import {
 } from "@/components/ui/Skeleton";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { formatCurrency, formatNumber } from "@/lib/formatters";
+import { useMemo } from "react";
 import { AreaChart, BarChart } from "@tremor/react";
 import { PartialDayTooltip } from "@/components/charts/PartialDayTooltip";
-import { PartialDayNote } from "@/components/charts/PartialDayNote";
+import { splitPartialData } from "@/components/charts/splitPartialData";
 
 type GroupBy = "team" | "project" | "agent_type";
 
@@ -21,6 +22,15 @@ export function CostPage() {
     ...filters,
     group_by: groupBy,
   });
+
+  const costTrend = useMemo(
+    () => data ? splitPartialData(data.cost_trend, ["cost"], ["emerald"], ["gray"]) : null,
+    [data],
+  );
+  const costPerRunTrend = useMemo(
+    () => data ? splitPartialData(data.cost_per_run_trend, ["avg_cost_per_run"], ["violet"], ["gray"]) : null,
+    [data],
+  );
 
   if (error) {
     return <ErrorState message="Failed to load cost data" onRetry={refetch} />;
@@ -94,17 +104,18 @@ export function CostPage() {
             </h2>
             <AreaChart
               className="h-64"
-              data={data.cost_trend}
+              data={costTrend!.data}
               index="date"
-              categories={["cost"]}
-              colors={["emerald"]}
+              categories={costTrend!.categories}
+              colors={costTrend!.colors}
+              connectNulls
+              showLegend={false}
               valueFormatter={formatCurrency}
               showAnimation
               customTooltip={(props) => (
                 <PartialDayTooltip {...props} valueFormatter={formatCurrency} />
               )}
             />
-            <PartialDayNote data={data.cost_trend} />
           </div>
         ) : null}
 
@@ -118,17 +129,18 @@ export function CostPage() {
             </h2>
             <AreaChart
               className="h-64"
-              data={data.cost_per_run_trend}
+              data={costPerRunTrend!.data}
               index="date"
-              categories={["avg_cost_per_run"]}
-              colors={["violet"]}
+              categories={costPerRunTrend!.categories}
+              colors={costPerRunTrend!.colors}
+              connectNulls
+              showLegend={false}
               valueFormatter={formatCurrency}
               showAnimation
               customTooltip={(props) => (
                 <PartialDayTooltip {...props} valueFormatter={formatCurrency} />
               )}
             />
-            <PartialDayNote data={data.cost_per_run_trend} />
           </div>
         ) : null}
       </div>

@@ -12,16 +12,22 @@ import {
   formatCurrency,
   formatPercent,
 } from "@/lib/formatters";
+import { useMemo } from "react";
 import {
   AreaChart,
   BarList,
 } from "@tremor/react";
 import { PartialDayTooltip } from "@/components/charts/PartialDayTooltip";
-import { PartialDayNote } from "@/components/charts/PartialDayNote";
+import { splitPartialData } from "@/components/charts/splitPartialData";
 
 export function OverviewPage() {
   const { filters } = useFilters();
   const { data, isLoading, error, refetch } = useOverviewMetrics(filters);
+
+  const usageTrend = useMemo(
+    () => data ? splitPartialData(data.usage_trend, ["runs"], ["indigo"], ["gray"]) : null,
+    [data],
+  );
 
   if (error) {
     return <ErrorState message="Failed to load overview" onRetry={refetch} />;
@@ -86,17 +92,18 @@ export function OverviewPage() {
           </h2>
           <AreaChart
             className="h-72"
-            data={data.usage_trend}
+            data={usageTrend!.data}
             index="date"
-            categories={["runs"]}
-            colors={["indigo"]}
+            categories={usageTrend!.categories}
+            colors={usageTrend!.colors}
+            connectNulls
+            showLegend={false}
             valueFormatter={formatNumber}
             showAnimation
             customTooltip={(props) => (
               <PartialDayTooltip {...props} valueFormatter={formatNumber} />
             )}
           />
-          <PartialDayNote data={data.usage_trend} />
         </div>
       ) : null}
 
