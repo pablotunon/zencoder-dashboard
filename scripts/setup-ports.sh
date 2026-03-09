@@ -28,7 +28,8 @@ set -euo pipefail
 #   Offset 200 → nginx at :8280, postgres at :5632
 #
 # FILES:
-#   .env                         — gitignored, auto-read by docker-compose
+#   .env                         — gitignored, auto-read by docker compose for interpolation
+#                                  (this script manages a marked section; manual vars are preserved)
 #   ~/.agenthub-ports.json       — global registry (not in repo)
 # ============================================================================
 
@@ -137,8 +138,8 @@ with open('$REGISTRY', 'w') as f:
 "
 }
 
-# Write port variables into .env (gitignored, auto-read by docker-compose).
-# Uses marker comments to replace only its own section, preserving manual variables.
+# Write port variables into .env (gitignored, auto-read by docker compose).
+# Uses marker comments to manage only its own section, preserving manual variables.
 write_env() {
   local offset="$1"
   local branch="$2"
@@ -164,10 +165,9 @@ HOST_PORT_CLICKHOUSE_NATIVE=${ch_native}
 $MARKER_END"
 
   if [[ ! -f "$ENV_FILE" ]]; then
-    # No .env yet — create with just the managed block
     printf '%s\n' "$block" > "$ENV_FILE"
   elif grep -qF "$MARKER_BEGIN" "$ENV_FILE"; then
-    # Replace existing managed block
+    # Replace existing managed block, preserve everything else
     local tmp
     tmp=$(mktemp)
     python3 -c "
@@ -177,7 +177,6 @@ begin = '$MARKER_BEGIN'
 end = '$MARKER_END'
 i = content.index(begin)
 j = content.index(end) + len(end)
-# strip trailing newline after end marker if present
 if j < len(content) and content[j] == '\n':
     j += 1
 new_block = '''$block
@@ -186,7 +185,6 @@ sys.stdout.write(content[:i] + new_block + content[j:])
 " > "$tmp"
     mv "$tmp" "$ENV_FILE"
   else
-    # .env exists but no managed block — append it
     printf '\n%s\n' "$block" >> "$ENV_FILE"
   fi
 }
@@ -303,7 +301,7 @@ main() {
   echo "  PostgreSQL: :$((BASE_POSTGRES + offset))"
   echo "  ClickHouse: :$((BASE_CLICKHOUSE_HTTP + offset)) (HTTP), :$((BASE_CLICKHOUSE_NATIVE + offset)) (native)"
   echo ""
-  echo "Start the stack with: docker-compose up --build -d"
+  echo "Start the stack with: docker compose up --build -d"
 }
 
 main "$@"
