@@ -3,7 +3,6 @@ import { useFilters } from "@/hooks/useFilters";
 import {
   CardSkeleton,
   ChartSkeleton,
-  TableSkeleton,
 } from "@/components/ui/Skeleton";
 import { ErrorState } from "@/components/ui/ErrorState";
 import {
@@ -12,7 +11,33 @@ import {
   formatNumber,
 } from "@/lib/formatters";
 import { ERROR_CATEGORY_LABELS } from "@/lib/constants";
-import { AreaChart, DonutChart, LineChart } from "@tremor/react";
+import {
+  Cell,
+  Pie,
+  PieChart,
+  Tooltip,
+} from "recharts";
+import { ChartContainer, type ChartConfig } from "@/components/ui/chart";
+import { TimeSeriesChart } from "@/components/charts/TimeSeriesChart";
+
+const successRateConfig = {
+  success_rate: { label: "Success", color: "#10b981" },
+  failure_rate: { label: "Failure", color: "#ef4444" },
+  error_rate: { label: "Error", color: "#f59e0b" },
+} satisfies ChartConfig;
+
+const latencyConfig = {
+  p50: { label: "P50", color: "#6366f1" },
+  p95: { label: "P95", color: "#f59e0b" },
+  p99: { label: "P99", color: "#ef4444" },
+} satisfies ChartConfig;
+
+const queueWaitConfig = {
+  avg_wait_ms: { label: "Avg Wait", color: "#06b6d4" },
+  p95_wait_ms: { label: "P95 Wait", color: "#f43f5e" },
+} satisfies ChartConfig;
+
+const ERROR_COLORS = ["#f43f5e", "#f97316", "#f59e0b", "#ef4444", "#ec4899"];
 
 export function PerformancePage() {
   const { filters } = useFilters();
@@ -57,14 +82,11 @@ export function PerformancePage() {
             <h2 className="mb-4 text-base font-medium text-gray-900">
               Success / Failure Rate
             </h2>
-            <AreaChart
-              className="h-64"
+            <TimeSeriesChart
               data={data.success_rate_trend}
-              index="date"
-              categories={["success_rate", "failure_rate", "error_rate"]}
-              colors={["emerald", "red", "amber"]}
+              config={successRateConfig}
+              yFormatter={(v) => formatPercent(v)}
               valueFormatter={(v) => formatPercent(v)}
-              showAnimation
             />
           </div>
         ) : null}
@@ -77,14 +99,12 @@ export function PerformancePage() {
             <h2 className="mb-4 text-base font-medium text-gray-900">
               Latency Percentiles
             </h2>
-            <LineChart
-              className="h-64"
+            <TimeSeriesChart
+              variant="line"
               data={data.latency_trend}
-              index="date"
-              categories={["p50", "p95", "p99"]}
-              colors={["indigo", "amber", "red"]}
+              config={latencyConfig}
+              yFormatter={formatDuration}
               valueFormatter={formatDuration}
-              showAnimation
             />
           </div>
         ) : null}
@@ -100,20 +120,54 @@ export function PerformancePage() {
               Error Distribution
             </h2>
             {data.error_breakdown.length > 0 ? (
-              <DonutChart
-                className="h-64"
-                data={data.error_breakdown.map((item) => ({
-                  name:
-                    ERROR_CATEGORY_LABELS[item.error_category] ??
-                    item.error_category,
-                  value: item.count,
-                }))}
-                category="value"
-                index="name"
-                colors={["rose", "orange", "amber", "red", "pink"]}
-                valueFormatter={formatNumber}
-                showAnimation
-              />
+              <ChartContainer config={{}} className="h-64 w-full">
+                <PieChart>
+                  <Tooltip
+                    content={(props) => {
+                      const { active, payload } = props;
+                      if (!active || !payload?.length) return null;
+                      const item = payload[0];
+                      if (!item) return null;
+                      return (
+                        <div className="rounded-md border border-gray-200 bg-white p-2 text-sm shadow-lg">
+                          <div className="flex items-center justify-between gap-4">
+                            <div className="flex items-center gap-1.5">
+                              <span
+                                className="inline-block h-2.5 w-2.5 rounded-full"
+                                style={{ backgroundColor: String((item.payload as Record<string, unknown>)?.fill || "#888") }}
+                              />
+                              <span className="text-gray-600">{String(item.name)}</span>
+                            </div>
+                            <span className="font-medium text-gray-900">
+                              {formatNumber(Number(item.value))}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    }}
+                  />
+                  <Pie
+                    data={data.error_breakdown.map((item) => ({
+                      name:
+                        ERROR_CATEGORY_LABELS[item.error_category] ??
+                        item.error_category,
+                      value: item.count,
+                    }))}
+                    dataKey="value"
+                    nameKey="name"
+                    innerRadius="50%"
+                    outerRadius="80%"
+                    paddingAngle={2}
+                  >
+                    {data.error_breakdown.map((_, idx) => (
+                      <Cell
+                        key={idx}
+                        fill={ERROR_COLORS[idx % ERROR_COLORS.length]}
+                      />
+                    ))}
+                  </Pie>
+                </PieChart>
+              </ChartContainer>
             ) : (
               <p className="flex h-64 items-center justify-center text-sm text-gray-500">
                 No errors in this period
@@ -130,14 +184,12 @@ export function PerformancePage() {
             <h2 className="mb-4 text-base font-medium text-gray-900">
               Queue Wait Time
             </h2>
-            <LineChart
-              className="h-64"
+            <TimeSeriesChart
+              variant="line"
               data={data.queue_wait_trend}
-              index="date"
-              categories={["avg_wait_ms", "p95_wait_ms"]}
-              colors={["cyan", "rose"]}
+              config={queueWaitConfig}
+              yFormatter={formatDuration}
               valueFormatter={formatDuration}
-              showAnimation
             />
           </div>
         ) : null}

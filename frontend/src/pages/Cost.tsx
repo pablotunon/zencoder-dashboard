@@ -8,9 +8,30 @@ import {
 } from "@/components/ui/Skeleton";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { formatCurrency, formatNumber } from "@/lib/formatters";
-import { AreaChart, BarChart } from "@tremor/react";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+import { ChartContainer, type ChartConfig } from "@/components/ui/chart";
+import { TimeSeriesChart } from "@/components/charts/TimeSeriesChart";
 
 type GroupBy = "team" | "project" | "agent_type";
+
+const costTrendConfig = {
+  cost: { label: "Cost", color: "#10b981" },
+} satisfies ChartConfig;
+
+const costPerRunConfig = {
+  avg_cost_per_run: { label: "Avg Cost/Run", color: "#8b5cf6" },
+} satisfies ChartConfig;
+
+const costBreakdownConfig = {
+  Cost: { label: "Cost", color: "#10b981" },
+} satisfies ChartConfig;
 
 export function CostPage() {
   const { filters } = useFilters();
@@ -90,14 +111,11 @@ export function CostPage() {
             <h2 className="mb-4 text-base font-medium text-gray-900">
               Cost Trend
             </h2>
-            <AreaChart
-              className="h-64"
+            <TimeSeriesChart
               data={data.cost_trend}
-              index="date"
-              categories={["cost"]}
-              colors={["emerald"]}
+              config={costTrendConfig}
+              yFormatter={formatCurrency}
               valueFormatter={formatCurrency}
-              showAnimation
             />
           </div>
         ) : null}
@@ -110,14 +128,11 @@ export function CostPage() {
             <h2 className="mb-4 text-base font-medium text-gray-900">
               Cost Per Run
             </h2>
-            <AreaChart
-              className="h-64"
+            <TimeSeriesChart
               data={data.cost_per_run_trend}
-              index="date"
-              categories={["avg_cost_per_run"]}
-              colors={["violet"]}
+              config={costPerRunConfig}
+              yFormatter={formatCurrency}
               valueFormatter={formatCurrency}
-              showAnimation
             />
           </div>
         ) : null}
@@ -148,19 +163,37 @@ export function CostPage() {
               ))}
             </div>
           </div>
-          <BarChart
-            className="h-64"
-            data={data.cost_breakdown.map((item) => ({
-              name: item.dimension_value,
-              Cost: item.cost,
-              Runs: item.runs,
-            }))}
-            index="name"
-            categories={["Cost"]}
-            colors={["emerald"]}
-            valueFormatter={formatCurrency}
-            showAnimation
-          />
+          <ChartContainer config={costBreakdownConfig} className="h-64 w-full">
+            <BarChart
+              data={data.cost_breakdown.map((item) => ({
+                name: item.dimension_value,
+                Cost: item.cost,
+              }))}
+              accessibilityLayer
+            >
+              <CartesianGrid vertical={false} strokeDasharray="3 3" />
+              <XAxis dataKey="name" tickLine={false} axisLine={false} />
+              <YAxis tickLine={false} axisLine={false} tickFormatter={formatCurrency} />
+              <Tooltip
+                content={(props) => {
+                  const { active, payload, label } = props;
+                  if (!active || !payload?.length || !payload[0]) return null;
+                  return (
+                    <div className="rounded-md border border-gray-200 bg-white p-2 text-sm shadow-lg">
+                      <p className="mb-1 font-medium text-gray-900">{label}</p>
+                      <div className="flex items-center justify-between gap-4">
+                        <span className="text-gray-600">Cost</span>
+                        <span className="font-medium text-gray-900">
+                          {formatCurrency(Number(payload[0].value))}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                }}
+              />
+              <Bar dataKey="Cost" fill="var(--color-Cost)" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ChartContainer>
         </div>
       ) : null}
 

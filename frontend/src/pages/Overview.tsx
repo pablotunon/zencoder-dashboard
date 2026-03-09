@@ -12,10 +12,12 @@ import {
   formatCurrency,
   formatPercent,
 } from "@/lib/formatters";
-import {
-  AreaChart,
-  BarList,
-} from "@tremor/react";
+import type { ChartConfig } from "@/components/ui/chart";
+import { TimeSeriesChart } from "@/components/charts/TimeSeriesChart";
+
+const usageTrendConfig = {
+  runs: { label: "Runs", color: "#6366f1" },
+} satisfies ChartConfig;
 
 export function OverviewPage() {
   const { filters } = useFilters();
@@ -82,14 +84,12 @@ export function OverviewPage() {
           <h2 className="mb-4 text-base font-medium text-gray-900">
             Usage Trend
           </h2>
-          <AreaChart
-            className="h-72"
+          <TimeSeriesChart
             data={data.usage_trend}
-            index="date"
-            categories={["runs"]}
-            colors={["indigo"]}
+            config={usageTrendConfig}
+            yFormatter={formatNumber}
             valueFormatter={formatNumber}
-            showAnimation
+            className="h-72 w-full"
           />
         </div>
       ) : null}

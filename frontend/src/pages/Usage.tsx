@@ -11,8 +11,21 @@ import {
   formatPercent,
   formatCurrency,
 } from "@/lib/formatters";
-import { AGENT_TYPE_LABELS, AGENT_TYPE_TREMOR_COLORS } from "@/lib/constants";
-import { AreaChart, DonutChart } from "@tremor/react";
+import { AGENT_TYPE_LABELS, AGENT_TYPE_COLORS } from "@/lib/constants";
+import {
+  Cell,
+  Pie,
+  PieChart,
+  Tooltip,
+} from "recharts";
+import { ChartContainer, type ChartConfig } from "@/components/ui/chart";
+import { TimeSeriesChart } from "@/components/charts/TimeSeriesChart";
+
+const activeUsersConfig = {
+  dau: { label: "DAU", color: "#6366f1" },
+  wau: { label: "WAU", color: "#06b6d4" },
+  mau: { label: "MAU", color: "#f59e0b" },
+} satisfies ChartConfig;
 
 export function UsagePage() {
   const { filters } = useFilters();
@@ -53,14 +66,11 @@ export function UsagePage() {
             <h2 className="mb-4 text-base font-medium text-gray-900">
               Active Users Trend
             </h2>
-            <AreaChart
-              className="h-64"
+            <TimeSeriesChart
               data={data.active_users_trend}
-              index="date"
-              categories={["dau", "wau", "mau"]}
-              colors={["indigo", "cyan", "amber"]}
+              config={activeUsersConfig}
+              yFormatter={formatNumber}
               valueFormatter={formatNumber}
-              showAnimation
             />
           </div>
         ) : null}
@@ -73,22 +83,53 @@ export function UsagePage() {
             <h2 className="mb-4 text-base font-medium text-gray-900">
               Agent Type Distribution
             </h2>
-            <DonutChart
-              className="h-64"
-              data={data.agent_type_breakdown.map((item) => ({
-                name:
-                  AGENT_TYPE_LABELS[item.agent_type] ?? item.agent_type,
-                value: item.runs,
-              }))}
-              category="value"
-              index="name"
-              colors={data.agent_type_breakdown.map(
-                (item) =>
-                  AGENT_TYPE_TREMOR_COLORS[item.agent_type] ?? "gray",
-              )}
-              valueFormatter={formatNumber}
-              showAnimation
-            />
+            <ChartContainer config={{}} className="h-64 w-full">
+              <PieChart>
+                <Tooltip
+                  content={(props) => {
+                    const { active, payload } = props;
+                    if (!active || !payload?.length) return null;
+                    const item = payload[0];
+                    if (!item) return null;
+                    return (
+                      <div className="rounded-md border border-gray-200 bg-white p-2 text-sm shadow-lg">
+                        <div className="flex items-center justify-between gap-4">
+                          <div className="flex items-center gap-1.5">
+                            <span
+                              className="inline-block h-2.5 w-2.5 rounded-full"
+                              style={{ backgroundColor: String((item.payload as Record<string, unknown>)?.fill || "#888") }}
+                            />
+                            <span className="text-gray-600">{String(item.name)}</span>
+                          </div>
+                          <span className="font-medium text-gray-900">
+                            {formatNumber(Number(item.value))}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  }}
+                />
+                <Pie
+                  data={data.agent_type_breakdown.map((item) => ({
+                    name: AGENT_TYPE_LABELS[item.agent_type] ?? item.agent_type,
+                    value: item.runs,
+                    fill: AGENT_TYPE_COLORS[item.agent_type] ?? "#64748b",
+                  }))}
+                  dataKey="value"
+                  nameKey="name"
+                  innerRadius="50%"
+                  outerRadius="80%"
+                  paddingAngle={2}
+                >
+                  {data.agent_type_breakdown.map((item) => (
+                    <Cell
+                      key={item.agent_type}
+                      fill={AGENT_TYPE_COLORS[item.agent_type] ?? "#64748b"}
+                    />
+                  ))}
+                </Pie>
+              </PieChart>
+            </ChartContainer>
           </div>
         ) : null}
       </div>

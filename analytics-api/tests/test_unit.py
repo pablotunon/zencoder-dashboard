@@ -114,7 +114,7 @@ class TestDateRangeCalculation:
     @pytest.mark.parametrize("period,days", [("7d", 7), ("30d", 30), ("90d", 90)])
     def test_period_to_dates(self, period, days):
         start, end = period_to_dates(period)
-        assert end == date.today()
+        assert end == date.today() + timedelta(days=1)
         assert start == date.today() - timedelta(days=days)
 
     def test_previous_period_contiguous(self):

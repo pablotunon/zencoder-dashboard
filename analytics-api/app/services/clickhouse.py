@@ -8,6 +8,11 @@ from clickhouse_connect.driver.client import Client
 from app.config import settings
 from app.models.requests import MetricFilters
 
+
+def _is_today(date_val: date | str) -> bool:
+    """Check if a date value represents today (partial data)."""
+    return str(date_val) == str(date.today())
+
 logger = logging.getLogger(__name__)
 
 _client: Client | None = None
@@ -34,10 +39,15 @@ def close_client() -> None:
 
 
 def period_to_dates(period: str) -> tuple[date, date]:
-    """Convert period string to (start_date, end_date) tuple."""
+    """Convert period string to (start_date, end_date) tuple.
+
+    Returns (start, end) where queries should use >= start AND < end.
+    End is tomorrow so that today's (partial) data is included.
+    """
     days = int(period.rstrip("d"))
-    end = date.today()
-    start = end - timedelta(days=days)
+    today = date.today()
+    end = today + timedelta(days=1)
+    start = today - timedelta(days=days)
     return start, end
 
 
@@ -145,7 +155,7 @@ def query_usage_trend(org_id: str, filters: MetricFilters) -> list[dict[str, Any
         parameters={"org_id": org_id, "start": start, "end": end, **extra_params},
     )
     return [
-        {"date": str(row[0]), "runs": row[1], "cost": round(float(row[2]), 2)}
+        {"date": str(row[0]), "runs": row[1], "cost": round(float(row[2]), 2), "is_partial": _is_today(row[0])}
         for row in result.result_rows
     ]
 
@@ -270,6 +280,7 @@ def query_active_users_trend(org_id: str, filters: MetricFilters) -> list[dict[s
             "dau": dau_by_date.get(d, 0),
             "wau": wau_by_date.get(d, 0),
             "mau": mau_by_date.get(d, 0),
+            "is_partial": _is_today(row[0]),
         })
 
     return trend
@@ -399,7 +410,7 @@ def query_cost_trend(org_id: str, filters: MetricFilters) -> list[dict[str, Any]
         parameters={"org_id": org_id, "start": start, "end": end, **extra_params},
     )
     return [
-        {"date": str(row[0]), "cost": round(float(row[1]), 2)}
+        {"date": str(row[0]), "cost": round(float(row[1]), 2), "is_partial": _is_today(row[0])}
         for row in result.result_rows
     ]
 
@@ -466,7 +477,7 @@ def query_cost_per_run_trend(org_id: str, filters: MetricFilters) -> list[dict[s
         parameters={"org_id": org_id, "start": start, "end": end, **extra_params},
     )
     return [
-        {"date": str(row[0]), "avg_cost_per_run": round(float(row[1]), 4)}
+        {"date": str(row[0]), "avg_cost_per_run": round(float(row[1]), 4), "is_partial": _is_today(row[0])}
         for row in result.result_rows
     ]
 
@@ -551,6 +562,7 @@ def query_success_rate_trend(org_id: str, filters: MetricFilters) -> list[dict[s
             "success_rate": round(float(row[1]), 1),
             "failure_rate": round(float(row[2]), 1),
             "error_rate": round(float(row[3]), 1),
+            "is_partial": _is_today(row[0]),
         }
         for row in result.result_rows
     ]
@@ -586,6 +598,7 @@ def query_latency_trend(org_id: str, filters: MetricFilters) -> list[dict[str, A
             "p50": round(float(row[1]), 0),
             "p95": round(float(row[2]), 0),
             "p99": round(float(row[3]), 0),
+            "is_partial": _is_today(row[0]),
         }
         for row in result.result_rows
     ]
@@ -653,6 +666,7 @@ def query_queue_wait_trend(org_id: str, filters: MetricFilters) -> list[dict[str
             "date": str(row[0]),
             "avg_wait_ms": round(float(row[1]), 0),
             "p95_wait_ms": round(float(row[2]), 0),
+            "is_partial": _is_today(row[0]),
         }
         for row in result.result_rows
     ]

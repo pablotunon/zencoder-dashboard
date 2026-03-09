@@ -43,6 +43,7 @@ export interface TimeSeriesPoint {
   date: string;
   runs: number;
   cost: number;
+  is_partial?: boolean;
 }
 
 export interface TeamBreakdown {
@@ -74,6 +75,7 @@ export interface ActiveUsersTrendPoint {
   dau: number;
   wau: number;
   mau: number;
+  is_partial?: boolean;
 }
 
 export interface AgentTypeBreakdown {
@@ -112,6 +114,7 @@ export interface UsageResponse {
 export interface CostTrendPoint {
   date: string;
   cost: number;
+  is_partial?: boolean;
 }
 
 export interface CostBreakdownItem {
@@ -124,6 +127,7 @@ export interface CostBreakdownItem {
 export interface CostPerRunTrendPoint {
   date: string;
   avg_cost_per_run: number;
+  is_partial?: boolean;
 }
 
 export interface TokenBreakdownByModel {
@@ -160,6 +164,7 @@ export interface SuccessRateTrendPoint {
   success_rate: number;
   failure_rate: number;
   error_rate: number;
+  is_partial?: boolean;
 }
 
 export interface LatencyTrendPoint {
@@ -167,6 +172,7 @@ export interface LatencyTrendPoint {
   p50: number;
   p95: number;
   p99: number;
+  is_partial?: boolean;
 }
 
 export interface ErrorBreakdownItem {
@@ -179,6 +185,7 @@ export interface QueueWaitTrendPoint {
   date: string;
   avg_wait_ms: number;
   p95_wait_ms: number;
+  is_partial?: boolean;
 }
 
 export interface Availability {
