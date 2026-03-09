@@ -99,14 +99,12 @@ class TestResponseSerialization:
                     success_rate=90.0,
                 )
             ],
-            active_runs_count=3,
         )
         data = response.model_dump()
         assert data["kpi_cards"]["total_runs"]["value"] == 1000
         assert data["kpi_cards"]["total_runs"]["change_pct"] == 5.2
         assert data["usage_trend"][0]["date"] == "2025-01-01"
         assert data["team_breakdown"][0]["team_name"] == "Platform"
-        assert data["active_runs_count"] == 3
 
     def test_kpi_card_with_null_change(self):
         card = KpiCard(value=100, change_pct=None, period="7d")

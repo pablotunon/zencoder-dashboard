@@ -40,7 +40,6 @@ class OverviewResponse(BaseModel):
     kpi_cards: KpiCards
     usage_trend: list[TimeSeriesPoint]
     team_breakdown: list[TeamBreakdown]
-    active_runs_count: int
 
 
 # --- Usage ---
@@ -206,5 +205,6 @@ class OrgResponse(BaseModel):
     name: str
     plan: str
     monthly_budget: float | None = None
+    licensed_users: int = 0
     teams: list[TeamInfo]
     projects: list[ProjectInfo]

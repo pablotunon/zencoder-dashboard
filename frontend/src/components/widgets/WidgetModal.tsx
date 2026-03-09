@@ -4,7 +4,11 @@ import {
   METRIC_REGISTRY,
   METRIC_BY_CATEGORY,
   BREAKDOWN_LABELS,
+  CHART_TYPE_META,
+  MAX_METRICS,
+  ORG_METRIC_LABELS,
   breakdownModeForChartType,
+  requiresOrgMetric,
 } from "@/lib/widget-registry";
 import { PERIOD_OPTIONS, AGENT_TYPE_LABELS } from "@/lib/constants";
 import { useOrg } from "@/api/hooks";
@@ -12,20 +16,18 @@ import type { Period } from "@/types/api";
 import type {
   ChartType,
   MetricKey,
+  OrgMetricKey,
   BreakdownDimension,
   WidgetConfig,
 } from "@/types/widget";
 
-// ── Chart type option cards ─────────────────────────────────────────────────
+// ── Chart type option cards (user-creatable only) ────────────────────────────
 
-const CHART_TYPE_OPTIONS: { type: ChartType; label: string; icon: string }[] = [
-  { type: "line", label: "Line", icon: "\u2571" },
-  { type: "area", label: "Area", icon: "\u25B3" },
-  { type: "bar", label: "Bar", icon: "\u2593" },
-  { type: "pie", label: "Pie", icon: "\u25D4" },
-  { type: "kpi", label: "KPI", icon: "#" },
-  { type: "table", label: "Table", icon: "\u2261" },
-];
+const CHART_TYPE_OPTIONS = (
+  Object.entries(CHART_TYPE_META) as [ChartType, (typeof CHART_TYPE_META)[ChartType]][]
+)
+  .filter(([, meta]) => meta.userCreatable)
+  .map(([type, meta]) => ({ type, label: meta.label, icon: meta.icon }));
 
 // ── Props ───────────────────────────────────────────────────────────────────
 
@@ -42,7 +44,8 @@ export function WidgetModal({ open, onClose, onAdd }: WidgetModalProps) {
 
   // Form state
   const [chartType, setChartType] = useState<ChartType>("area");
-  const [metric, setMetric] = useState<MetricKey>("run_count");
+  const [metrics, setMetrics] = useState<(MetricKey | "")[]>(["run_count"]);
+  const [orgMetric, setOrgMetric] = useState<OrgMetricKey | "">("monthly_budget");
   const [breakdown, setBreakdown] = useState<BreakdownDimension | "">("");
   const [useGlobal, setUseGlobal] = useState(true);
   const [period, setPeriod] = useState<Period>("30d");
@@ -54,17 +57,43 @@ export function WidgetModal({ open, onClose, onAdd }: WidgetModalProps) {
   const [filterAgentTypes, setFilterAgentTypes] = useState<string[]>([]);
 
   // Derived
-  const metricMeta = METRIC_REGISTRY[metric];
+  const primaryMetric = metrics[0] as MetricKey | "";
+  const metricMeta = primaryMetric ? METRIC_REGISTRY[primaryMetric] : null;
   const breakdownMode = breakdownModeForChartType(chartType);
-  const isCompatible = metricMeta.compatibleChartTypes.includes(chartType);
+  const maxMetrics = MAX_METRICS[chartType];
+  const needsOrgMetric = requiresOrgMetric(chartType);
 
-  // Auto-generate title when metric or chart type changes (unless user edited it)
+  const isCompatible =
+    metricMeta !== null && metricMeta.compatibleChartTypes.includes(chartType);
+
+  // Adjust metrics array length when chart type changes
+  useEffect(() => {
+    setMetrics((prev) => {
+      const capped = prev.slice(0, Math.max(maxMetrics, 1));
+      // Ensure at least one slot
+      if (capped.length === 0) return ["run_count"];
+      return capped;
+    });
+  }, [maxMetrics]);
+
+  const setMetricAt = useCallback((index: number, value: MetricKey | "") => {
+    setMetrics((prev) => {
+      const next = [...prev];
+      next[index] = value;
+      return next;
+    });
+  }, []);
+
+  // Auto-generate title
   const autoTitle = useMemo(() => {
-    const metaLabel = METRIC_REGISTRY[metric].label;
-    const chartLabel =
-      CHART_TYPE_OPTIONS.find((o) => o.type === chartType)?.label ?? chartType;
-    return `${metaLabel} (${chartLabel})`;
-  }, [metric, chartType]);
+    const labels = metrics
+      .filter((m): m is MetricKey => m !== "")
+      .map((m) => METRIC_REGISTRY[m].label);
+    const chartLabel = CHART_TYPE_META[chartType]?.label ?? chartType;
+    return labels.length > 0
+      ? `${labels.join(", ")} (${chartLabel})`
+      : chartLabel;
+  }, [metrics, chartType]);
 
   useEffect(() => {
     if (!titleTouched) setTitle(autoTitle);
@@ -75,14 +104,14 @@ export function WidgetModal({ open, onClose, onAdd }: WidgetModalProps) {
     if (breakdownMode === "none") setBreakdown("");
   }, [breakdownMode]);
 
-  // Ensure breakdown is set when required (pie)
-  const validBreakdowns = metricMeta.validBreakdowns;
+  const validBreakdowns = metricMeta?.validBreakdowns ?? [];
 
   // Reset form when modal opens
   useEffect(() => {
     if (open) {
       setChartType("area");
-      setMetric("run_count");
+      setMetrics(["run_count"]);
+      setOrgMetric("monthly_budget");
       setBreakdown("");
       setUseGlobal(true);
       setPeriod("30d");
@@ -97,20 +126,28 @@ export function WidgetModal({ open, onClose, onAdd }: WidgetModalProps) {
 
   // Validation
   const isValid = useMemo(() => {
-    if (!isCompatible) return false;
+    if (!primaryMetric || !isCompatible) return false;
     if (breakdownMode === "required" && !breakdown) return false;
+    if (needsOrgMetric && !orgMetric) return false;
     return true;
-  }, [isCompatible, breakdownMode, breakdown]);
+  }, [primaryMetric, isCompatible, breakdownMode, breakdown, needsOrgMetric, orgMetric]);
 
   const handleSubmit = useCallback(() => {
     if (!isValid) return;
 
+    const activeMetrics = metrics.filter((m): m is MetricKey => m !== "");
+    if (activeMetrics.length === 0) return;
+
     const config: Omit<WidgetConfig, "id"> = {
       title: title || autoTitle,
       chartType,
-      metric,
+      metrics: activeMetrics,
       timeRange: useGlobal ? { useGlobal: true } : { useGlobal: false, period },
     };
+
+    if (needsOrgMetric && orgMetric) {
+      config.orgMetric = orgMetric as OrgMetricKey;
+    }
 
     if (breakdown) {
       config.breakdownDimension = breakdown as BreakdownDimension;
@@ -135,7 +172,9 @@ export function WidgetModal({ open, onClose, onAdd }: WidgetModalProps) {
     title,
     autoTitle,
     chartType,
-    metric,
+    metrics,
+    orgMetric,
+    needsOrgMetric,
     breakdown,
     useGlobal,
     period,
@@ -183,7 +222,7 @@ export function WidgetModal({ open, onClose, onAdd }: WidgetModalProps) {
             <legend className="mb-2 text-sm font-medium text-gray-700">
               Chart Type
             </legend>
-            <div className="grid grid-cols-6 gap-2">
+            <div className="grid grid-cols-4 gap-2">
               {CHART_TYPE_OPTIONS.map((opt) => (
                 <button
                   key={opt.type}
@@ -202,38 +241,85 @@ export function WidgetModal({ open, onClose, onAdd }: WidgetModalProps) {
             </div>
           </fieldset>
 
-          {/* Metric */}
-          <div>
-            <label
-              htmlFor="widget-metric"
-              className="mb-1.5 block text-sm font-medium text-gray-700"
-            >
-              Metric
-            </label>
-            <select
-              id="widget-metric"
-              value={metric}
-              onChange={(e) => setMetric(e.target.value as MetricKey)}
-              className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-            >
-              {Object.entries(METRIC_BY_CATEGORY).map(([category, metrics]) => (
-                <optgroup key={category} label={category}>
-                  {metrics.map((m) => (
-                    <option key={m.key} value={m.key}>
-                      {m.label}
+          {/* Metrics — primary + optional extras */}
+          {maxMetrics > 0 && (
+            <div className="space-y-2">
+              {Array.from({ length: Math.min(maxMetrics, 5) }).map((_, i) => {
+                const isRequired = i === 0;
+                const currentVal = metrics[i] ?? "";
+                return (
+                  <div key={i}>
+                    <label
+                      htmlFor={`widget-metric-${i}`}
+                      className="mb-1.5 block text-sm font-medium text-gray-700"
+                    >
+                      {isRequired
+                        ? "Metric"
+                        : `Metric ${i + 1} (optional)`}
+                    </label>
+                    <select
+                      id={`widget-metric-${i}`}
+                      value={currentVal}
+                      onChange={(e) =>
+                        setMetricAt(i, e.target.value as MetricKey | "")
+                      }
+                      className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    >
+                      {!isRequired && <option value="">None</option>}
+                      {Object.entries(METRIC_BY_CATEGORY).map(
+                        ([category, catMetrics]) => (
+                          <optgroup key={category} label={category}>
+                            {catMetrics.map((m) => (
+                              <option key={m.key} value={m.key}>
+                                {m.label}
+                              </option>
+                            ))}
+                          </optgroup>
+                        ),
+                      )}
+                    </select>
+                    {i === 0 && !isCompatible && metricMeta && (
+                      <p className="mt-1 text-xs text-amber-600">
+                        {metricMeta.label} is not compatible with{" "}
+                        {chartType} charts. Compatible:{" "}
+                        {metricMeta.compatibleChartTypes.join(", ")}
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Org metric (gauge/stat) */}
+          {needsOrgMetric && (
+            <div>
+              <label
+                htmlFor="widget-org-metric"
+                className="mb-1.5 block text-sm font-medium text-gray-700"
+              >
+                Target (Org Value)
+                <span className="ml-1 text-red-500">*</span>
+              </label>
+              <select
+                id="widget-org-metric"
+                value={orgMetric}
+                onChange={(e) => setOrgMetric(e.target.value as OrgMetricKey | "")}
+                className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              >
+                <option value="" disabled>
+                  Select target...
+                </option>
+                {(Object.entries(ORG_METRIC_LABELS) as [OrgMetricKey, string][]).map(
+                  ([key, label]) => (
+                    <option key={key} value={key}>
+                      {label}
                     </option>
-                  ))}
-                </optgroup>
-              ))}
-            </select>
-            {!isCompatible && (
-              <p className="mt-1 text-xs text-amber-600">
-                {metricMeta.label} is not compatible with{" "}
-                {chartType} charts. Compatible:{" "}
-                {metricMeta.compatibleChartTypes.join(", ")}
-              </p>
-            )}
-          </div>
+                  ),
+                )}
+              </select>
+            </div>
+          )}
 
           {/* Breakdown dimension (contextual) */}
           {breakdownMode !== "none" && (

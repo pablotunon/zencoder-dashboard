@@ -60,16 +60,6 @@ def set_cached(key: str, value: Any, ttl: int) -> None:
         logger.warning("Redis cache set failed for key %s", key)
 
 
-def get_active_runs(org_id: str) -> int:
-    try:
-        client = get_client()
-        val = client.get(f"rt:{org_id}:active_runs")
-        return int(val) if val else 0
-    except Exception:
-        logger.warning("Failed to get active runs count")
-        return 0
-
-
 def check_connection() -> bool:
     try:
         client = get_client()

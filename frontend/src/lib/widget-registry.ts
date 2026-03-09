@@ -3,6 +3,7 @@ import type {
   MetricMeta,
   BreakdownDimension,
   ChartType,
+  OrgMetricKey,
 } from "@/types/widget";
 
 /**
@@ -43,7 +44,7 @@ export const METRIC_REGISTRY: Record<MetricKey, MetricMeta> = {
     label: "Cost (USD)",
     category: "Cost",
     defaultChartType: "area",
-    compatibleChartTypes: ["line", "area", "bar", "kpi", "pie", "table"],
+    compatibleChartTypes: ["line", "area", "bar", "kpi", "pie", "table", "gauge"],
     format: "currency",
     validBreakdowns: ["team", "project", "agent_type", "model"],
     color: "#10b981",
@@ -183,11 +184,53 @@ export const BREAKDOWN_LABELS: Record<BreakdownDimension, string> = {
   model: "Model",
 };
 
+/** Max allowed metrics per chart type. 0 = sealed (no user metrics). */
+export const MAX_METRICS: Record<ChartType, number> = {
+  line: 3,
+  area: 3,
+  bar: 1,
+  pie: 1,
+  kpi: 1,
+  table: 5,
+  gauge: 1,
+  stat: 1,
+  active_users_trend: 0,
+  top_users: 0,
+};
+
+/** Chart type labels and whether users can create them from the modal. */
+export const CHART_TYPE_META: Record<
+  ChartType,
+  { label: string; icon: string; userCreatable: boolean }
+> = {
+  line: { label: "Line", icon: "\u2571", userCreatable: true },
+  area: { label: "Area", icon: "\u25B3", userCreatable: true },
+  bar: { label: "Bar", icon: "\u2593", userCreatable: true },
+  pie: { label: "Pie", icon: "\u25D4", userCreatable: true },
+  kpi: { label: "KPI", icon: "#", userCreatable: true },
+  table: { label: "Table", icon: "\u2261", userCreatable: true },
+  gauge: { label: "Gauge", icon: "\u25D0", userCreatable: true },
+  stat: { label: "Stat", icon: "\u00F7", userCreatable: true },
+  active_users_trend: { label: "Active Users Trend", icon: "", userCreatable: false },
+  top_users: { label: "Top Users", icon: "", userCreatable: false },
+};
+
+/** Org-level metric labels for display. */
+export const ORG_METRIC_LABELS: Record<OrgMetricKey, string> = {
+  monthly_budget: "Monthly Budget",
+  licensed_users: "Licensed Users",
+};
+
+/** Whether a chart type requires an org metric. */
+export function requiresOrgMetric(chartType: ChartType): boolean {
+  return chartType === "gauge" || chartType === "stat";
+}
+
 /**
  * Whether a chart type requires, supports, or disallows a breakdown dimension.
  * - "required": must have a breakdown (pie)
  * - "optional": breakdown is allowed but not required (bar, table)
- * - "none": no breakdown dimension (line, area, kpi)
+ * - "none": no breakdown dimension (line, area, kpi, gauge, stat, sealed)
  */
 export function breakdownModeForChartType(
   chartType: ChartType,

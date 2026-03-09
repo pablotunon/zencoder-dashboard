@@ -39,8 +39,6 @@ async def get_overview(
         logger.exception("ClickHouse query failed for overview metrics")
         raise HTTPException(status_code=503, detail="Analytics data temporarily unavailable")
 
-    active_runs = redis_cache.get_active_runs(ctx.org_id)
-
     try:
         team_names = await pg_service.get_team_names(ctx.org_id)
     except Exception:
@@ -66,7 +64,6 @@ async def get_overview(
             )
             for t in team_data
         ],
-        active_runs_count=active_runs,
     )
 
     redis_cache.set_cached(cache_key, response.model_dump(), settings.cache_ttl_overview)

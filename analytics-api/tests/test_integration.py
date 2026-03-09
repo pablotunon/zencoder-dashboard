@@ -63,7 +63,6 @@ def _patch_redis_cache():
         "app.services.redis_cache",
         get_cached=MagicMock(return_value=None),
         set_cached=MagicMock(),
-        get_active_runs=MagicMock(return_value=3),
         check_connection=MagicMock(return_value=True),
     )
 
@@ -120,8 +119,6 @@ class TestOverviewEndpoint:
             assert "kpi_cards" in data
             assert "usage_trend" in data
             assert "team_breakdown" in data
-            assert "active_runs_count" in data
-
             kpi = data["kpi_cards"]
             assert kpi["total_runs"]["value"] == 5000
             assert kpi["total_runs"]["change_pct"] == 5.2
@@ -221,7 +218,6 @@ class TestCacheHit:
             },
             "usage_trend": [],
             "team_breakdown": [],
-            "active_runs_count": 0,
         }
         with patch("app.routers.overview.redis_cache") as mock_cache:
             mock_cache.make_cache_key.return_value = "test_key"
@@ -244,6 +240,7 @@ class TestOrgEndpoint:
             mock_pg.get_org = AsyncMock(return_value=MOCK_ORG)
             mock_pg.get_teams = AsyncMock(return_value=MOCK_TEAMS)
             mock_pg.get_projects = AsyncMock(return_value=MOCK_PROJECTS)
+            mock_pg.get_total_licensed_users = AsyncMock(return_value=25)
 
             resp = client.get("/api/orgs/current")
             assert resp.status_code == 200
@@ -252,6 +249,7 @@ class TestOrgEndpoint:
             assert data["org_id"] == "org_acme"
             assert data["name"] == "Acme Corp"
             assert data["plan"] == "enterprise"
+            assert data["licensed_users"] == 25
             assert len(data["teams"]) == 2
             assert len(data["projects"]) == 1
             assert data["teams"][0]["team_id"] == "team_platform"

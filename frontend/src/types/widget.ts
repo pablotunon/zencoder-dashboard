@@ -1,7 +1,17 @@
 import type { Period } from "./api";
 
-// 6 chart types supported by the widget system
-export type ChartType = "line" | "area" | "bar" | "pie" | "kpi" | "table";
+// 10 chart types: 6 original + gauge, stat, and 2 sealed template-only types
+export type ChartType =
+  | "line"
+  | "area"
+  | "bar"
+  | "pie"
+  | "kpi"
+  | "table"
+  | "gauge"
+  | "stat"
+  | "active_users_trend"
+  | "top_users";
 
 // 14 metrics matching the backend METRIC_REGISTRY
 export type MetricKey =
@@ -19,6 +29,9 @@ export type MetricKey =
   | "tokens_output"
   | "queue_wait_avg"
   | "queue_wait_p95";
+
+// Org-level metrics served from /api/orgs/current (not from agent_runs)
+export type OrgMetricKey = "monthly_budget" | "licensed_users";
 
 // 5 breakdown dimensions matching the backend DIMENSION_REGISTRY
 export type BreakdownDimension =
@@ -39,7 +52,8 @@ export interface WidgetConfig {
   id: string;
   title: string;
   chartType: ChartType;
-  metric: MetricKey;
+  metrics: MetricKey[];
+  orgMetric?: OrgMetricKey;
   breakdownDimension?: BreakdownDimension;
   timeRange: { useGlobal: true } | { useGlobal: false; period: Period };
   filters?: {
@@ -47,6 +61,13 @@ export interface WidgetConfig {
     projects?: string[];
     agent_types?: string[];
   };
+}
+
+// A row in the dashboard layout — fixed number of column slots
+export interface DashboardRow {
+  id: string;
+  columns: 1 | 2 | 3 | 4;
+  widgets: (WidgetConfig | null)[];
 }
 
 // Metric metadata used by the widget registry
