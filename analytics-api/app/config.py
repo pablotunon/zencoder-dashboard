@@ -28,7 +28,7 @@ class Settings(BaseSettings):
     # JWT
     jwt_secret: str = "dev-secret-change-in-production"
     jwt_algorithm: str = "HS256"
-    jwt_expiry_hours: int = 24
+    jwt_expiry_hours: int = 1
 
     model_config = {"env_prefix": "", "case_sensitive": False}
 

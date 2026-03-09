@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr, Field
 from typing import Literal, Optional
 
 
@@ -10,8 +10,8 @@ class OrgContext(BaseModel):
 
 
 class LoginRequest(BaseModel):
-    email: str
-    password: str
+    email: EmailStr
+    password: str = Field(max_length=128)
 
 
 class LoginResponse(BaseModel):

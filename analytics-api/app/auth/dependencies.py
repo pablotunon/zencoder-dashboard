@@ -1,6 +1,6 @@
 import logging
 
-from fastapi import Depends, HTTPException, Request
+from fastapi import Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from app.auth.jwt import decode_access_token
@@ -13,7 +13,6 @@ security = HTTPBearer(auto_error=False)
 
 
 async def get_org_context(
-    request: Request,
     credentials: HTTPAuthorizationCredentials | None = Depends(security),
 ) -> OrgContext:
     """Extract org context from JWT token. Returns 401 if missing/invalid."""
@@ -30,7 +29,8 @@ async def get_org_context(
     except HTTPException:
         raise
     except Exception:
-        logger.warning("Redis unavailable for deny-list check — allowing token")
+        logger.exception("Redis unavailable for deny-list check — denying request")
+        raise HTTPException(status_code=503, detail="Authentication service unavailable")
 
     claims = decode_access_token(token)
     if claims is None:

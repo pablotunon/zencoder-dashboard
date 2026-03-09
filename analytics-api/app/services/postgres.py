@@ -103,29 +103,18 @@ async def get_total_licensed_users(org_id: str) -> int:
     return count or 0
 
 
-async def get_user_by_email(org_id: str | None, email: str) -> dict[str, Any] | None:
-    """Look up a user by email. If org_id is None, search across all orgs."""
+async def get_user_by_email(email: str) -> dict[str, Any] | None:
+    """Look up a user by email (globally unique)."""
     pool = await get_pool()
-    if org_id:
-        row = await pool.fetchrow(
-            """SELECT u.user_id, u.org_id, u.team_id, u.name, u.email, u.avatar_url,
-                      u.role, u.password_hash, u.is_active,
-                      o.name AS org_name, o.plan AS org_plan
-               FROM users u
-               JOIN organizations o ON u.org_id = o.org_id
-               WHERE u.org_id = $1 AND u.email = $2""",
-            org_id, email,
-        )
-    else:
-        row = await pool.fetchrow(
-            """SELECT u.user_id, u.org_id, u.team_id, u.name, u.email, u.avatar_url,
-                      u.role, u.password_hash, u.is_active,
-                      o.name AS org_name, o.plan AS org_plan
-               FROM users u
-               JOIN organizations o ON u.org_id = o.org_id
-               WHERE u.email = $1""",
-            email,
-        )
+    row = await pool.fetchrow(
+        """SELECT u.user_id, u.org_id, u.team_id, u.name, u.email, u.avatar_url,
+                  u.role, u.password_hash, u.is_active,
+                  o.name AS org_name, o.plan AS org_plan
+           FROM users u
+           JOIN organizations o ON u.org_id = o.org_id
+           WHERE u.email = $1""",
+        email,
+    )
     if row is None:
         return None
     return dict(row)

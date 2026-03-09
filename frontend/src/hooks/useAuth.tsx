@@ -8,6 +8,7 @@ import {
 } from "react";
 import type { AuthContext, AuthUser, AuthOrg } from "@/types/auth";
 import {
+  apiGetMe,
   apiLogin,
   apiLogout,
   setAuthToken,
@@ -32,24 +33,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [org, setOrg] = useState<AuthOrg | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Restore session from localStorage on mount
+  // Restore session from localStorage on mount, validate via /auth/me
   useEffect(() => {
     const token = localStorage.getItem(TOKEN_KEY);
-    const savedUser = localStorage.getItem(USER_KEY);
     const savedOrg = localStorage.getItem(ORG_KEY);
 
-    if (token && savedUser && savedOrg) {
-      try {
-        setUser(JSON.parse(savedUser));
+    if (!token || !savedOrg) {
+      setIsLoading(false);
+      return;
+    }
+
+    setAuthToken(token);
+
+    apiGetMe()
+      .then((freshUser) => {
+        setUser(freshUser);
         setOrg(JSON.parse(savedOrg));
-        setAuthToken(token);
-      } catch {
+        localStorage.setItem(USER_KEY, JSON.stringify(freshUser));
+      })
+      .catch(() => {
+        setAuthToken(null);
         localStorage.removeItem(TOKEN_KEY);
         localStorage.removeItem(USER_KEY);
         localStorage.removeItem(ORG_KEY);
-      }
-    }
-    setIsLoading(false);
+      })
+      .finally(() => setIsLoading(false));
   }, []);
 
   const logout = useCallback(async () => {

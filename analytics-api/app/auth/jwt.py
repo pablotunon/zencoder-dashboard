@@ -2,7 +2,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 
 import bcrypt
-from jose import JWTError, jwt
+import jwt
 
 from app.config import settings
 
@@ -30,5 +30,25 @@ def decode_access_token(token: str) -> dict | None:
     try:
         payload = jwt.decode(token, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
         return payload
-    except JWTError:
+    except jwt.InvalidTokenError:
         return None
+
+
+def get_token_remaining_ttl(token: str) -> int:
+    """Return remaining seconds until token expires, or 0 if already expired.
+
+    Decodes without verification to read the exp claim — the token has
+    already been verified by decode_access_token before this is called.
+    """
+    try:
+        payload = jwt.decode(
+            token, settings.jwt_secret, algorithms=[settings.jwt_algorithm],
+            options={"verify_exp": False},
+        )
+        exp = payload.get("exp")
+        if exp is None:
+            return 0
+        remaining = int(exp) - int(datetime.now(timezone.utc).timestamp())
+        return max(remaining, 0)
+    except jwt.InvalidTokenError:
+        return 0

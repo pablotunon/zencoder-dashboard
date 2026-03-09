@@ -81,6 +81,12 @@ export async function apiLogout(): Promise<void> {
   }).catch(() => {});
 }
 
+export async function apiGetMe(): Promise<AuthUser> {
+  const res = await fetch(`${BASE_URL}/auth/me`, { headers: authHeaders() });
+  if (!res.ok) throw new Error("Session invalid");
+  return res.json() as Promise<AuthUser>;
+}
+
 export async function fetchOverview(
   filters: MetricFilters,
 ): Promise<import("@/types/api").OverviewResponse> {
