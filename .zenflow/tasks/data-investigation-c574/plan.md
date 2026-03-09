@@ -18,21 +18,33 @@ Do not make assumptions on important decisions — get clarification first.
 
 ## Workflow Steps
 
-### [ ] Step: Implementation
+### [x] Step: Investigation
+<!-- chat-id: fa7817f9-c51d-4a19-9d0b-110beac3b040 -->
 
-**Debug requests, questions, and investigations:** answer or investigate first. Do not create a plan upfront — the user needs an answer, not a plan. A plan may become relevant later once the investigation reveals what needs to change.
+#### Problem
+The simulator's 3rd step ("Live mode") generates ~3 events/sec with `new Date()` timestamps (today), but these events are invisible in the frontend dashboard.
 
-**For all other tasks**, before writing any code, assess the scope of the actual change (not the prompt length — a one-sentence prompt can describe a large feature). Scale your approach:
+#### Root Cause
+**Off-by-one in the date range filter**: `analytics-api/app/services/clickhouse.py:36-41`
 
-- **Trivial** (typo, config tweak, single obvious change): implement directly, no plan needed.
-- **Small** (a few files, clear what to do): write 2–3 sentences in `plan.md` describing what and why, then implement. No substeps.
-- **Medium** (multiple components, design decisions, edge cases): write a plan in `plan.md` with requirements, affected files, key decisions, verification. Break into 3–5 steps.
-- **Large** (new feature, cross-cutting, unclear scope): gather requirements and write a technical spec first (`requirements.md`, `spec.md` in `{@artifacts_path}/`). Then write `plan.md` with concrete steps referencing the spec.
+The `period_to_dates()` function sets `end = date.today()`, and all ClickHouse queries use a strict less-than filter:
+```sql
+AND toDate(started_at) < %(end)s
+```
 
-**Skip planning and implement directly when** the task is trivial, or the user explicitly asks to "just do it" / gives a clear direct instruction.
+This means **today's date is always excluded** from query results.
 
-To reflect the actual purpose of the first step, you can rename it to something more relevant (e.g., Planning, Investigation). Do NOT remove meta information like comments for any step.
+- **Backfill events** (Step 2) have timestamps from `daysAgo=90` to `daysAgo=1` (yesterday) → all included.
+- **Live mode events** (Step 3) use `new Date()` → `started_at` = today → always excluded by `< today`.
 
-Rule of thumb for step size: each step = a coherent unit of work (component, endpoint, test suite). Not too granular (single function), not too broad (entire feature). Unit tests are part of each step, not separate.
+The live mode generates ~259,200 events/day (3/sec × 86,400 sec), but since "today" is always excluded, these never appear in the dashboard. The next day, yesterday's live events would show, but today's are hidden again — so you never see the expected spike from continuous live generation.
 
-Update `{@artifacts_path}/plan.md`.
+#### Data Flow Summary (verified correct)
+1. Simulator → POST /ingest/events (batched) ✅
+2. Ingestion → Redis Stream "agent_events" ✅
+3. Aggregation Worker → filters `run_started` (correct), inserts `run_completed`/`run_failed` into ClickHouse `agent_runs` ✅
+4. Analytics API → queries `agent_runs` with `toDate(started_at) >= start AND toDate(started_at) < end` ← **BUG: excludes today**
+5. Frontend → displays whatever the API returns ✅
+
+#### Fix
+Change `period_to_dates()` to use `end = date.today() + timedelta(days=1)` (or change the query to use `<=` instead of `<`). The `<` pattern is fine for period boundaries, but `end` needs to be **tomorrow** to include today's data.
