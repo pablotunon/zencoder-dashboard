@@ -1,100 +1,120 @@
+import { useState } from "react";
 import { useOverviewMetrics } from "@/api/hooks";
-import { useFilters } from "@/hooks/useFilters";
-import { KpiCardComponent } from "@/components/cards/KpiCardComponent";
-import {
-  CardSkeleton,
-  ChartSkeleton,
-  TableSkeleton,
-} from "@/components/ui/Skeleton";
+import { WidgetRenderer } from "@/components/widgets/WidgetRenderer";
+import { TableSkeleton } from "@/components/ui/Skeleton";
 import { ErrorState } from "@/components/ui/ErrorState";
 import {
   formatNumber,
   formatCurrency,
   formatPercent,
 } from "@/lib/formatters";
-import type { ChartConfig } from "@/components/ui/chart";
-import { TimeSeriesChart } from "@/components/charts/TimeSeriesChart";
+import { PERIOD_OPTIONS } from "@/lib/constants";
+import type { Period } from "@/types/api";
+import type { WidgetConfig } from "@/types/widget";
 
-const usageTrendConfig = {
-  runs: { label: "Runs", color: "#6366f1" },
-} satisfies ChartConfig;
+// ── Template widgets ────────────────────────────────────────────────────────
+
+function makeOverviewTemplate(period: Period): WidgetConfig[] {
+  const timeRange = { useGlobal: false as const, period };
+  return [
+    {
+      id: "overview-kpi-runs",
+      title: "Total Runs",
+      chartType: "kpi",
+      metric: "run_count",
+      timeRange,
+    },
+    {
+      id: "overview-kpi-users",
+      title: "Active Users",
+      chartType: "kpi",
+      metric: "active_users",
+      timeRange,
+    },
+    {
+      id: "overview-kpi-cost",
+      title: "Total Cost",
+      chartType: "kpi",
+      metric: "cost",
+      timeRange,
+    },
+    {
+      id: "overview-kpi-success",
+      title: "Success Rate",
+      chartType: "kpi",
+      metric: "success_rate",
+      timeRange,
+    },
+    {
+      id: "overview-usage-trend",
+      title: "Usage Trend",
+      chartType: "area",
+      metric: "run_count",
+      timeRange,
+    },
+  ];
+}
+
+// ── Page ─────────────────────────────────────────────────────────────────────
 
 export function OverviewPage() {
-  const { filters } = useFilters();
-  const { data, isLoading, error, refetch } = useOverviewMetrics(filters);
+  const [period, setPeriod] = useState<Period>("30d");
+  const { data, isLoading, error, refetch } = useOverviewMetrics({ period });
+  const template = makeOverviewTemplate(period);
 
   if (error) {
     return <ErrorState message="Failed to load overview" onRetry={refetch} />;
   }
 
+  const kpiWidgets = template.filter((w) => w.chartType === "kpi");
+  const trendWidget = template.find((w) => w.id === "overview-usage-trend")!;
+
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold text-gray-900">Overview</h1>
-        {data && (
-          <div className="flex items-center gap-2">
-            <span className="relative flex h-3 w-3">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75" />
-              <span className="relative inline-flex h-3 w-3 rounded-full bg-green-500" />
-            </span>
-            <span className="text-sm text-gray-600">
-              {data.active_runs_count} active runs
-            </span>
-          </div>
-        )}
+        <div className="flex items-center gap-3">
+          {data && (
+            <div className="flex items-center gap-2">
+              <span className="relative flex h-3 w-3">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75" />
+                <span className="relative inline-flex h-3 w-3 rounded-full bg-green-500" />
+              </span>
+              <span className="text-sm text-gray-600">
+                {data.active_runs_count} active runs
+              </span>
+            </div>
+          )}
+          <select
+            value={period}
+            onChange={(e) => setPeriod(e.target.value as Period)}
+            className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+          >
+            {PERIOD_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
-      {/* KPI Cards */}
-      {isLoading ? (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <CardSkeleton key={i} />
-          ))}
-        </div>
-      ) : data ? (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <KpiCardComponent
-            title="Total Runs"
-            data={data.kpi_cards.total_runs}
-            formatter={formatNumber}
+      {/* KPI Cards — template widgets */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {kpiWidgets.map((widget) => (
+          <WidgetRenderer
+            key={widget.id}
+            widget={widget}
+            globalPeriod={period}
           />
-          <KpiCardComponent
-            title="Active Users"
-            data={data.kpi_cards.active_users}
-            formatter={formatNumber}
-          />
-          <KpiCardComponent
-            title="Total Cost"
-            data={data.kpi_cards.total_cost}
-            formatter={formatCurrency}
-          />
-          <KpiCardComponent
-            title="Success Rate"
-            data={data.kpi_cards.success_rate}
-            formatter={formatPercent}
-          />
-        </div>
-      ) : null}
+        ))}
+      </div>
 
-      {/* Usage Trend Chart */}
-      {isLoading ? (
-        <ChartSkeleton />
-      ) : data ? (
-        <div className="rounded-lg border border-gray-200 bg-white p-6">
-          <h2 className="mb-4 text-base font-medium text-gray-900">
-            Usage Trend
-          </h2>
-          <TimeSeriesChart
-            data={data.usage_trend}
-            config={usageTrendConfig}
-            yFormatter={formatNumber}
-            valueFormatter={formatNumber}
-            className="h-72 w-full"
-          />
-        </div>
-      ) : null}
+      {/* Usage Trend — template widget */}
+      <WidgetRenderer widget={trendWidget} globalPeriod={period} />
 
-      {/* Team Breakdown */}
+      {/* Team Breakdown — custom component (multi-column table) */}
       {isLoading ? (
         <TableSkeleton />
       ) : data ? (

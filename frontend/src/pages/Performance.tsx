@@ -1,5 +1,5 @@
+import { useState } from "react";
 import { usePerformanceMetrics } from "@/api/hooks";
-import { useFilters } from "@/hooks/useFilters";
 import {
   CardSkeleton,
   ChartSkeleton,
@@ -10,7 +10,7 @@ import {
   formatDuration,
   formatNumber,
 } from "@/lib/formatters";
-import { ERROR_CATEGORY_LABELS } from "@/lib/constants";
+import { PERIOD_OPTIONS, ERROR_CATEGORY_LABELS } from "@/lib/constants";
 import {
   Cell,
   Pie,
@@ -19,6 +19,7 @@ import {
 } from "recharts";
 import { ChartContainer, type ChartConfig } from "@/components/ui/chart";
 import { TimeSeriesChart } from "@/components/charts/TimeSeriesChart";
+import type { Period } from "@/types/api";
 
 const successRateConfig = {
   success_rate: { label: "Success", color: "#10b981" },
@@ -40,8 +41,8 @@ const queueWaitConfig = {
 const ERROR_COLORS = ["#f43f5e", "#f97316", "#f59e0b", "#ef4444", "#ec4899"];
 
 export function PerformancePage() {
-  const { filters } = useFilters();
-  const { data, isLoading, error, refetch } = usePerformanceMetrics(filters);
+  const [period, setPeriod] = useState<Period>("30d");
+  const { data, isLoading, error, refetch } = usePerformanceMetrics({ period });
 
   if (error) {
     return (
@@ -54,11 +55,25 @@ export function PerformancePage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold text-gray-900">
-        Performance & Reliability
-      </h1>
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-semibold text-gray-900">
+          Performance & Reliability
+        </h1>
+        <select
+          value={period}
+          onChange={(e) => setPeriod(e.target.value as Period)}
+          className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+        >
+          {PERIOD_OPTIONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
+      </div>
 
-      {/* Availability KPI */}
+      {/* Availability KPI — custom (composite with period text) */}
       {isLoading ? (
         <CardSkeleton />
       ) : data ? (
@@ -74,7 +89,7 @@ export function PerformancePage() {
       ) : null}
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        {/* Success Rate Trend */}
+        {/* Success Rate Trend — custom (success/failure/error multi-series) */}
         {isLoading ? (
           <ChartSkeleton />
         ) : data ? (
@@ -91,7 +106,7 @@ export function PerformancePage() {
           </div>
         ) : null}
 
-        {/* Latency Percentiles */}
+        {/* Latency Percentiles — custom (p50/p95/p99 multi-series) */}
         {isLoading ? (
           <ChartSkeleton />
         ) : data ? (
@@ -111,7 +126,7 @@ export function PerformancePage() {
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        {/* Error Breakdown */}
+        {/* Error Distribution — custom (error category labels + specific colors) */}
         {isLoading ? (
           <ChartSkeleton />
         ) : data ? (
@@ -176,7 +191,7 @@ export function PerformancePage() {
           </div>
         ) : null}
 
-        {/* Queue Wait Trend */}
+        {/* Queue Wait Trend — custom (avg/p95 multi-series) */}
         {isLoading ? (
           <ChartSkeleton />
         ) : data ? (

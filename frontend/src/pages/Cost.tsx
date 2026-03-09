@@ -1,13 +1,13 @@
 import { useState } from "react";
 import { useCostMetrics } from "@/api/hooks";
-import { useFilters } from "@/hooks/useFilters";
+import { WidgetRenderer } from "@/components/widgets/WidgetRenderer";
 import {
   CardSkeleton,
-  ChartSkeleton,
   TableSkeleton,
 } from "@/components/ui/Skeleton";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { formatCurrency, formatNumber } from "@/lib/formatters";
+import { PERIOD_OPTIONS } from "@/lib/constants";
 import {
   Bar,
   BarChart,
@@ -17,29 +17,47 @@ import {
   YAxis,
 } from "recharts";
 import { ChartContainer, type ChartConfig } from "@/components/ui/chart";
-import { TimeSeriesChart } from "@/components/charts/TimeSeriesChart";
+import type { Period } from "@/types/api";
+import type { WidgetConfig } from "@/types/widget";
 
 type GroupBy = "team" | "project" | "agent_type";
-
-const costTrendConfig = {
-  cost: { label: "Cost", color: "#10b981" },
-} satisfies ChartConfig;
-
-const costPerRunConfig = {
-  avg_cost_per_run: { label: "Avg Cost/Run", color: "#8b5cf6" },
-} satisfies ChartConfig;
 
 const costBreakdownConfig = {
   Cost: { label: "Cost", color: "#10b981" },
 } satisfies ChartConfig;
 
+// ── Template widgets ────────────────────────────────────────────────────────
+
+function makeCostTemplate(period: Period): WidgetConfig[] {
+  const timeRange = { useGlobal: false as const, period };
+  return [
+    {
+      id: "cost-trend",
+      title: "Cost Trend",
+      chartType: "area",
+      metric: "cost",
+      timeRange,
+    },
+    {
+      id: "cost-per-run-trend",
+      title: "Cost Per Run",
+      chartType: "line",
+      metric: "cost_per_run",
+      timeRange,
+    },
+  ];
+}
+
+// ── Page ─────────────────────────────────────────────────────────────────────
+
 export function CostPage() {
-  const { filters } = useFilters();
+  const [period, setPeriod] = useState<Period>("30d");
   const [groupBy, setGroupBy] = useState<GroupBy>("team");
   const { data, isLoading, error, refetch } = useCostMetrics({
-    ...filters,
+    period,
     group_by: groupBy,
   });
+  const template = makeCostTemplate(period);
 
   if (error) {
     return <ErrorState message="Failed to load cost data" onRetry={refetch} />;
@@ -47,11 +65,25 @@ export function CostPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold text-gray-900">
-        Cost & Efficiency
-      </h1>
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-semibold text-gray-900">
+          Cost & Efficiency
+        </h1>
+        <select
+          value={period}
+          onChange={(e) => setPeriod(e.target.value as Period)}
+          className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+        >
+          {PERIOD_OPTIONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
+      </div>
 
-      {/* Budget Overview */}
+      {/* Budget Overview — custom (composite card with utilization bar) */}
       {isLoading ? (
         <CardSkeleton />
       ) : data ? (
@@ -102,43 +134,18 @@ export function CostPage() {
         </div>
       ) : null}
 
+      {/* Cost Trend + Cost Per Run — template widgets */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        {/* Cost Trend */}
-        {isLoading ? (
-          <ChartSkeleton />
-        ) : data ? (
-          <div className="rounded-lg border border-gray-200 bg-white p-6">
-            <h2 className="mb-4 text-base font-medium text-gray-900">
-              Cost Trend
-            </h2>
-            <TimeSeriesChart
-              data={data.cost_trend}
-              config={costTrendConfig}
-              yFormatter={formatCurrency}
-              valueFormatter={formatCurrency}
-            />
-          </div>
-        ) : null}
-
-        {/* Cost Per Run Trend */}
-        {isLoading ? (
-          <ChartSkeleton />
-        ) : data ? (
-          <div className="rounded-lg border border-gray-200 bg-white p-6">
-            <h2 className="mb-4 text-base font-medium text-gray-900">
-              Cost Per Run
-            </h2>
-            <TimeSeriesChart
-              data={data.cost_per_run_trend}
-              config={costPerRunConfig}
-              yFormatter={formatCurrency}
-              valueFormatter={formatCurrency}
-            />
-          </div>
-        ) : null}
+        {template.map((widget) => (
+          <WidgetRenderer
+            key={widget.id}
+            widget={widget}
+            globalPeriod={period}
+          />
+        ))}
       </div>
 
-      {/* Cost Breakdown */}
+      {/* Cost Breakdown — custom (group-by switcher) */}
       {isLoading ? (
         <TableSkeleton />
       ) : data ? (
@@ -197,7 +204,7 @@ export function CostPage() {
         </div>
       ) : null}
 
-      {/* Token Breakdown */}
+      {/* Token Breakdown — custom (multi-section with model breakdown) */}
       {isLoading ? (
         <TableSkeleton />
       ) : data ? (

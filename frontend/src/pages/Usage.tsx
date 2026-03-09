@@ -1,5 +1,6 @@
+import { useState } from "react";
 import { useUsageMetrics } from "@/api/hooks";
-import { useFilters } from "@/hooks/useFilters";
+import { WidgetRenderer } from "@/components/widgets/WidgetRenderer";
 import {
   CardSkeleton,
   ChartSkeleton,
@@ -11,15 +12,11 @@ import {
   formatPercent,
   formatCurrency,
 } from "@/lib/formatters";
-import { AGENT_TYPE_LABELS, AGENT_TYPE_COLORS } from "@/lib/constants";
-import {
-  Cell,
-  Pie,
-  PieChart,
-  Tooltip,
-} from "recharts";
-import { ChartContainer, type ChartConfig } from "@/components/ui/chart";
+import { PERIOD_OPTIONS } from "@/lib/constants";
 import { TimeSeriesChart } from "@/components/charts/TimeSeriesChart";
+import type { ChartConfig } from "@/components/ui/chart";
+import type { Period } from "@/types/api";
+import type { WidgetConfig } from "@/types/widget";
 
 const activeUsersConfig = {
   dau: { label: "DAU", color: "#6366f1" },
@@ -27,9 +24,29 @@ const activeUsersConfig = {
   mau: { label: "MAU", color: "#f59e0b" },
 } satisfies ChartConfig;
 
+// ── Template widgets ────────────────────────────────────────────────────────
+
+function makeUsageTemplate(period: Period): WidgetConfig[] {
+  const timeRange = { useGlobal: false as const, period };
+  return [
+    {
+      id: "usage-agent-type-pie",
+      title: "Agent Type Distribution",
+      chartType: "pie",
+      metric: "run_count",
+      breakdownDimension: "agent_type",
+      timeRange,
+    },
+  ];
+}
+
+// ── Page ─────────────────────────────────────────────────────────────────────
+
 export function UsagePage() {
-  const { filters } = useFilters();
-  const { data, isLoading, error, refetch } = useUsageMetrics(filters);
+  const [period, setPeriod] = useState<Period>("30d");
+  const { data, isLoading, error, refetch } = useUsageMetrics({ period });
+  const template = makeUsageTemplate(period);
+  const agentTypePieWidget = template[0];
 
   if (error) {
     return <ErrorState message="Failed to load usage data" onRetry={refetch} />;
@@ -37,11 +54,25 @@ export function UsagePage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold text-gray-900">
-        Usage & Adoption
-      </h1>
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-semibold text-gray-900">
+          Usage & Adoption
+        </h1>
+        <select
+          value={period}
+          onChange={(e) => setPeriod(e.target.value as Period)}
+          className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+        >
+          {PERIOD_OPTIONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
+      </div>
 
-      {/* Adoption Rate KPI */}
+      {/* Adoption Rate KPI — custom (composite metric) */}
       {isLoading ? (
         <CardSkeleton />
       ) : data ? (
@@ -58,7 +89,7 @@ export function UsagePage() {
       ) : null}
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        {/* Active Users Trend */}
+        {/* Active Users Trend — custom (DAU/WAU/MAU multi-series) */}
         {isLoading ? (
           <ChartSkeleton />
         ) : data ? (
@@ -75,66 +106,11 @@ export function UsagePage() {
           </div>
         ) : null}
 
-        {/* Agent Type Breakdown */}
-        {isLoading ? (
-          <ChartSkeleton />
-        ) : data ? (
-          <div className="rounded-lg border border-gray-200 bg-white p-6">
-            <h2 className="mb-4 text-base font-medium text-gray-900">
-              Agent Type Distribution
-            </h2>
-            <ChartContainer config={{}} className="h-64 w-full">
-              <PieChart>
-                <Tooltip
-                  content={(props) => {
-                    const { active, payload } = props;
-                    if (!active || !payload?.length) return null;
-                    const item = payload[0];
-                    if (!item) return null;
-                    return (
-                      <div className="rounded-md border border-gray-200 bg-white p-2 text-sm shadow-lg">
-                        <div className="flex items-center justify-between gap-4">
-                          <div className="flex items-center gap-1.5">
-                            <span
-                              className="inline-block h-2.5 w-2.5 rounded-full"
-                              style={{ backgroundColor: String((item.payload as Record<string, unknown>)?.fill || "#888") }}
-                            />
-                            <span className="text-gray-600">{String(item.name)}</span>
-                          </div>
-                          <span className="font-medium text-gray-900">
-                            {formatNumber(Number(item.value))}
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  }}
-                />
-                <Pie
-                  data={data.agent_type_breakdown.map((item) => ({
-                    name: AGENT_TYPE_LABELS[item.agent_type] ?? item.agent_type,
-                    value: item.runs,
-                    fill: AGENT_TYPE_COLORS[item.agent_type] ?? "#64748b",
-                  }))}
-                  dataKey="value"
-                  nameKey="name"
-                  innerRadius="50%"
-                  outerRadius="80%"
-                  paddingAngle={2}
-                >
-                  {data.agent_type_breakdown.map((item) => (
-                    <Cell
-                      key={item.agent_type}
-                      fill={AGENT_TYPE_COLORS[item.agent_type] ?? "#64748b"}
-                    />
-                  ))}
-                </Pie>
-              </PieChart>
-            </ChartContainer>
-          </div>
-        ) : null}
+        {/* Agent Type Distribution — template widget */}
+        <WidgetRenderer widget={agentTypePieWidget} globalPeriod={period} />
       </div>
 
-      {/* Top Users */}
+      {/* Top Users — custom (multi-column table) */}
       {isLoading ? (
         <TableSkeleton />
       ) : data ? (
@@ -175,7 +151,7 @@ export function UsagePage() {
                     <td className="py-3 text-right text-gray-500">
                       {user.last_active
                         ? new Date(user.last_active).toLocaleDateString()
-                        : "—"}
+                        : "\u2014"}
                     </td>
                   </tr>
                 ))}
@@ -185,7 +161,7 @@ export function UsagePage() {
         </div>
       ) : null}
 
-      {/* Project Breakdown */}
+      {/* Project Breakdown — custom (multi-column table) */}
       {isLoading ? (
         <TableSkeleton />
       ) : data ? (

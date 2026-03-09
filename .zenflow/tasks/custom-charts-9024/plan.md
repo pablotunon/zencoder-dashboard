@@ -138,29 +138,32 @@ Build the custom dashboard page at `/` and the widget creation modal.
 
 ---
 
-### [ ] Step: Frontend — Remove Global FilterBar and Refactor Template Pages
+### [x] Step: Frontend — Remove Global FilterBar and Refactor Template Pages
+<!-- chat-id: 13058265-9355-4589-8ac7-23f8f29128de -->
 
 Remove the global FilterBar and refactor existing pages to use the widget system.
 
-- [ ] Delete `frontend/src/components/layout/FilterBar.tsx`
-- [ ] Update `frontend/src/components/layout/AppShell.tsx`: remove `<FilterBar />` import and usage
-- [ ] Simplify `frontend/src/hooks/useFilters.ts` or remove if no longer needed
-- [ ] Refactor `frontend/src/pages/Overview.tsx`:
-  - Define `OVERVIEW_TEMPLATE: WidgetConfig[]` for simple widgets (KPI cards, usage trend)
-  - Render template widgets via `<Widget>` component
-  - Keep team breakdown table as a custom component (uses existing `useOverviewMetrics` hook)
-  - Add a lightweight period `<select>` in the page header
-- [ ] Refactor `frontend/src/pages/Usage.tsx`:
-  - Template widgets where single-metric fits
-  - Keep custom: adoption rate card, active users trend (DAU/WAU/MAU multi-series), top users table, project breakdown table
-- [ ] Refactor `frontend/src/pages/Cost.tsx`:
-  - Template widgets where single-metric fits (cost trend, cost per run trend)
-  - Keep custom: budget card, cost breakdown with group-by switcher, token usage table
-- [ ] Refactor `frontend/src/pages/Performance.tsx`:
-  - Template widgets where single-metric fits
-  - Keep custom: availability KPI, success/failure/error rate multi-series, latency p50/p95/p99 multi-series, queue wait multi-series
-- [ ] Run `docker-compose exec frontend npm run lint`
-- [ ] Run full test suite: `./scripts/test.sh`
+- [x] Deleted `frontend/src/components/layout/FilterBar.tsx`
+- [x] Updated `frontend/src/components/layout/AppShell.tsx`: removed `<FilterBar />` import and usage
+- [x] Deleted `frontend/src/hooks/useFilters.ts` (no longer needed — all pages use local period state)
+- [x] Refactored `frontend/src/pages/Overview.tsx`:
+  - `makeOverviewTemplate(period)` produces 4 KPI widgets (run_count, active_users, cost, success_rate) + 1 area chart (run_count usage trend)
+  - Template widgets rendered via `<WidgetRenderer>` component
+  - Team breakdown table kept as custom component (multi-column, uses `useOverviewMetrics` hook)
+  - Added period `<select>` in page header alongside active runs indicator
+- [x] Refactored `frontend/src/pages/Usage.tsx`:
+  - Template widget: agent type distribution pie (`run_count` + `agent_type` breakdown)
+  - Kept custom: adoption rate card (composite metric), active users trend (DAU/WAU/MAU multi-series), top users table, project breakdown table
+  - Added period `<select>` in page header
+- [x] Refactored `frontend/src/pages/Cost.tsx`:
+  - Template widgets: cost trend (area) and cost per run trend (line)
+  - Kept custom: budget card (composite with utilization bar), cost breakdown with group-by switcher, token usage table
+  - Added period `<select>` in page header
+- [x] Refactored `frontend/src/pages/Performance.tsx`:
+  - All charts kept as custom (multi-series or composite display): availability KPI, success/failure/error rate trend, latency p50/p95/p99, error distribution pie, queue wait avg/p95
+  - Replaced `useFilters()` with local period state + period `<select>` in header
+- [x] Run `docker-compose exec frontend npm run lint` — 0 errors, 3 pre-existing warnings
+- [x] Run full test suite: `./scripts/test.sh` — all 118 tests pass (simulator 30, ingestion 19, aggregation-worker 26, analytics-api 51)
 
 ---
 
