@@ -81,6 +81,7 @@ services:
       POSTGRES_PASSWORD: agenthub_dev
       REDIS_HOST: redis
       REDIS_PORT: "6379"
+      JWT_SECRET: "dev-secret-change-in-production"
     depends_on:
       clickhouse:
         condition: service_healthy

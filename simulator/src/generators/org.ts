@@ -1,4 +1,5 @@
 import { faker } from "@faker-js/faker";
+import bcrypt from "bcryptjs";
 
 export interface OrgDefinition {
   id: string;
@@ -24,6 +25,7 @@ export interface UserRecord {
   avatar_url: string;
   role: "admin" | "team_lead" | "viewer";
   is_active: boolean;
+  password_hash: string;
 }
 
 export interface ProjectRecord {
@@ -71,6 +73,25 @@ export function generateUsers(org: OrgDefinition, seed: number): UserRecord[] {
   const seeded = faker.seed(seed);
   const users: UserRecord[] = [];
 
+  // Add well-known "user" user for the first org (org_acme)
+  if (org.id === "org_acme") {
+    const wellKnownPasswordHash = bcrypt.hashSync("pass", 10);
+    users.push({
+      user_id: "user",
+      org_id: "org_acme",
+      team_id: "team_platform",
+      name: "Demo User",
+      email: "user@acmecorp.com",
+      avatar_url: "https://i.pravatar.cc/150?u=user",
+      role: "admin",
+      is_active: true,
+      password_hash: wellKnownPasswordHash,
+    });
+  }
+
+  // Hash the password for regular users (demo123)
+  const defaultPasswordHash = bcrypt.hashSync("demo123", 10);
+
   for (const team of org.teams) {
     for (let i = 0; i < team.size; i++) {
       const firstName = faker.person.firstName();
@@ -78,8 +99,9 @@ export function generateUsers(org: OrgDefinition, seed: number): UserRecord[] {
       const userIndex = users.length;
 
       let role: "admin" | "team_lead" | "viewer" = "viewer";
-      if (userIndex === 0) {
-        role = "admin"; // First user is always admin
+      if (userIndex === 0 && org.id !== "org_acme") {
+        // First user is admin for orgs without the well-known user
+        role = "admin";
       } else if (i === 0) {
         role = "team_lead"; // First user in each team is team_lead
       }
@@ -93,6 +115,7 @@ export function generateUsers(org: OrgDefinition, seed: number): UserRecord[] {
         avatar_url: `https://i.pravatar.cc/150?u=${org.id}_${userIndex}`,
         role,
         is_active: true,
+        password_hash: defaultPasswordHash,
       });
     }
   }

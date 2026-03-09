@@ -60,8 +60,8 @@ export async function seedDatabase(
       const users = generateUsers(org, 42);
       for (const user of users) {
         await client.query(
-          `INSERT INTO users (user_id, org_id, team_id, name, email, avatar_url, role, is_active)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+          `INSERT INTO users (user_id, org_id, team_id, name, email, avatar_url, role, is_active, password_hash)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
            ON CONFLICT (user_id) DO NOTHING`,
           [
             user.user_id,
@@ -72,6 +72,7 @@ export async function seedDatabase(
             user.avatar_url,
             user.role,
             user.is_active,
+            user.password_hash,
           ],
         );
       }

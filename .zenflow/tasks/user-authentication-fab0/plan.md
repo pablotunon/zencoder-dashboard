@@ -18,21 +18,63 @@ Do not make assumptions on important decisions — get clarification first.
 
 ## Workflow Steps
 
-### [ ] Step: Implementation
+### [x] Step: Implementation
+<!-- chat-id: 15f30f13-780b-4706-8eb1-6526553b61d1 -->
 
-**Debug requests, questions, and investigations:** answer or investigate first. Do not create a plan upfront — the user needs an answer, not a plan. A plan may become relevant later once the investigation reveals what needs to change.
+**Scope: Large** — Phase 7 (Authentication & Authorization) touches 4 services: simulator, analytics-api, nginx, frontend.
 
-**For all other tasks**, before writing any code, assess the scope of the actual change (not the prompt length — a one-sentence prompt can describe a large feature). Scale your approach:
+**Requirements:**
+- Passwords salted+hashed with bcrypt (never stored in plain text)
+- Bootstrap data must include user "user" with password "pass"
+- JWT-based sessions with Redis deny-list for logout
+- Login/logout/me endpoints on analytics-api
+- Replace auth stub with real JWT extraction
+- Frontend login page, route guards, 401 interceptor, logout button
+- Role-based access: admin (full), team_lead (team-scoped), viewer (read-only)
 
-- **Trivial** (typo, config tweak, single obvious change): implement directly, no plan needed.
-- **Small** (a few files, clear what to do): write 2–3 sentences in `plan.md` describing what and why, then implement. No substeps.
-- **Medium** (multiple components, design decisions, edge cases): write a plan in `plan.md` with requirements, affected files, key decisions, verification. Break into 3–5 steps.
-- **Large** (new feature, cross-cutting, unclear scope): gather requirements and write a technical spec first (`requirements.md`, `spec.md` in `{@artifacts_path}/`). Then write `plan.md` with concrete steps referencing the spec.
+**Key decisions:**
+- JWT secret via env var `JWT_SECRET` (default for dev)
+- Token expiry: 24h
+- bcrypt for password hashing (salt built-in to bcrypt)
+- python-jose + bcrypt (native) on analytics-api
+- bcryptjs on simulator (npm package, no native deps)
+- Login by email+password (not user_id)
+- Special well-known user: user_id="user", email="user@acmecorp.com", name="Demo User", password="pass", role="admin"
 
-**Skip planning and implement directly when** the task is trivial, or the user explicitly asks to "just do it" / gives a clear direct instruction.
+**Affected files:**
 
-To reflect the actual purpose of the first step, you can rename it to something more relevant (e.g., Planning, Investigation). Do NOT remove meta information like comments for any step.
+Simulator:
+- `simulator/package.json` — add bcryptjs dependency
+- `simulator/src/generators/org.ts` — add password_hash generation, add "user" user
+- `simulator/src/seed-data.ts` — include password_hash in INSERT
 
-Rule of thumb for step size: each step = a coherent unit of work (component, endpoint, test suite). Not too granular (single function), not too broad (entire feature). Unit tests are part of each step, not separate.
+Analytics API:
+- `analytics-api/requirements.txt` — add python-jose, passlib, bcrypt
+- `analytics-api/app/config.py` — add JWT_SECRET, JWT_EXPIRY settings
+- `analytics-api/app/models/auth.py` — add LoginRequest, TokenResponse, UserProfile models
+- `analytics-api/app/auth/jwt.py` — JWT create/verify, password verify
+- `analytics-api/app/auth/dependencies.py` — replace stub with JWT extraction
+- `analytics-api/app/routers/auth.py` — POST /login, POST /logout, GET /me
+- `analytics-api/app/main.py` — register auth router
+- `analytics-api/app/services/postgres.py` — add get_user_by_email query
 
-Update `{@artifacts_path}/plan.md`.
+Nginx:
+- `nginx/nginx.conf` — already proxies /api/* → analytics-api (no change needed, /api/auth/* is under /api/)
+
+Frontend:
+- `frontend/src/types/auth.ts` — add login/logout function types
+- `frontend/src/api/client.ts` — add login/logout/me API functions, add auth header
+- `frontend/src/hooks/useAuth.tsx` — real auth provider with state, token storage, login/logout
+- `frontend/src/pages/Login.tsx` — new login page
+- `frontend/src/App.tsx` — add /login route, add route guards
+- `frontend/src/components/layout/Sidebar.tsx` — add logout button
+
+Docker:
+- `docker-compose.yml` — add JWT_SECRET env to analytics-api
+
+**Verification:**
+- `docker-compose up --build -d`
+- Login as user@acmecorp.com / pass → dashboard loads
+- Logout → redirected to login
+- Invalid credentials → error message
+- Unauthenticated API call → 401
