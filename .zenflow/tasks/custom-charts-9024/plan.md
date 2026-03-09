@@ -84,24 +84,27 @@ Redesign the widget type system and data fetching to use the new backend endpoin
 
 ---
 
-### [ ] Step: Frontend — Widget Renderer Component
+### [x] Step: Frontend — Widget Renderer Component
+<!-- chat-id: 12db75ec-612e-4f5a-b686-cb7e27cb46bf -->
 
 Build the shared widget renderer that fetches data and dispatches to chart components.
 
-- [ ] Replace `frontend/src/components/widgets/WidgetRenderer.tsx` with new `Widget.tsx`:
-  - Takes `WidgetConfig` + global period as props
-  - Resolves effective period (global vs custom)
+- [x] Replaced `frontend/src/components/widgets/WidgetRenderer.tsx`:
+  - Takes `WidgetConfig` + `globalPeriod` as props
+  - Resolves effective period (global vs per-widget custom)
   - Calls `useWidgetData()` with metric + breakdown + period + filters
-  - Dispatches to chart sub-component based on `chartType`:
-    - `line` / `area`: `<TimeSeriesChart>` (existing component)
-    - `bar` (time-series): `<TimeSeriesChart>` with bar variant or `<BarChart>`
-    - `bar` (breakdown): `<BarChart>` with categorical X-axis
-    - `pie`: `<PieChart>` donut
-    - `kpi`: KPI card showing summary value + change %
-    - `table`: simple `<table>` showing breakdown rows
-  - Loading skeleton and error state per-widget
-  - Remove button in card header
-- [ ] Run `docker-compose exec frontend npm run lint`
+  - `ChartDispatch` routes to sub-components based on `chartType` + response type:
+    - `line` / `area`: reuses `<TimeSeriesChart>` with partial-day support
+    - `bar` (time-series): inline `<BarChart>` with date X-axis
+    - `bar` (breakdown): `<BreakdownBarWidget>` with categorical X-axis
+    - `pie`: `<PieWidget>` donut with 10-color palette
+    - `kpi`: `<KpiWidget>` showing summary value + change %
+    - `table`: `<TableWidget>` simple HTML table with dimension header
+  - `WidgetSkeleton` provides per-chart-type loading states (KPI, table, chart)
+  - `ErrorState` with retry button on fetch failure
+  - `WidgetCard` wrapper with title + remove button in header
+  - `FORMAT_FN` lookup maps `ValueFormat` → formatter function
+- [x] Run `docker-compose exec frontend npm run lint` — 0 errors, 3 pre-existing warnings
 
 ---
 
