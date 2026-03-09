@@ -15,6 +15,7 @@ import {
   Area,
   AreaChart,
   CartesianGrid,
+  Customized,
   Line,
   LineChart,
   ReferenceLine,
@@ -95,41 +96,41 @@ export function TimeSeriesChart({
   return (
     <ChartContainer config={config} className={className}>
       <ChartComponent data={data} accessibilityLayer>
-        {/* ── SVG gradient defs ──────────────────────────────── */}
-        <defs>
-          {series.map((s) => {
-            const gradientId = `grad-${uid}-${s.key}`;
-            return offset !== null ? (
-              <linearGradient key={gradientId} id={gradientId} x1="0" y1="0" x2="1" y2="0">
-                {/* Full color up to the boundary */}
-                <stop offset={offset} stopColor={s.color} stopOpacity={1} />
-                {/* Fade to low opacity for the partial segment */}
-                <stop offset={1} stopColor={s.color} stopOpacity={0.3} />
-              </linearGradient>
-            ) : null;
-          })}
-          {/* Vertical fill gradients for area variant */}
-          {variant === "area" &&
-            series.map((s) => {
-              const fillGradId = `fill-${uid}-${s.key}`;
-              if (offset === null) {
-                // No partial — simple vertical gradient
-                return (
-                  <linearGradient key={fillGradId} id={fillGradId} x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor={s.color} stopOpacity={0.2} />
-                    <stop offset="95%" stopColor={s.color} stopOpacity={0.02} />
+        {/* ── SVG gradient defs (via Customized so Recharts keeps them) ── */}
+        <Customized
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          component={() => (
+            <defs>
+              {series.map((s) => {
+                const gradientId = `grad-${uid}-${s.key}`;
+                return offset !== null ? (
+                  <linearGradient key={gradientId} id={gradientId} x1="0" y1="0" x2="1" y2="0">
+                    <stop offset={offset} stopColor={s.color} stopOpacity={1} />
+                    <stop offset={1} stopColor={s.color} stopOpacity={0.3} />
                   </linearGradient>
-                );
-              }
-              // With partial: full fill fades, then near-transparent in partial zone
-              return (
-                <linearGradient key={fillGradId} id={fillGradId} x1="0" y1="0" x2="1" y2="0">
-                  <stop offset={offset} stopColor={s.color} stopOpacity={0.15} />
-                  <stop offset={1} stopColor={s.color} stopOpacity={0.04} />
-                </linearGradient>
-              );
-            })}
-        </defs>
+                ) : null;
+              })}
+              {variant === "area" &&
+                series.map((s) => {
+                  const fillGradId = `fill-${uid}-${s.key}`;
+                  if (offset === null) {
+                    return (
+                      <linearGradient key={fillGradId} id={fillGradId} x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor={s.color} stopOpacity={0.2} />
+                        <stop offset="95%" stopColor={s.color} stopOpacity={0.02} />
+                      </linearGradient>
+                    );
+                  }
+                  return (
+                    <linearGradient key={fillGradId} id={fillGradId} x1="0" y1="0" x2="1" y2="0">
+                      <stop offset={offset} stopColor={s.color} stopOpacity={0.15} />
+                      <stop offset={1} stopColor={s.color} stopOpacity={0.04} />
+                    </linearGradient>
+                  );
+                })}
+            </defs>
+          )}
+        />
 
         <CartesianGrid vertical={false} strokeDasharray="3 3" />
         <XAxis dataKey={index} tickLine={false} axisLine={false} />
