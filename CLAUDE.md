@@ -2,6 +2,19 @@
 
 This file provides project-specific commands and coding style requirements for the Agenthub repository.
 
+## Branch Port Setup (REQUIRED before first `docker-compose up`)
+Each branch needs unique host ports so multiple branches can run simultaneously.
+
+- **First time on a new branch**: `./scripts/setup-ports.sh` — auto-assigns the next free port offset
+- **Check current ports**: `./scripts/setup-ports.sh --status`
+- **Use specific offset**: `./scripts/setup-ports.sh --offset 200`
+
+This writes `.ports.env` (committed) which docker-compose reads automatically. Ports are `base + offset`:
+- nginx: `8080 + offset`, Redis: `6379 + offset`, PostgreSQL: `5432 + offset`
+- ClickHouse HTTP: `8123 + offset`, ClickHouse native: `9000 + offset`
+
+Port assignments are tracked in `~/.agenthub-ports.json`. Stale entries (deleted worktrees) are cleaned up automatically.
+
 ## Build and Environment
 - **Full Stack (Docker)**: `docker-compose up --build -d`
 - **Stop All**: `docker-compose down`
