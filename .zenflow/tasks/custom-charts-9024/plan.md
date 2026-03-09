@@ -40,7 +40,8 @@ Key decisions made with user:
 
 ---
 
-### [ ] Step: Backend — Widget Query Endpoint
+### [x] Step: Backend — Widget Query Endpoint
+<!-- chat-id: 10011c68-57de-4fa5-938a-50efa1cc50d3 -->
 
 Implement the new `POST /api/metrics/widget` endpoint and dynamic query builder.
 

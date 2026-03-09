@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
-from app.routers import cost, health, org, overview, performance, usage
+from app.routers import cost, health, org, overview, performance, usage, widget
 from app.services import clickhouse as ch_service
 from app.services import postgres as pg_service
 from app.services import redis_cache
@@ -65,3 +65,4 @@ app.include_router(overview.router)
 app.include_router(usage.router)
 app.include_router(cost.router)
 app.include_router(performance.router)
+app.include_router(widget.router)
