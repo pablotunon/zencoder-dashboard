@@ -1,6 +1,6 @@
 # Port isolation: each branch uses different host ports.
 # Run ./scripts/setup-ports.sh to configure ports for this branch.
-# The script writes .env (auto-read by docker-compose) and .ports.env (both gitignored).
+# The script writes .env (gitignored, auto-read by docker-compose).
 
 services:
   # --- Infrastructure ---
