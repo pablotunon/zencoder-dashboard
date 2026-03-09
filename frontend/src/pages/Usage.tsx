@@ -11,20 +11,30 @@ import {
   formatPercent,
   formatCurrency,
 } from "@/lib/formatters";
-import { AGENT_TYPE_LABELS, AGENT_TYPE_TREMOR_COLORS } from "@/lib/constants";
-import { useMemo } from "react";
-import { AreaChart, DonutChart } from "@tremor/react";
+import { AGENT_TYPE_LABELS, AGENT_TYPE_COLORS } from "@/lib/constants";
+import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  Cell,
+  Pie,
+  PieChart,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+import { ChartContainer, type ChartConfig } from "@/components/ui/chart";
 import { PartialDayTooltip } from "@/components/charts/PartialDayTooltip";
-import { splitPartialData } from "@/components/charts/splitPartialData";
+
+const activeUsersConfig = {
+  dau: { label: "DAU", color: "#6366f1" },
+  wau: { label: "WAU", color: "#06b6d4" },
+  mau: { label: "MAU", color: "#f59e0b" },
+} satisfies ChartConfig;
 
 export function UsagePage() {
   const { filters } = useFilters();
   const { data, isLoading, error, refetch } = useUsageMetrics(filters);
-
-  const activeUsersTrend = useMemo(
-    () => data ? splitPartialData(data.active_users_trend, ["dau", "wau", "mau"], ["indigo", "cyan", "amber"], ["gray", "gray", "gray"]) : null,
-    [data],
-  );
 
   if (error) {
     return <ErrorState message="Failed to load usage data" onRetry={refetch} />;
@@ -61,20 +71,50 @@ export function UsagePage() {
             <h2 className="mb-4 text-base font-medium text-gray-900">
               Active Users Trend
             </h2>
-            <AreaChart
-              className="h-64"
-              data={activeUsersTrend!.data}
-              index="date"
-              categories={activeUsersTrend!.categories}
-              colors={activeUsersTrend!.colors}
-              connectNulls
-              showLegend={false}
-              valueFormatter={formatNumber}
-              showAnimation
-              customTooltip={(props) => (
-                <PartialDayTooltip {...props} valueFormatter={formatNumber} />
-              )}
-            />
+            <ChartContainer config={activeUsersConfig} className="h-64 w-full">
+              <AreaChart data={data.active_users_trend} accessibilityLayer>
+                <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                <XAxis dataKey="date" tickLine={false} axisLine={false} />
+                <YAxis tickLine={false} axisLine={false} tickFormatter={formatNumber} />
+                <Tooltip
+                  content={(props) => (
+                    <PartialDayTooltip
+                      {...props}
+                      config={activeUsersConfig}
+                      valueFormatter={formatNumber}
+                    />
+                  )}
+                />
+                {(["dau", "wau", "mau"] as const).map((key) => (
+                  <Area
+                    key={key}
+                    type="monotone"
+                    dataKey={key}
+                    stroke={`var(--color-${key})`}
+                    fill={`var(--color-${key})`}
+                    fillOpacity={0.1}
+                    dot={(props) => {
+                      const { cx, cy, payload } = props;
+                      if (!payload?.is_partial) return <circle key={`dot-${key}-${cx}`} r={0} />;
+                      return (
+                        <circle
+                          key={`dot-${key}-${cx}`}
+                          cx={cx}
+                          cy={cy}
+                          r={4}
+                          fill={`var(--color-${key})`}
+                          fillOpacity={0.4}
+                          stroke={`var(--color-${key})`}
+                          strokeOpacity={0.4}
+                          strokeWidth={2}
+                        />
+                      );
+                    }}
+                    activeDot={{ r: 4 }}
+                  />
+                ))}
+              </AreaChart>
+            </ChartContainer>
           </div>
         ) : null}
 
@@ -86,22 +126,53 @@ export function UsagePage() {
             <h2 className="mb-4 text-base font-medium text-gray-900">
               Agent Type Distribution
             </h2>
-            <DonutChart
-              className="h-64"
-              data={data.agent_type_breakdown.map((item) => ({
-                name:
-                  AGENT_TYPE_LABELS[item.agent_type] ?? item.agent_type,
-                value: item.runs,
-              }))}
-              category="value"
-              index="name"
-              colors={data.agent_type_breakdown.map(
-                (item) =>
-                  AGENT_TYPE_TREMOR_COLORS[item.agent_type] ?? "gray",
-              )}
-              valueFormatter={formatNumber}
-              showAnimation
-            />
+            <ChartContainer config={{}} className="h-64 w-full">
+              <PieChart>
+                <Tooltip
+                  content={(props) => {
+                    const { active, payload } = props;
+                    if (!active || !payload?.length) return null;
+                    const item = payload[0];
+                    if (!item) return null;
+                    return (
+                      <div className="rounded-md border border-gray-200 bg-white p-2 text-sm shadow-lg">
+                        <div className="flex items-center justify-between gap-4">
+                          <div className="flex items-center gap-1.5">
+                            <span
+                              className="inline-block h-2.5 w-2.5 rounded-full"
+                              style={{ backgroundColor: String((item.payload as Record<string, unknown>)?.fill || "#888") }}
+                            />
+                            <span className="text-gray-600">{String(item.name)}</span>
+                          </div>
+                          <span className="font-medium text-gray-900">
+                            {formatNumber(Number(item.value))}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  }}
+                />
+                <Pie
+                  data={data.agent_type_breakdown.map((item) => ({
+                    name: AGENT_TYPE_LABELS[item.agent_type] ?? item.agent_type,
+                    value: item.runs,
+                    fill: AGENT_TYPE_COLORS[item.agent_type] ?? "#64748b",
+                  }))}
+                  dataKey="value"
+                  nameKey="name"
+                  innerRadius="50%"
+                  outerRadius="80%"
+                  paddingAngle={2}
+                >
+                  {data.agent_type_breakdown.map((item) => (
+                    <Cell
+                      key={item.agent_type}
+                      fill={AGENT_TYPE_COLORS[item.agent_type] ?? "#64748b"}
+                    />
+                  ))}
+                </Pie>
+              </PieChart>
+            </ChartContainer>
           </div>
         ) : null}
       </div>
