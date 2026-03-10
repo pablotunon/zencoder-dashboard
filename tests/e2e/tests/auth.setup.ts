@@ -81,8 +81,10 @@ export const browserTest = base.extend<{
     const baseURL = process.env.BASE_URL ?? "http://localhost:8080";
     const { token, user, org } = await apiLogin(baseURL);
 
-    // Navigate to origin so we can write localStorage
-    await page.goto("/login");
+    // Navigate to /login and wait for the page to fully load (Vite compilation)
+    await page.goto("/login", { waitUntil: "networkidle" });
+
+    // Seed localStorage with auth credentials
     await page.evaluate(
       ({ token, user, org }) => {
         localStorage.setItem("agenthub_token", token);
@@ -92,8 +94,12 @@ export const browserTest = base.extend<{
       { token, user, org },
     );
 
-    // Reload — AuthProvider restores session from localStorage
-    await page.goto("/");
+    // Navigate to root — AuthProvider reads localStorage, validates via
+    // apiGetMe(), then RootRedirect fetches pages and redirects to /p/:slug
+    await page.goto("/", { waitUntil: "networkidle" });
+
+    // Wait for the client-side redirect to a custom page
+    await page.waitForURL(/\/p\//, { timeout: 30_000 });
 
     await use(page);
   },

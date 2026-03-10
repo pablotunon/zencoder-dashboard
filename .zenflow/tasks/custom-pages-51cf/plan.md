@@ -91,7 +91,8 @@ Update the sidebar to load pages from the API and add the page creation flow.
 
 ---
 
-### [ ] Step: Integration testing and polish
+### [x] Step: Integration testing and polish
+<!-- chat-id: 0d1c012c-0684-4e13-81c5-109fb1addf5c -->
 
 End-to-end testing and final verification.
 

@@ -16,7 +16,9 @@ import { browserTest } from "./auth.setup";
  */
 browserTest.describe("Chart colors are not black", () => {
   browserTest("overview page chart gradient stops have color", async ({ authedPage }) => {
-    await authedPage.goto("/");
+    await authedPage.goto("/p/overview");
+    // Wait for page heading to confirm page loaded
+    await expect(authedPage.locator("h1")).toBeVisible({ timeout: 15_000 });
 
     // Wait for chart to render
     const chart = authedPage.locator(".recharts-responsive-container").first();
@@ -39,7 +41,8 @@ browserTest.describe("Chart colors are not black", () => {
   browserTest("performance page charts have non-black gradient colors", async ({
     authedPage,
   }) => {
-    await authedPage.goto("/performance");
+    await authedPage.goto("/p/performance-reliability");
+    await expect(authedPage.locator("h1")).toBeVisible({ timeout: 15_000 });
 
     const chart = authedPage.locator(".recharts-responsive-container").first();
     await expect(chart).toBeVisible({ timeout: 15_000 });
@@ -74,7 +77,8 @@ browserTest.describe("Chart colors are not black", () => {
   });
 
   browserTest("cost page charts have non-black gradient colors", async ({ authedPage }) => {
-    await authedPage.goto("/cost");
+    await authedPage.goto("/p/cost-efficiency");
+    await expect(authedPage.locator("h1")).toBeVisible({ timeout: 15_000 });
 
     const chart = authedPage.locator(".recharts-responsive-container").first();
     await expect(chart).toBeVisible({ timeout: 15_000 });

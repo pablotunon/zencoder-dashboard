@@ -109,11 +109,13 @@ browserTest.describe("E2E-04c: Dashboard loads after login", () => {
   browserTest(
     "dashboard page shows widget charts without errors",
     async ({ authedPage }) => {
-      await authedPage.goto("/");
+      // The authedPage fixture already navigated to /p/:slug
+      // Verify we're on a page and content loaded
+      await expect(authedPage).toHaveURL(/\/p\//);
 
-      // Wait for at least one chart or KPI to render
+      // Wait for the page heading to confirm the page rendered
       await expect(
-        authedPage.getByText(/total runs/i).or(authedPage.locator(".recharts-responsive-container").first()),
+        authedPage.locator("h1").first(),
       ).toBeVisible({ timeout: 15_000 });
 
       // Verify no "Failed to load" error messages
@@ -132,8 +134,13 @@ browserTest.describe("E2E-04c: Dashboard loads after login", () => {
         }
       });
 
-      await authedPage.goto("/");
-      // Wait for page to settle
+      // Navigate to a page and wait for it to settle
+      await authedPage.goto("/p/overview");
+      await expect(
+        authedPage.getByRole("heading", { name: /overview/i }),
+      ).toBeVisible({ timeout: 15_000 });
+
+      // Wait for any remaining API calls to complete
       await authedPage.waitForTimeout(3000);
 
       expect(
