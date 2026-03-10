@@ -1,4 +1,6 @@
-"""Unit tests for Analytics API — API-U01 through API-U06."""
+"""Unit tests for Analytics API — API-U01 through API-U07."""
+import json
+import math
 from datetime import date, timedelta
 from unittest.mock import patch
 
@@ -201,3 +203,61 @@ class TestWidgetFilterClause:
         assert "project_id IN %(project_ids)s" in clause
         assert "agent_type IN %(agent_types)s" in clause
         assert len(params) == 3
+
+
+# API-U07: NanSafeJSONResponse serialization
+class TestNanSafeJsonResponse:
+    """Unit tests for the centralized NaN-safe JSON serializer."""
+
+    def test_nan_serialized_as_null(self):
+        from app.json_response import NanSafeJSONResponse
+        resp = NanSafeJSONResponse(content={"value": float("nan")})
+        data = json.loads(resp.body)
+        assert data["value"] is None
+
+    def test_inf_serialized_as_null(self):
+        from app.json_response import NanSafeJSONResponse
+        resp = NanSafeJSONResponse(content={"value": float("inf")})
+        data = json.loads(resp.body)
+        assert data["value"] is None
+
+    def test_neg_inf_serialized_as_null(self):
+        from app.json_response import NanSafeJSONResponse
+        resp = NanSafeJSONResponse(content={"value": float("-inf")})
+        data = json.loads(resp.body)
+        assert data["value"] is None
+
+    def test_finite_floats_preserved(self):
+        from app.json_response import NanSafeJSONResponse
+        resp = NanSafeJSONResponse(content={"value": 123.45, "zero": 0.0, "neg": -1.5})
+        data = json.loads(resp.body)
+        assert data["value"] == 123.45
+        assert data["zero"] == 0.0
+        assert data["neg"] == -1.5
+
+    def test_nested_nan_sanitized(self):
+        from app.json_response import NanSafeJSONResponse
+        resp = NanSafeJSONResponse(content={
+            "summary": {"value": float("nan")},
+            "data": [{"v": float("nan")}, {"v": 1.0}],
+        })
+        data = json.loads(resp.body)
+        assert data["summary"]["value"] is None
+        assert data["data"][0]["v"] is None
+        assert data["data"][1]["v"] == 1.0
+
+    def test_non_float_types_preserved(self):
+        from app.json_response import NanSafeJSONResponse
+        resp = NanSafeJSONResponse(content={
+            "str": "hello",
+            "int": 42,
+            "bool": True,
+            "null": None,
+            "list": [1, "two", None],
+        })
+        data = json.loads(resp.body)
+        assert data["str"] == "hello"
+        assert data["int"] == 42
+        assert data["bool"] is True
+        assert data["null"] is None
+        assert data["list"] == [1, "two", None]
