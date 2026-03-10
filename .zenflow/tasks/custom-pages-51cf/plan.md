@@ -65,7 +65,8 @@ Create the frontend API hooks and icon mapping needed by the UI components.
 
 ---
 
-### [ ] Step: CustomPage component and routing
+### [x] Step: CustomPage component and routing
+<!-- chat-id: 0a4969b7-2df4-4c85-9b30-c5255b7429c5 -->
 
 Replace all existing page components with a single dynamic CustomPage and update routing.
 
