@@ -20,50 +20,110 @@ If you are blocked and need user clarification, mark the current step with `[!]`
 
 ## Workflow Steps
 
-### [ ] Step: Technical Specification
+### [x] Step: Technical Specification
+<!-- chat-id: 659ab239-aefa-4c9d-80d1-e9fa971b378a -->
 
-Assess the task's difficulty, as underestimating it leads to poor outcomes.
-- easy: Straightforward implementation, trivial bug fix or feature
-- medium: Moderate complexity, some edge cases or caveats to consider
-- hard: Complex logic, many caveats, architectural considerations, or high-risk changes
+Completed. Output saved to `.zenflow/tasks/multi-tenancy-8810/spec.md`.
 
-Create a technical specification for the task that is appropriate for the complexity level:
-- Review the existing codebase architecture and identify reusable components.
-- Define the implementation approach based on established patterns in the project.
-- Identify all source code files that will be created or modified.
-- Define any necessary data model, API, or interface changes.
-- Describe verification steps using the project's test and lint commands.
-
-Save the output to `{@artifacts_path}/spec.md` with:
-- Technical context (language, dependencies)
-- Implementation approach
-- Source code structure changes
-- Data model / API / interface changes
-- Verification approach
-
-If the task is complex enough, create a detailed implementation plan based on `{@artifacts_path}/spec.md`:
-- Break down the work into concrete tasks (incrementable, testable milestones)
-- Each task should reference relevant contracts and include verification steps
-- Replace the Implementation step below with the planned tasks
-
-Rule of thumb for step size: each step should represent a coherent unit of work (e.g., implement a component, add an API endpoint, write tests for a module). Avoid steps that are too granular (single function).
-
-Important: unit tests must be part of each implementation task, not separate tasks. Each task should implement the code and its tests together, if relevant.
-
-Save to `{@artifacts_path}/plan.md`. If the feature is trivial and doesn't warrant this breakdown, keep the Implementation step below as is.
+Difficulty: **Medium**. Multi-tenancy infrastructure (org_id in all schemas, JWT org context, org-scoped cache/queries) is already in place. Remaining work: seed second org, org validation in ingestion, API keys, cross-org tests, roadmap cleanup.
 
 ---
 
-### [ ] Step: Implementation
+### [ ] Step: DB Schema & Simulator — Second Org + API Keys
 
-Implement the task according to the technical specification and general engineering best practices.
+Add the `api_keys` table to PostgreSQL schema and seed a second organization (Globex Corporation) with independent teams, users, projects, and API keys.
 
-1. Break the task into steps where possible.
-2. Implement the required changes in the codebase
-3. If relevant, write unit tests alongside each change.
-4. Run relevant tests and linters in the end of each step.
-5. Perform basic manual verification if applicable.
-6. After completion, write a report to `{@artifacts_path}/report.md` describing:
-   - What was implemented
-   - How the solution was tested
-   - The biggest issues or challenges encountered
+**Files to modify:**
+- `init-scripts/postgres/001-schema.sql` — add `api_keys` table
+- `simulator/src/generators/org.ts` — add Globex org definition, API key types and generation, well-known Globex demo user
+- `simulator/src/seed-data.ts` — seed API keys and populate `valid_orgs` Redis set
+
+**Key details:**
+- Globex: `org_globex`, business plan, $20k budget, 3 teams (~20 users)
+- Well-known demo user for Globex: `admin@globexcorporation.com` / `pass`
+- API keys: deterministic dev keys (e.g., `ak_acme_001`, `ak_globex_001`), bcrypt-hashed in DB
+- Seed `valid_orgs` Redis set (SADD) with all org IDs during seed phase
+- Ensure idempotency (ON CONFLICT DO NOTHING)
+
+**Verification:**
+- `docker compose exec simulator npm run test`
+- `docker compose exec simulator npm run lint`
+
+---
+
+### [ ] Step: Simulator — Multi-Org Event Generation & Live Mode
+
+Update event generation to produce differentiated data per org and enable multi-org live mode.
+
+**Files to modify:**
+- `simulator/src/generators/events.ts` — per-org event characteristics (different volumes, success rates)
+- `simulator/src/index.ts` — Phase 3 live mode: generate events for all orgs (round-robin), not just `orgs[0]`
+
+**Key details:**
+- Globex: ~120 base daily events (vs Acme's 200), ~90% success rate (vs 87%)
+- Live mode: create contexts for all orgs, alternate between them each cycle
+- 90 days of independent backfill history per org (already loops all orgs in Phase 2)
+
+**Verification:**
+- `docker compose exec simulator npm run test`
+- `docker compose exec simulator npm run lint`
+
+---
+
+### [ ] Step: Ingestion — Org ID Validation via Redis
+
+Add org_id validation to the ingestion service: reject events with unregistered org_id.
+
+**Files to modify:**
+- `ingestion/src/routes/events.rs` — check `org_id` against Redis `valid_orgs` set (SISMEMBER) before publishing
+- `ingestion/src/validation.rs` — add tests for org validation
+
+**Key details:**
+- Use Redis SISMEMBER on `valid_orgs` set (populated by simulator at seed time)
+- No PostgreSQL dependency needed — keeps ingestion service lightweight
+- Return rejected events with reason "unknown org_id"
+- Add unit tests for org validation logic
+
+**Verification:**
+- `docker compose exec ingestion cargo test`
+- `docker compose exec ingestion cargo fmt`
+- `docker compose exec ingestion cargo clippy`
+
+---
+
+### [ ] Step: Analytics API — Cross-Org Isolation Tests
+
+Add integration tests verifying that cross-org data leakage is impossible.
+
+**Files to modify:**
+- `analytics-api/tests/test_integration.py` — add cross-org isolation test cases
+
+**Key details:**
+- Test: user from org_acme context gets only org_acme data (verify org_id filter in mock calls)
+- Test: cache key for org_acme does not collide with org_globex
+- Test: all ClickHouse query files contain `org_id` in WHERE clause (static analysis)
+- Use existing test patterns: override `get_org_context` dependency, mock services
+
+**Verification:**
+- `docker compose exec analytics-api pytest`
+
+---
+
+### [ ] Step: Roadmap Cleanup & Full Stack Verification
+
+Update ROADMAP.md and verify the complete multi-tenancy flow end-to-end.
+
+**Files to modify:**
+- `docs/ROADMAP.md` — remove Phase 7 and Phase 8, update completed phases note and dependency graph
+
+**Key details:**
+- Remove Phase 7 section (authentication — already complete)
+- Remove Phase 8 section (multi-tenancy — completed by this task)
+- Update header: "Phases 0-8 are complete"
+- Update dependency graph to show only Phase 9
+
+**Verification:**
+- `docker compose up --build -d` — full stack starts without errors
+- Run all tests: `./scripts/test.sh`
+- Manual check: log in as Acme user → see Acme data; log in as Globex user → see Globex data
+- Write report to `.zenflow/tasks/multi-tenancy-8810/report.md`
