@@ -52,7 +52,8 @@ Add the `api_keys` table to PostgreSQL schema and seed a second organization (Gl
 
 ---
 
-### [ ] Step: Simulator — Multi-Org Event Generation & Live Mode
+### [x] Step: Simulator — Multi-Org Event Generation & Live Mode
+<!-- chat-id: b2c2129f-d3d4-4de3-8af2-cafd92b92e07 -->
 
 Update event generation to produce differentiated data per org and enable multi-org live mode.
 

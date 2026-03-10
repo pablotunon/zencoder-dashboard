@@ -46,7 +46,30 @@ export const AGENT_TYPE_WEIGHTS: Record<AgentType, number> = {
 
 const AGENT_TYPES: AgentType[] = Object.keys(AGENT_TYPE_WEIGHTS) as AgentType[];
 
-export const SUCCESS_RATE = 0.87;
+export const DEFAULT_SUCCESS_RATE = 0.87;
+
+/**
+ * Per-org event generation characteristics.
+ * Orgs not listed here use defaults.
+ */
+export interface OrgEventProfile {
+  baseDailyEvents: number;
+  successRate: number;
+}
+
+export const ORG_EVENT_PROFILES: Record<string, OrgEventProfile> = {
+  org_acme: { baseDailyEvents: 200, successRate: 0.87 },
+  org_globex: { baseDailyEvents: 120, successRate: 0.90 },
+};
+
+export const DEFAULT_ORG_EVENT_PROFILE: OrgEventProfile = {
+  baseDailyEvents: 200,
+  successRate: DEFAULT_SUCCESS_RATE,
+};
+
+export function getOrgEventProfile(orgId: string): OrgEventProfile {
+  return ORG_EVENT_PROFILES[orgId] ?? DEFAULT_ORG_EVENT_PROFILE;
+}
 
 export const ERROR_DISTRIBUTION: Record<ErrorCategory, number> = {
   timeout: 0.3,
@@ -181,7 +204,8 @@ export function generateRunEvents(
   const project = pickProject(ctx.projects);
   const agentType = pickAgentType();
   const model = pickModel();
-  const succeeded = Math.random() < SUCCESS_RATE;
+  const profile = getOrgEventProfile(ctx.org.id);
+  const succeeded = Math.random() < profile.successRate;
 
   // Duration: 5s to 5min for most, up to 15min for CI
   const baseDuration =
