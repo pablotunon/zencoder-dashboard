@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
-from app.json_response import NanSafeJSONResponse
+from app.json_response import ORJSONResponse
 from app.routers import auth, cost, health, org, overview, performance, usage, widget
 from app.services import clickhouse as ch_service
 from app.services import postgres as pg_service
@@ -48,7 +48,7 @@ app = FastAPI(
     description="Backend-for-Frontend API serving pre-aggregated analytics from ClickHouse, PostgreSQL, and Redis.",
     version="1.0.0",
     lifespan=lifespan,
-    default_response_class=NanSafeJSONResponse,
+    default_response_class=ORJSONResponse,
 )
 
 

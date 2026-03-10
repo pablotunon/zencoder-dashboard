@@ -1,6 +1,5 @@
 """Unit tests for Analytics API — API-U01 through API-U07."""
 import json
-import math
 from datetime import date, timedelta
 from unittest.mock import patch
 
@@ -205,39 +204,39 @@ class TestWidgetFilterClause:
         assert len(params) == 3
 
 
-# API-U07: NanSafeJSONResponse serialization
-class TestNanSafeJsonResponse:
-    """Unit tests for the centralized NaN-safe JSON serializer."""
+# API-U07: ORJSONResponse serialization
+class TestORJSONResponse:
+    """Unit tests for the centralized orjson-backed JSON serializer."""
 
     def test_nan_serialized_as_null(self):
-        from app.json_response import NanSafeJSONResponse
-        resp = NanSafeJSONResponse(content={"value": float("nan")})
+        from app.json_response import ORJSONResponse
+        resp = ORJSONResponse(content={"value": float("nan")})
         data = json.loads(resp.body)
         assert data["value"] is None
 
     def test_inf_serialized_as_null(self):
-        from app.json_response import NanSafeJSONResponse
-        resp = NanSafeJSONResponse(content={"value": float("inf")})
+        from app.json_response import ORJSONResponse
+        resp = ORJSONResponse(content={"value": float("inf")})
         data = json.loads(resp.body)
         assert data["value"] is None
 
     def test_neg_inf_serialized_as_null(self):
-        from app.json_response import NanSafeJSONResponse
-        resp = NanSafeJSONResponse(content={"value": float("-inf")})
+        from app.json_response import ORJSONResponse
+        resp = ORJSONResponse(content={"value": float("-inf")})
         data = json.loads(resp.body)
         assert data["value"] is None
 
     def test_finite_floats_preserved(self):
-        from app.json_response import NanSafeJSONResponse
-        resp = NanSafeJSONResponse(content={"value": 123.45, "zero": 0.0, "neg": -1.5})
+        from app.json_response import ORJSONResponse
+        resp = ORJSONResponse(content={"value": 123.45, "zero": 0.0, "neg": -1.5})
         data = json.loads(resp.body)
         assert data["value"] == 123.45
         assert data["zero"] == 0.0
         assert data["neg"] == -1.5
 
     def test_nested_nan_sanitized(self):
-        from app.json_response import NanSafeJSONResponse
-        resp = NanSafeJSONResponse(content={
+        from app.json_response import ORJSONResponse
+        resp = ORJSONResponse(content={
             "summary": {"value": float("nan")},
             "data": [{"v": float("nan")}, {"v": 1.0}],
         })
@@ -247,8 +246,8 @@ class TestNanSafeJsonResponse:
         assert data["data"][1]["v"] == 1.0
 
     def test_non_float_types_preserved(self):
-        from app.json_response import NanSafeJSONResponse
-        resp = NanSafeJSONResponse(content={
+        from app.json_response import ORJSONResponse
+        resp = ORJSONResponse(content={
             "str": "hello",
             "int": 42,
             "bool": True,
