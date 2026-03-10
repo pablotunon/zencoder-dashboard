@@ -78,7 +78,8 @@ Replace all existing page components with a single dynamic CustomPage and update
 
 ---
 
-### [ ] Step: Dynamic sidebar and page creation
+### [x] Step: Dynamic sidebar and page creation
+<!-- chat-id: 63d487ff-508f-46bc-8bef-32a41a3f8887 -->
 
 Update the sidebar to load pages from the API and add the page creation flow.
 
