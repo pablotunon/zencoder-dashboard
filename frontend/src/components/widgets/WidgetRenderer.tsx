@@ -33,10 +33,7 @@ import type {
   WidgetTimeseriesResponse,
   WidgetBreakdownResponse,
 } from "@/types/widget";
-import type {
-  MergedTimeseriesData,
-  MergedBreakdownData,
-} from "@/api/widget";
+import type { MergedTimeseriesData, MergedBreakdownData } from "@/api/widget";
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -48,8 +45,16 @@ const FORMAT_FN: Record<ValueFormat, (v: number) => string> = {
 };
 
 const PIE_COLORS = [
-  "#6366f1", "#8b5cf6", "#10b981", "#f59e0b", "#ef4444",
-  "#06b6d4", "#f43f5e", "#14b8a6", "#059669", "#0d9488",
+  "#6366f1",
+  "#8b5cf6",
+  "#10b981",
+  "#f59e0b",
+  "#ef4444",
+  "#06b6d4",
+  "#f43f5e",
+  "#14b8a6",
+  "#059669",
+  "#0d9488",
 ];
 
 function resolveEffectivePeriod(
@@ -121,7 +126,13 @@ export function WidgetRenderer({
   }
 
   // Single-metric path (original behavior)
-  return <SingleMetricWidget widget={widget} globalPeriod={globalPeriod} onRemove={onRemove} />;
+  return (
+    <SingleMetricWidget
+      widget={widget}
+      globalPeriod={globalPeriod}
+      onRemove={onRemove}
+    />
+  );
 }
 
 // ── Single-metric widget (original path) ─────────────────────────────────
@@ -181,10 +192,16 @@ function MultiMetricLoader({
   });
 
   if (isLoading) return <WidgetSkeleton chartType={widget.chartType} />;
-  if (error) return <ErrorState message="Failed to load widget data" onRetry={refetch} />;
+  if (error)
+    return (
+      <ErrorState message="Failed to load widget data" onRetry={refetch} />
+    );
   if (!data) return null;
 
-  if (data.type === "merged_timeseries" && (widget.chartType === "line" || widget.chartType === "area")) {
+  if (
+    data.type === "merged_timeseries" &&
+    (widget.chartType === "line" || widget.chartType === "area")
+  ) {
     return <MultiTimeSeriesWidget data={data} variant={widget.chartType} />;
   }
   if (data.type === "merged_breakdown" && widget.chartType === "table") {
@@ -208,7 +225,10 @@ function MultiTimeSeriesWidget({
       Object.fromEntries(
         data.metrics.map((m) => {
           const meta = METRIC_REGISTRY[m];
-          return [m, { label: meta?.label ?? m, color: meta?.color ?? "#6366f1" }];
+          return [
+            m,
+            { label: meta?.label ?? m, color: meta?.color ?? "#6366f1" },
+          ];
         }),
       ),
     [data.metrics],
@@ -293,7 +313,10 @@ function GaugeWidgetLoader({
   });
 
   if (isLoading) return <WidgetSkeleton chartType="gauge" />;
-  if (error) return <ErrorState message="Failed to load widget data" onRetry={refetch} />;
+  if (error)
+    return (
+      <ErrorState message="Failed to load widget data" onRetry={refetch} />
+    );
   if (!data || data.type !== "timeseries") return null;
 
   const currentValue = data.summary.value;
@@ -308,7 +331,11 @@ function GaugeWidgetLoader({
   }
 
   const pct = target ? (currentValue / target) * 100 : null;
-  const daysInMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
+  const daysInMonth = new Date(
+    new Date().getFullYear(),
+    new Date().getMonth() + 1,
+    0,
+  ).getDate();
   const dayOfMonth = Math.max(new Date().getDate(), 1);
   const projected = currentValue * (daysInMonth / dayOfMonth);
 
@@ -321,7 +348,10 @@ function GaugeWidgetLoader({
           </p>
           {target !== null && (
             <p className="mt-1 text-sm text-gray-500">
-              of {formatter(target)} {widget.orgMetric === "monthly_budget" ? "monthly budget" : "licensed users"}
+              of {formatter(target)}{" "}
+              {widget.orgMetric === "monthly_budget"
+                ? "monthly budget"
+                : "licensed users"}
             </p>
           )}
         </div>
@@ -339,12 +369,18 @@ function GaugeWidgetLoader({
           <div className="h-2 w-full rounded-full bg-gray-200">
             <div
               className={`h-2 rounded-full ${
-                pct > 90 ? "bg-red-500" : pct > 75 ? "bg-yellow-500" : "bg-green-500"
+                pct > 90
+                  ? "bg-red-500"
+                  : pct > 75
+                    ? "bg-yellow-500"
+                    : "bg-green-500"
               }`}
               style={{ width: `${Math.min(pct, 100)}%` }}
             />
           </div>
-          <p className="mt-1 text-xs text-gray-500">{pct.toFixed(1)}% utilized</p>
+          <p className="mt-1 text-xs text-gray-500">
+            {pct.toFixed(1)}% utilized
+          </p>
         </div>
       )}
     </div>
@@ -370,7 +406,10 @@ function StatWidgetLoader({
   });
 
   if (isLoading) return <WidgetSkeleton chartType="stat" />;
-  if (error) return <ErrorState message="Failed to load widget data" onRetry={refetch} />;
+  if (error)
+    return (
+      <ErrorState message="Failed to load widget data" onRetry={refetch} />
+    );
   if (!data || data.type !== "timeseries") return null;
 
   const currentValue = data.summary.value;
@@ -413,7 +452,13 @@ function ActiveUsersTrendWidget({ period }: { period: Period }) {
   const { data, isLoading, error, refetch } = useUsageMetrics({ period });
 
   if (isLoading) return <WidgetSkeleton chartType="active_users_trend" />;
-  if (error) return <ErrorState message="Failed to load active users data" onRetry={refetch} />;
+  if (error)
+    return (
+      <ErrorState
+        message="Failed to load active users data"
+        onRetry={refetch}
+      />
+    );
   if (!data) return null;
 
   return (
@@ -432,7 +477,8 @@ function TopUsersWidget({ period }: { period: Period }) {
   const { data, isLoading, error, refetch } = useUsageMetrics({ period });
 
   if (isLoading) return <WidgetSkeleton chartType="top_users" />;
-  if (error) return <ErrorState message="Failed to load top users" onRetry={refetch} />;
+  if (error)
+    return <ErrorState message="Failed to load top users" onRetry={refetch} />;
   if (!data) return null;
 
   return (
@@ -457,9 +503,7 @@ function TopUsersWidget({ period }: { period: Period }) {
                       .map((n) => n[0])
                       .join("")}
                   </div>
-                  <span className="font-medium text-gray-900">
-                    {user.name}
-                  </span>
+                  <span className="font-medium text-gray-900">{user.name}</span>
                 </div>
               </td>
               <td className="py-3 text-gray-600">{user.team_name}</td>
@@ -774,7 +818,7 @@ function PieWidget({
 
   return (
     <div className="flex items-center justify-center gap-6">
-      <ChartContainer config={config} className="h-64 w-48 shrink-0">
+      <ChartContainer config={config} className="h-64 w-64">
         <PieChart accessibilityLayer>
           <Tooltip
             content={({ active, payload }) => {
@@ -817,10 +861,7 @@ function PieWidget({
             paddingAngle={2}
           >
             {data.data.map((item, i) => (
-              <Cell
-                key={item.label}
-                fill={PIE_COLORS[i % PIE_COLORS.length]}
-              />
+              <Cell key={item.label} fill={PIE_COLORS[i % PIE_COLORS.length]} />
             ))}
           </Pie>
         </PieChart>
