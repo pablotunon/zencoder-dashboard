@@ -53,7 +53,8 @@ Create the pages service layer and API router.
 
 ---
 
-### [ ] Step: Frontend API layer and icon registry
+### [x] Step: Frontend API layer and icon registry
+<!-- chat-id: 69989162-ee12-469b-a846-5b0f70031948 -->
 
 Create the frontend API hooks and icon mapping needed by the UI components.
 
