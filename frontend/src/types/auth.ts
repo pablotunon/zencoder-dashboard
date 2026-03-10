@@ -6,6 +6,7 @@ export interface AuthUser {
   email: string;
   role: UserRole;
   avatar_url?: string;
+  team_id?: string;
 }
 
 export interface AuthOrg {
@@ -15,7 +16,10 @@ export interface AuthOrg {
 }
 
 export interface AuthContext {
-  user: AuthUser;
-  org: AuthOrg;
+  user: AuthUser | null;
+  org: AuthOrg | null;
   isAuthenticated: boolean;
+  isLoading: boolean;
+  login: (email: string, password: string) => Promise<void>;
+  logout: () => Promise<void>;
 }

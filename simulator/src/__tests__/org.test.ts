@@ -26,8 +26,8 @@ describe("User generation", () => {
   const org = ORGS[0];
   const users = generateUsers(org, 42);
 
-  it("should generate 50 users", () => {
-    expect(users).toHaveLength(50);
+  it("should generate 51 users (50 + well-known demo user)", () => {
+    expect(users).toHaveLength(51);
   });
 
   it("should assign all users to org_acme", () => {
@@ -51,7 +51,9 @@ describe("User generation", () => {
   it("should distribute users across teams according to team sizes", () => {
     for (const team of org.teams) {
       const teamUsers = users.filter((u) => u.team_id === team.id);
-      expect(teamUsers).toHaveLength(team.size);
+      // team_platform has +1 for the well-known demo user
+      const expected = team.id === "team_platform" ? team.size + 1 : team.size;
+      expect(teamUsers).toHaveLength(expected);
     }
   });
 

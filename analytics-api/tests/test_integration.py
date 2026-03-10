@@ -8,12 +8,20 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
+from app.auth.dependencies import get_org_context
 from app.main import app
+from app.models.auth import OrgContext
+
+MOCK_ORG_CONTEXT = OrgContext(
+    org_id="org_acme", user_id="user_test", role="admin", team_id="team_platform"
+)
 
 
 @pytest.fixture
 def client():
-    return TestClient(app, raise_server_exceptions=False)
+    app.dependency_overrides[get_org_context] = lambda: MOCK_ORG_CONTEXT
+    yield TestClient(app, raise_server_exceptions=False)
+    app.dependency_overrides.clear()
 
 
 # Shared mock data

@@ -29,7 +29,7 @@ CREATE TABLE users (
     is_active BOOLEAN DEFAULT TRUE,
     password_hash VARCHAR(255),
     created_at TIMESTAMP DEFAULT NOW(),
-    UNIQUE (org_id, email)
+    UNIQUE (email)
 );
 
 CREATE TABLE projects (
