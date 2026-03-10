@@ -1,10 +1,11 @@
 use axum::{
     body::Body,
     http::{Request, StatusCode},
-    Router,
     routing::{get, post},
+    Router,
 };
 use http_body_util::BodyExt;
+use redis::AsyncCommands;
 use serde_json::{json, Value};
 use tower::ServiceExt;
 
@@ -14,9 +15,38 @@ fn app_with_bad_redis() -> Router {
     let state = ingestion::AppState { redis: client };
 
     Router::new()
-        .route("/ingest/events", post(ingestion::routes::events::ingest_events))
+        .route(
+            "/ingest/events",
+            post(ingestion::routes::events::ingest_events),
+        )
         .route("/ingest/health", get(ingestion::routes::health::health))
         .with_state(state)
+}
+
+/// Helper: build a router with a real Redis connection (for use in Docker).
+fn app_with_real_redis() -> Router {
+    let redis_host = std::env::var("REDIS_HOST").unwrap_or_else(|_| "redis".to_string());
+    let redis_port = std::env::var("REDIS_PORT").unwrap_or_else(|_| "6379".to_string());
+    let url = format!("redis://{}:{}", redis_host, redis_port);
+    let client = redis::Client::open(url.as_str()).unwrap();
+    let state = ingestion::AppState { redis: client };
+
+    Router::new()
+        .route(
+            "/ingest/events",
+            post(ingestion::routes::events::ingest_events),
+        )
+        .route("/ingest/health", get(ingestion::routes::health::health))
+        .with_state(state)
+}
+
+/// Helper: get a Redis connection for test setup/teardown.
+async fn redis_conn() -> redis::aio::MultiplexedConnection {
+    let redis_host = std::env::var("REDIS_HOST").unwrap_or_else(|_| "redis".to_string());
+    let redis_port = std::env::var("REDIS_PORT").unwrap_or_else(|_| "6379".to_string());
+    let url = format!("redis://{}:{}", redis_host, redis_port);
+    let client = redis::Client::open(url.as_str()).unwrap();
+    client.get_multiplexed_async_connection().await.unwrap()
 }
 
 // ING-I03: Redis unavailable → returns 503 when valid events need publishing
@@ -323,4 +353,178 @@ async fn test_missing_required_field_rejected() {
         .as_str()
         .unwrap()
         .contains("deserialization error"));
+}
+
+// === Org validation tests (require real Redis — run via docker compose exec) ===
+
+// ORG-I01: Event with registered org_id is accepted
+#[tokio::test]
+async fn test_registered_org_accepted() {
+    let mut conn = redis_conn().await;
+    let _: () = conn.sadd("valid_orgs", "org_test_valid").await.unwrap();
+
+    let app = app_with_real_redis();
+
+    let event = json!({
+        "run_id": "550e8400-e29b-41d4-a716-446655440099",
+        "org_id": "org_test_valid",
+        "team_id": "team_1",
+        "user_id": "user_1",
+        "project_id": "proj_1",
+        "agent_type": "coding",
+        "event_type": "run_started",
+        "timestamp": "2025-01-15T10:00:00Z"
+    });
+
+    let body = json!({ "events": [event] });
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/ingest/events")
+                .header("content-type", "application/json")
+                .body(Body::from(serde_json::to_string(&body).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::ACCEPTED);
+
+    let body_bytes = response.into_body().collect().await.unwrap().to_bytes();
+    let resp: Value = serde_json::from_slice(&body_bytes).unwrap();
+    assert_eq!(resp["accepted"], 1);
+    assert_eq!(resp["rejected"], 0);
+
+    // Cleanup
+    let _: () = conn.srem("valid_orgs", "org_test_valid").await.unwrap();
+}
+
+// ORG-I02: Event with unregistered org_id is rejected
+#[tokio::test]
+async fn test_unregistered_org_rejected() {
+    let app = app_with_real_redis();
+
+    let event = json!({
+        "run_id": "550e8400-e29b-41d4-a716-446655440098",
+        "org_id": "org_does_not_exist",
+        "team_id": "team_1",
+        "user_id": "user_1",
+        "project_id": "proj_1",
+        "agent_type": "coding",
+        "event_type": "run_started",
+        "timestamp": "2025-01-15T10:00:00Z"
+    });
+
+    let body = json!({ "events": [event] });
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/ingest/events")
+                .header("content-type", "application/json")
+                .body(Body::from(serde_json::to_string(&body).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::ACCEPTED);
+
+    let body_bytes = response.into_body().collect().await.unwrap().to_bytes();
+    let resp: Value = serde_json::from_slice(&body_bytes).unwrap();
+    assert_eq!(resp["accepted"], 0);
+    assert_eq!(resp["rejected"], 1);
+    assert!(resp["errors"][0]["error"]
+        .as_str()
+        .unwrap()
+        .contains("unknown org_id"));
+}
+
+// ORG-I03: Mixed batch — registered and unregistered orgs
+#[tokio::test]
+async fn test_mixed_org_batch() {
+    let mut conn = redis_conn().await;
+    let _: () = conn.sadd("valid_orgs", "org_test_mixed").await.unwrap();
+
+    let app = app_with_real_redis();
+
+    let valid_event = json!({
+        "run_id": "550e8400-e29b-41d4-a716-446655440097",
+        "org_id": "org_test_mixed",
+        "team_id": "team_1",
+        "user_id": "user_1",
+        "project_id": "proj_1",
+        "agent_type": "coding",
+        "event_type": "run_started",
+        "timestamp": "2025-01-15T10:00:00Z"
+    });
+
+    let invalid_org_event = json!({
+        "run_id": "550e8400-e29b-41d4-a716-446655440096",
+        "org_id": "org_unknown_xyz",
+        "team_id": "team_1",
+        "user_id": "user_1",
+        "project_id": "proj_1",
+        "agent_type": "coding",
+        "event_type": "run_started",
+        "timestamp": "2025-01-15T10:00:00Z"
+    });
+
+    let body = json!({ "events": [valid_event, invalid_org_event] });
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/ingest/events")
+                .header("content-type", "application/json")
+                .body(Body::from(serde_json::to_string(&body).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::ACCEPTED);
+
+    let body_bytes = response.into_body().collect().await.unwrap().to_bytes();
+    let resp: Value = serde_json::from_slice(&body_bytes).unwrap();
+    assert_eq!(resp["accepted"], 1);
+    assert_eq!(resp["rejected"], 1);
+
+    // The rejected event should mention unknown org_id
+    let errors = resp["errors"].as_array().unwrap();
+    assert_eq!(errors.len(), 1);
+    assert!(errors[0]["error"]
+        .as_str()
+        .unwrap()
+        .contains("unknown org_id"));
+    assert_eq!(errors[0]["index"], 1);
+
+    // Cleanup
+    let _: () = conn.srem("valid_orgs", "org_test_mixed").await.unwrap();
+}
+
+// ORG-I04: check_org_exists unit test with real Redis
+#[tokio::test]
+async fn test_check_org_exists_directly() {
+    let mut conn = redis_conn().await;
+    let _: () = conn.sadd("valid_orgs", "org_direct_test").await.unwrap();
+
+    // Registered org returns true
+    let exists = ingestion::validation::check_org_exists(&mut conn, "org_direct_test")
+        .await
+        .unwrap();
+    assert!(exists);
+
+    // Unregistered org returns false
+    let exists = ingestion::validation::check_org_exists(&mut conn, "org_not_registered")
+        .await
+        .unwrap();
+    assert!(!exists);
+
+    // Cleanup
+    let _: () = conn.srem("valid_orgs", "org_direct_test").await.unwrap();
 }

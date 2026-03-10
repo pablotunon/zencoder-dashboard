@@ -72,7 +72,8 @@ Update event generation to produce differentiated data per org and enable multi-
 
 ---
 
-### [ ] Step: Ingestion — Org ID Validation via Redis
+### [x] Step: Ingestion — Org ID Validation via Redis
+<!-- chat-id: 9c48524a-0d87-43e0-8be9-b5bfa47b51cd -->
 
 Add org_id validation to the ingestion service: reject events with unregistered org_id.
 
