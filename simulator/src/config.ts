@@ -7,6 +7,10 @@ export interface Config {
     user: string;
     password: string;
   };
+  redis: {
+    host: string;
+    port: number;
+  };
   backfillDays: number;
   liveEventsPerSec: number;
 }
@@ -21,6 +25,10 @@ export function loadConfig(): Config {
       database: process.env.POSTGRES_DB || "agenthub",
       user: process.env.POSTGRES_USER || "agenthub",
       password: process.env.POSTGRES_PASSWORD || "agenthub_dev",
+    },
+    redis: {
+      host: process.env.REDIS_HOST || "localhost",
+      port: parseInt(process.env.REDIS_PORT || "6379", 10),
     },
     backfillDays: parseInt(
       process.env.SIMULATOR_BACKFILL_DAYS || "90",

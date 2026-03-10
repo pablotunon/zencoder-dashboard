@@ -1,16 +1,19 @@
 import pg from "pg";
+import Redis from "ioredis";
 import type { Config } from "./config.js";
 import {
   ORGS,
   generateUsers,
   generateProjects,
+  generateApiKeys,
   type OrgDefinition,
   type UserRecord,
   type ProjectRecord,
 } from "./generators/org.js";
 
 /**
- * Seed PostgreSQL with organization structure.
+ * Seed PostgreSQL with organization structure and API keys,
+ * and populate Redis with valid_orgs set.
  * Idempotent: uses INSERT ... ON CONFLICT DO NOTHING.
  */
 export async function seedDatabase(
@@ -28,8 +31,16 @@ export async function seedDatabase(
     password: config.postgres.password,
   });
 
+  const redis = new Redis({
+    host: config.redis.host,
+    port: config.redis.port,
+    lazyConnect: true,
+  });
+
   await client.connect();
   console.log("[seed] Connected to PostgreSQL");
+  await redis.connect();
+  console.log("[seed] Connected to Redis");
 
   try {
     const allUsers: UserRecord[] = [];
@@ -44,6 +55,9 @@ export async function seedDatabase(
         [org.id, org.name, org.plan, org.monthly_budget],
       );
       console.log(`[seed] Org: ${org.name}`);
+
+      // Register org in Redis valid_orgs set
+      await redis.sadd("valid_orgs", org.id);
 
       // Insert teams
       for (const team of org.teams) {
@@ -97,11 +111,29 @@ export async function seedDatabase(
       }
       console.log(`[seed] Projects: ${projects.length}`);
       allProjects.push(...projects);
+
+      // Generate and insert API keys
+      const apiKeys = generateApiKeys(org);
+      for (const key of apiKeys) {
+        await client.query(
+          `INSERT INTO api_keys (api_key_id, org_id, key_hash, name, is_active)
+           VALUES ($1, $2, $3, $4, $5)
+           ON CONFLICT (api_key_id) DO NOTHING`,
+          [key.api_key_id, key.org_id, key.key_hash, key.name, key.is_active],
+        );
+      }
+      console.log(
+        `[seed] API Keys: ${apiKeys.length} (dev keys: ${apiKeys.map((k) => k.plain_key).join(", ")})`,
+      );
     }
 
     console.log("[seed] Database seeding complete");
+    const validOrgs = await redis.smembers("valid_orgs");
+    console.log(`[seed] Redis valid_orgs: ${validOrgs.join(", ")}`);
+
     return { orgs: ORGS, users: allUsers, projects: allProjects };
   } finally {
     await client.end();
+    await redis.quit();
   }
 }

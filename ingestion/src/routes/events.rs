@@ -1,8 +1,10 @@
+use std::collections::{HashMap, HashSet};
+
 use axum::{extract::State, http::StatusCode, Json};
 
 use crate::models::event::{AgentEvent, EventBatch, EventError, IngestResponse};
 use crate::publisher::publish_event;
-use crate::validation::validate_event;
+use crate::validation::{check_org_exists, validate_event};
 use crate::AppState;
 
 const MAX_BATCH_SIZE: usize = 100;
@@ -52,10 +54,7 @@ pub async fn ingest_events(
         // Validate
         if let Err(e) = validate_event(&event) {
             rejected += 1;
-            errors.push(EventError {
-                index: i,
-                error: e,
-            });
+            errors.push(EventError { index: i, error: e });
             continue;
         }
 
@@ -74,7 +73,7 @@ pub async fn ingest_events(
         );
     }
 
-    // Phase 2: Get Redis connection and publish valid events
+    // Get Redis connection (used for org validation and publishing)
     let mut conn = match state.redis.get_multiplexed_async_connection().await {
         Ok(conn) => conn,
         Err(e) => {
@@ -95,9 +94,51 @@ pub async fn ingest_events(
         }
     };
 
+    // Phase 2: Validate org_ids against registered orgs in Redis
+    let unique_org_ids: HashSet<&str> = validated.iter().map(|(_, e)| e.org_id.as_str()).collect();
+    let mut org_valid: HashMap<String, bool> = HashMap::new();
+
+    for org_id in unique_org_ids {
+        match check_org_exists(&mut conn, org_id).await {
+            Ok(exists) => {
+                org_valid.insert(org_id.to_string(), exists);
+            }
+            Err(e) => {
+                tracing::error!("Failed to check org_id '{}' in Redis: {}", org_id, e);
+                org_valid.insert(org_id.to_string(), false);
+            }
+        }
+    }
+
+    let mut org_validated: Vec<(usize, AgentEvent)> = Vec::new();
+    for (i, event) in validated {
+        if *org_valid.get(&event.org_id).unwrap_or(&false) {
+            org_validated.push((i, event));
+        } else {
+            rejected += 1;
+            errors.push(EventError {
+                index: i,
+                error: format!("unknown org_id: {}", event.org_id),
+            });
+        }
+    }
+
+    // If no events survived org validation, return early
+    if org_validated.is_empty() {
+        return (
+            StatusCode::ACCEPTED,
+            Json(IngestResponse {
+                accepted: 0,
+                rejected,
+                errors,
+            }),
+        );
+    }
+
+    // Phase 3: Publish valid events
     let mut accepted = 0usize;
 
-    for (i, event) in validated {
+    for (i, event) in org_validated {
         match publish_event(&mut conn, &event).await {
             Ok(()) => {
                 accepted += 1;
