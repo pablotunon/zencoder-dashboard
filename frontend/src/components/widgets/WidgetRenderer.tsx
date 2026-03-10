@@ -774,7 +774,7 @@ function PieWidget({
   );
 
   return (
-    <ChartContainer config={config} className="h-80 w-full">
+    <ChartContainer config={config} className="h-64 w-full">
       <PieChart accessibilityLayer>
         <Tooltip
           content={({ active, payload }) => {
@@ -824,9 +824,9 @@ function PieWidget({
           ))}
         </Pie>
         <Legend
-          layout="horizontal"
-          verticalAlign="bottom"
-          align="center"
+          layout="vertical"
+          verticalAlign="middle"
+          align="right"
           iconType="circle"
           iconSize={8}
           formatter={(value: string) => (
