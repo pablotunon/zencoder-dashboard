@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Run tests for all services (or a specific one) via docker-compose.
+# Run tests for all services (or a specific one) via docker compose.
 #
 # Usage:
 #   ./scripts/test.sh              # run all service tests
@@ -32,7 +32,7 @@ run_tests() {
 
   echo "=== Testing $service ==="
   # shellcheck disable=SC2086
-  docker-compose exec -T "$service" $cmd
+  docker compose exec -T "$service" $cmd
   echo ""
 }
 
