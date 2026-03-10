@@ -94,7 +94,8 @@ Add org_id validation to the ingestion service: reject events with unregistered 
 
 ---
 
-### [ ] Step: Analytics API — Cross-Org Isolation Tests
+### [x] Step: Analytics API — Cross-Org Isolation Tests
+<!-- chat-id: 88fa3e92-9fe4-411d-920a-fd0e07c58278 -->
 
 Add integration tests verifying that cross-org data leakage is impossible.
 
