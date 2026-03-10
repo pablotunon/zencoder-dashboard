@@ -4,6 +4,7 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
+  Legend,
   Pie,
   PieChart,
   Tooltip,
@@ -773,7 +774,7 @@ function PieWidget({
   );
 
   return (
-    <ChartContainer config={config} className="h-64 w-full">
+    <ChartContainer config={config} className="h-80 w-full">
       <PieChart accessibilityLayer>
         <Tooltip
           content={({ active, payload }) => {
@@ -822,6 +823,16 @@ function PieWidget({
             />
           ))}
         </Pie>
+        <Legend
+          layout="horizontal"
+          verticalAlign="bottom"
+          align="center"
+          iconType="circle"
+          iconSize={8}
+          formatter={(value: string) => (
+            <span className="text-xs text-gray-600">{value}</span>
+          )}
+        />
       </PieChart>
     </ChartContainer>
   );
