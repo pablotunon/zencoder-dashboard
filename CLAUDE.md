@@ -22,12 +22,21 @@ Port assignments are tracked in `~/.agenthub-ports.json`. Stale entries (deleted
 
 ## Testing Commands
 All tests MUST be executed within Docker containers.
+
+### Unit / Integration Tests (per-service)
 - **All services**: `./scripts/test.sh`
 - **Single service**: `./scripts/test.sh <service_name>` (e.g., `./scripts/test.sh ingestion`)
 - **Simulator**: `docker compose exec simulator npm run test`
 - **Ingestion**: `docker compose exec ingestion cargo test`
 - **Aggregation Worker**: `docker compose exec aggregation-worker pytest`
 - **Analytics API**: `docker compose exec analytics-api pytest`
+- **Frontend**: `docker compose exec frontend npm run test`
+
+### E2E Tests (Playwright, full stack required)
+- **Run e2e**: `./scripts/test.sh e2e`
+- **Direct**: `docker compose --profile testing run --rm e2e`
+- E2E specs live in `tests/e2e/tests/` and run inside a Playwright container against the running stack.
+- Browser tests use auth fixtures from `tests/e2e/tests/auth.setup.ts` — all specs that hit protected routes or render authenticated pages must use `authRequest` or `authedPage` fixtures.
 
 ## Linting and Formatting
 All linting and formatting MUST be executed within Docker containers.
