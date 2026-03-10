@@ -1,9 +1,10 @@
-"""Integration tests for Analytics API — API-I01 through API-I13.
+"""Integration tests for Analytics API — API-I01 through API-I14.
 
 These tests use mocked service layers to validate endpoint behavior
 without requiring actual database connections.
 """
 import inspect
+import math
 import re
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -652,3 +653,103 @@ class TestWidgetValidation:
                 "period": "30d",
             })
             assert resp.status_code == 503
+
+
+# API-I14: Widget NaN handling — quantile/avg on empty data must not produce 500
+class TestWidgetNanHandling:
+    """ClickHouse quantile() and avg() return nan on empty result sets.
+    Python's json.dumps rejects float('nan') with ValueError, causing a 500.
+    These tests verify that NaN values are sanitized to 0.0 throughout."""
+
+    def _make_mock_query_result(self, first_row=None, result_rows=None):
+        mock = MagicMock()
+        mock.first_row = first_row or [0]
+        mock.result_rows = result_rows or []
+        return mock
+
+    def test_aggregate_nan_returns_zero(self, client):
+        """_query_aggregate must convert nan to 0.0."""
+        from app.services.widget_query import _query_aggregate
+        from datetime import date
+
+        mock_result = self._make_mock_query_result(first_row=[float("nan")])
+        with patch("app.services.widget_query.get_client") as mock_get:
+            mock_get.return_value.query.return_value = mock_result
+            value = _query_aggregate("org_acme", "quantile(0.5)(duration_ms)", date(2025, 1, 1), date(2025, 2, 1), "", {})
+        assert value == 0.0
+        assert not math.isnan(value)
+
+    def test_timeseries_nan_returns_zero_in_data(self, client):
+        """Timeseries data points with nan values must be sanitized to 0.0."""
+        from app.services.widget_query import build_widget_query
+        from datetime import date
+
+        # Mock: aggregate queries return nan, timeseries has a row with nan
+        mock_ts_result = self._make_mock_query_result(
+            result_rows=[(date(2025, 1, 15), float("nan"))]
+        )
+        mock_agg_result = self._make_mock_query_result(first_row=[float("nan")])
+
+        with patch("app.services.widget_query.get_client") as mock_get, \
+             patch("app.services.widget_query.period_to_dates", return_value=(date(2025, 1, 1), date(2025, 2, 1))), \
+             patch("app.services.widget_query.previous_period_dates", return_value=(date(2024, 12, 1), date(2025, 1, 1))):
+            mock_client = MagicMock()
+            # First call: timeseries query; second+third: aggregate queries
+            mock_client.query.side_effect = [mock_ts_result, mock_agg_result, mock_agg_result]
+            mock_get.return_value = mock_client
+
+            result = build_widget_query("org_acme", "latency_p50", "30d")
+
+        assert result["type"] == "timeseries"
+        assert result["summary"]["value"] == 0.0
+        assert not math.isnan(result["summary"]["value"])
+        for pt in result["data"]:
+            assert not math.isnan(pt["value"])
+            assert pt["value"] == 0.0
+
+    def test_breakdown_nan_returns_zero_in_data(self, client):
+        """Breakdown data points with nan values must be sanitized to 0.0."""
+        from app.services.widget_query import build_widget_query
+        from datetime import date
+
+        mock_result = self._make_mock_query_result(
+            result_rows=[("team_platform", float("nan")), ("team_backend", float("nan"))]
+        )
+
+        with patch("app.services.widget_query.get_client") as mock_get, \
+             patch("app.services.widget_query.period_to_dates", return_value=(date(2025, 1, 1), date(2025, 2, 1))):
+            mock_get.return_value.query.return_value = mock_result
+
+            result = build_widget_query("org_acme", "latency_p50", "30d", breakdown="team")
+
+        assert result["type"] == "breakdown"
+        for pt in result["data"]:
+            assert not math.isnan(pt["value"])
+            assert pt["value"] == 0.0
+
+    def test_widget_endpoint_nan_metrics_return_200(self, client):
+        """Full endpoint test: metrics that use quantile/avg must return 200
+        even when underlying data produces NaN (empty agent_runs table)."""
+        nan_metrics = ["latency_p50", "latency_p95", "latency_p99", "queue_wait_avg", "queue_wait_p95"]
+
+        for metric in nan_metrics:
+            nan_response = {
+                "type": "timeseries",
+                "metric": metric,
+                "summary": {"value": 0.0, "change_pct": None},
+                "data": [],
+            }
+            with patch("app.routers.widget.redis_cache") as mock_cache, \
+                 patch("app.routers.widget.build_widget_query") as mock_query:
+                mock_cache.make_cache_key.return_value = "test_key"
+                mock_cache.get_cached.return_value = None
+                mock_cache.set_cached = MagicMock()
+                mock_query.return_value = nan_response
+
+                resp = client.post("/api/metrics/widget", json={
+                    "metric": metric,
+                    "period": "30d",
+                })
+                assert resp.status_code == 200, f"{metric} returned {resp.status_code}"
+                data = resp.json()
+                assert data["summary"]["value"] == 0.0

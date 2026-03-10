@@ -1,4 +1,5 @@
 import logging
+import math
 from datetime import date
 from typing import Any, Literal
 
@@ -56,6 +57,16 @@ DIMENSION_REGISTRY: dict[str, dict[str, str]] = {
 }
 
 
+def _safe_float(value: Any) -> float:
+    """Convert a value to float, replacing NaN/Inf with 0.0.
+
+    ClickHouse quantile() and avg() return nan on empty result sets.
+    Python's json.dumps rejects nan, so we must sanitize here.
+    """
+    f = float(value) if value is not None else 0.0
+    return 0.0 if not math.isfinite(f) else f
+
+
 def _build_filter_clause(
     filters: dict[str, list[str] | None] | None,
 ) -> tuple[str, dict[str, Any]]:
@@ -103,7 +114,7 @@ def _query_aggregate(
         sql,
         parameters={"org_id": org_id, "start": start, "end": end, **extra_params},
     )
-    return float(result.first_row[0]) if result.first_row[0] is not None else 0.0
+    return _safe_float(result.first_row[0])
 
 
 def build_widget_query(
@@ -145,7 +156,7 @@ def build_widget_query(
             parameters={"org_id": org_id, "start": start, "end": end, **extra_params},
         )
         data = [
-            {"label": str(row[0]) if row[0] is not None else "unknown", "value": round(float(row[1]), 2)}
+            {"label": str(row[0]) if row[0] is not None else "unknown", "value": round(_safe_float(row[1]), 2)}
             for row in result.result_rows
         ]
         return {
@@ -175,7 +186,7 @@ def build_widget_query(
     data = [
         {
             "date": str(row[0]),
-            "value": round(float(row[1]), 2),
+            "value": round(_safe_float(row[1]), 2),
             "is_partial": _is_today(row[0]),
         }
         for row in result.result_rows
