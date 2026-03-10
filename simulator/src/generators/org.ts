@@ -36,7 +36,15 @@ export interface ProjectRecord {
   repository_url: string;
 }
 
-// Phase A: single org definition
+export interface ApiKeyRecord {
+  api_key_id: string;
+  org_id: string;
+  key_hash: string;
+  name: string;
+  is_active: boolean;
+  plain_key: string; // for logging/dev only, not stored in DB
+}
+
 export const ORGS: OrgDefinition[] = [
   {
     id: "org_acme",
@@ -49,6 +57,17 @@ export const ORGS: OrgDefinition[] = [
       { id: "team_frontend", name: "Frontend", slug: "frontend", size: 8 },
       { id: "team_data", name: "Data Engineering", slug: "data", size: 10 },
       { id: "team_mobile", name: "Mobile", slug: "mobile", size: 5 },
+    ],
+  },
+  {
+    id: "org_globex",
+    name: "Globex Corporation",
+    plan: "business",
+    monthly_budget: 20000,
+    teams: [
+      { id: "team_globex_eng", name: "Engineering", slug: "engineering", size: 10 },
+      { id: "team_globex_product", name: "Product", slug: "product", size: 6 },
+      { id: "team_globex_devops", name: "DevOps", slug: "devops", size: 4 },
     ],
   },
 ];
@@ -73,9 +92,9 @@ export function generateUsers(org: OrgDefinition, seed: number): UserRecord[] {
   const seeded = faker.seed(seed);
   const users: UserRecord[] = [];
 
-  // Add well-known "user" user for the first org (org_acme)
+  // Add well-known demo users for each org
+  const wellKnownPasswordHash = bcrypt.hashSync("pass", 10);
   if (org.id === "org_acme") {
-    const wellKnownPasswordHash = bcrypt.hashSync("pass", 10);
     users.push({
       user_id: "user",
       org_id: "org_acme",
@@ -83,6 +102,18 @@ export function generateUsers(org: OrgDefinition, seed: number): UserRecord[] {
       name: "Demo User",
       email: "user@acmecorp.com",
       avatar_url: "https://i.pravatar.cc/150?u=user",
+      role: "admin",
+      is_active: true,
+      password_hash: wellKnownPasswordHash,
+    });
+  } else if (org.id === "org_globex") {
+    users.push({
+      user_id: "user_globex_admin",
+      org_id: "org_globex",
+      team_id: "team_globex_eng",
+      name: "Globex Admin",
+      email: "admin@globexcorporation.com",
+      avatar_url: "https://i.pravatar.cc/150?u=globex_admin",
       role: "admin",
       is_active: true,
       password_hash: wellKnownPasswordHash,
@@ -140,4 +171,27 @@ export function generateProjects(org: OrgDefinition): ProjectRecord[] {
       repository_url: `https://github.com/${org.name.toLowerCase().replace(/\s+/g, "-")}/${name}`,
     };
   });
+}
+
+/**
+ * Generate deterministic API keys for an org.
+ * Keys use a known prefix for dev environments.
+ */
+export function generateApiKeys(org: OrgDefinition): ApiKeyRecord[] {
+  const orgShort = org.id.replace("org_", "");
+  const keys: ApiKeyRecord[] = [];
+
+  for (let i = 0; i < 2; i++) {
+    const plainKey = `ak_${orgShort}_${(i + 1).toString().padStart(3, "0")}`;
+    keys.push({
+      api_key_id: `apikey_${orgShort}_${(i + 1).toString().padStart(3, "0")}`,
+      org_id: org.id,
+      key_hash: bcrypt.hashSync(plainKey, 10),
+      name: i === 0 ? "Production Key" : "Staging Key",
+      is_active: true,
+      plain_key: plainKey,
+    });
+  }
+
+  return keys;
 }

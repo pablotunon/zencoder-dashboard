@@ -29,7 +29,8 @@ Difficulty: **Medium**. Multi-tenancy infrastructure (org_id in all schemas, JWT
 
 ---
 
-### [ ] Step: DB Schema & Simulator — Second Org + API Keys
+### [x] Step: DB Schema & Simulator — Second Org + API Keys
+<!-- chat-id: 338328ba-eb64-4da5-b63b-f2d6c4c5d99b -->
 
 Add the `api_keys` table to PostgreSQL schema and seed a second organization (Globex Corporation) with independent teams, users, projects, and API keys.
 

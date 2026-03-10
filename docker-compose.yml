@@ -131,12 +131,16 @@ services:
       POSTGRES_DB: agenthub
       POSTGRES_USER: agenthub
       POSTGRES_PASSWORD: agenthub_dev
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
       SIMULATOR_BACKFILL_DAYS: "90"
       SIMULATOR_LIVE_EVENTS_PER_SEC: "3"
     depends_on:
       ingestion:
         condition: service_healthy
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
 
   frontend:
