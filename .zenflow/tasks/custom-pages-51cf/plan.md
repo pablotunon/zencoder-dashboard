@@ -20,52 +20,80 @@ If you are blocked and need user clarification, mark the current step with `[!]`
 
 ## Workflow Steps
 
-### [ ] Step: Technical Specification
+### [x] Step: Technical Specification
 <!-- chat-id: adb8d01e-d2e1-4245-83a9-e224ef7c8020 -->
 
-Assess the task's difficulty, as underestimating it leads to poor outcomes.
-- easy: Straightforward implementation, trivial bug fix or feature
-- medium: Moderate complexity, some edge cases or caveats to consider
-- hard: Complex logic, many caveats, architectural considerations, or high-risk changes
-
-Create a technical specification for the task that is appropriate for the complexity level:
-- Review the existing codebase architecture and identify reusable components.
-- Define the implementation approach based on established patterns in the project.
-- Identify all source code files that will be created or modified.
-- Define any necessary data model, API, or interface changes.
-- Describe verification steps using the project's test and lint commands.
-
-Save the output to `{@artifacts_path}/spec.md` with:
-- Technical context (language, dependencies)
-- Implementation approach
-- Source code structure changes
-- Data model / API / interface changes
-- Verification approach
-
-If the task is complex enough, create a detailed implementation plan based on `{@artifacts_path}/spec.md`:
-- Break down the work into concrete tasks (incrementable, testable milestones)
-- Each task should reference relevant contracts and include verification steps
-- Replace the Implementation step below with the planned tasks
-
-Rule of thumb for step size: each step should represent a coherent unit of work (e.g., implement a component, add an API endpoint, write tests for a module). Avoid steps that are too granular (single function).
-
-Important: unit tests must be part of each implementation task, not separate tasks. Each task should implement the code and its tests together, if relevant.
-
-Save to `{@artifacts_path}/plan.md`. If the feature is trivial and doesn't warrant this breakdown, keep the Implementation step below as is.
+Spec saved to `.zenflow/tasks/custom-pages-51cf/spec.md`. Difficulty: Hard. Full-stack feature covering Postgres schema, Python API (FastAPI), and React frontend.
 
 ---
 
-### [ ] Step: Implementation
+### [ ] Step: Database schema and backend templates
 <!-- chat-id: ab1aa7e3-a059-41d7-a597-b4a3e3549abe -->
 
-Implement the task according to the technical specification and general engineering best practices.
+Update `init-scripts/postgres/002-user-pages.sql` to add the `slug` column and unique constraint. Create `analytics-api/app/services/page_templates.py` with the 4 default page templates (Overview, Usage, Cost, Performance) extracted from the current frontend page components.
 
-1. Break the task into steps where possible.
-2. Implement the required changes in the codebase
-3. If relevant, write unit tests alongside each change.
-4. Run relevant tests and linters in the end of each step.
-5. Perform basic manual verification if applicable.
-6. After completion, write a report to `{@artifacts_path}/report.md` describing:
-   - What was implemented
-   - How the solution was tested
-   - The biggest issues or challenges encountered
+- Update the SQL schema (add `slug VARCHAR(128) NOT NULL`, `UNIQUE(user_id, slug)`, `ON DELETE CASCADE`)
+- Create template definitions with layout JSON matching current page layouts
+- Run `docker compose exec analytics-api pytest` to verify no regressions
+
+---
+
+### [ ] Step: Backend pages API
+
+Create the pages service layer and API router.
+
+- Create `analytics-api/app/models/pages.py` — Pydantic models for requests/responses
+- Create `analytics-api/app/services/page_service.py` — DB access (CRUD, slug generation, seeding, reorder)
+- Create `analytics-api/app/routers/pages.py` — REST endpoints (list, get, create, update, delete, reorder, templates)
+- Register the router in `analytics-api/app/main.py`
+- Add page seeding logic to `analytics-api/app/routers/auth.py` (seed on login if zero pages)
+- Write tests in `analytics-api/tests/test_pages.py`
+- Run `docker compose exec analytics-api pytest`
+
+---
+
+### [ ] Step: Frontend API layer and icon registry
+
+Create the frontend API hooks and icon mapping needed by the UI components.
+
+- Create `frontend/src/api/pages.ts` — React Query hooks for all pages endpoints
+- Create `frontend/src/lib/icon-registry.ts` — icon key to Heroicon component mapping
+- Add TypeScript types for page API responses in `frontend/src/types/`
+- Run `docker compose exec frontend npx tsc --noEmit`
+
+---
+
+### [ ] Step: CustomPage component and routing
+
+Replace all existing page components with a single dynamic CustomPage and update routing.
+
+- Create `frontend/src/pages/CustomPage.tsx` — universal page component (loads layout from API, auto-saves changes)
+- Refactor `frontend/src/hooks/useDashboard.ts` — accept initial rows, add onChange callback for auto-save
+- Update `frontend/src/App.tsx` — replace static routes with `/p/:slug`, add redirect from `/` to first page
+- Delete `frontend/src/pages/Dashboard.tsx`, `Overview.tsx`, `Usage.tsx`, `Cost.tsx`, `Performance.tsx`
+- Run `docker compose exec frontend npx tsc --noEmit` and `docker compose exec frontend npm run lint`
+
+---
+
+### [ ] Step: Dynamic sidebar and page creation
+
+Update the sidebar to load pages from the API and add the page creation flow.
+
+- Update `frontend/src/components/layout/Sidebar.tsx` — dynamic nav from `usePages()`, "New Page" button
+- Create `frontend/src/components/pages/PageCreateModal.tsx` — name input, icon picker, template selector
+- Add inline page title editing and icon changing on `CustomPage`
+- Add page delete functionality (from sidebar or page)
+- Run frontend lint and type checks
+
+---
+
+### [ ] Step: Integration testing and polish
+
+End-to-end testing and final verification.
+
+- Rebuild stack: `docker compose up --build -d`
+- Write E2E test `tests/e2e/tests/custom-pages.spec.ts` (seed, navigate, create, edit, delete, persist)
+- Run `./scripts/test.sh` for all service tests
+- Run `./scripts/test.sh e2e` for E2E tests
+- Manual verification: login flow, seeded pages, widget persistence, page CRUD
+- Write report to `.zenflow/tasks/custom-pages-51cf/report.md`
