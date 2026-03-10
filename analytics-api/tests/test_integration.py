@@ -1,4 +1,4 @@
-"""Integration tests for Analytics API — API-I01 through API-I10.
+"""Integration tests for Analytics API — API-I01 through API-I14.
 
 These tests use mocked service layers to validate endpoint behavior
 without requiring actual database connections.
@@ -84,7 +84,6 @@ def _patch_redis_cache():
         "app.services.redis_cache",
         get_cached=MagicMock(return_value=None),
         set_cached=MagicMock(),
-        get_active_runs=MagicMock(return_value=3),
         check_connection=MagicMock(return_value=True),
     )
 
@@ -141,8 +140,6 @@ class TestOverviewEndpoint:
             assert "kpi_cards" in data
             assert "usage_trend" in data
             assert "team_breakdown" in data
-            assert "active_runs_count" in data
-
             kpi = data["kpi_cards"]
             assert kpi["total_runs"]["value"] == 5000
             assert kpi["total_runs"]["change_pct"] == 5.2
@@ -242,7 +239,6 @@ class TestCacheHit:
             },
             "usage_trend": [],
             "team_breakdown": [],
-            "active_runs_count": 0,
         }
         with patch("app.routers.overview.redis_cache") as mock_cache:
             mock_cache.make_cache_key.return_value = "test_key"
@@ -265,6 +261,7 @@ class TestOrgEndpoint:
             mock_pg.get_org = AsyncMock(return_value=MOCK_ORG)
             mock_pg.get_teams = AsyncMock(return_value=MOCK_TEAMS)
             mock_pg.get_projects = AsyncMock(return_value=MOCK_PROJECTS)
+            mock_pg.get_total_licensed_users = AsyncMock(return_value=25)
 
             resp = client.get("/api/orgs/current")
             assert resp.status_code == 200
@@ -273,6 +270,7 @@ class TestOrgEndpoint:
             assert data["org_id"] == "org_acme"
             assert data["name"] == "Acme Corp"
             assert data["plan"] == "enterprise"
+            assert data["licensed_users"] == 25
             assert len(data["teams"]) == 2
             assert len(data["projects"]) == 1
             assert data["teams"][0]["team_id"] == "team_platform"
@@ -375,6 +373,7 @@ class TestCrossOrgIsolation:
             mock_pg.get_org = AsyncMock(return_value=MOCK_ORG)
             mock_pg.get_teams = AsyncMock(return_value=MOCK_TEAMS)
             mock_pg.get_projects = AsyncMock(return_value=MOCK_PROJECTS)
+            mock_pg.get_total_licensed_users = AsyncMock(return_value=25)
 
             resp = client.get("/api/orgs/current")
             assert resp.status_code == 200
@@ -382,6 +381,7 @@ class TestCrossOrgIsolation:
             mock_pg.get_org.assert_called_once_with("org_acme")
             mock_pg.get_teams.assert_called_once_with("org_acme")
             mock_pg.get_projects.assert_called_once_with("org_acme")
+            mock_pg.get_total_licensed_users.assert_called_once_with("org_acme")
 
 
 # API-I09: Cache key isolation — different orgs never share cache entries
@@ -420,7 +420,6 @@ class TestCacheKeyIsolation:
             },
             "usage_trend": [],
             "team_breakdown": [],
-            "active_runs_count": 0,
         }
 
         # Acme request: cache hit returns the cached data
@@ -486,3 +485,283 @@ class TestClickHouseOrgIdFiltering:
             assert org_id_pattern.search(source), (
                 f"{name}() does not contain org_id in a WHERE clause"
             )
+
+
+# Mock widget query results
+MOCK_WIDGET_TIMESERIES = {
+    "type": "timeseries",
+    "metric": "run_count",
+    "summary": {"value": 5000.0, "change_pct": 5.2},
+    "data": [
+        {"date": "2025-01-01", "value": 100.0, "is_partial": False},
+        {"date": "2025-01-02", "value": 120.0, "is_partial": True},
+    ],
+}
+
+MOCK_WIDGET_BREAKDOWN = {
+    "type": "breakdown",
+    "metric": "cost",
+    "dimension": "team",
+    "data": [
+        {"label": "platform", "value": 850.0},
+        {"label": "backend", "value": 620.0},
+    ],
+}
+
+
+# API-I11: POST /api/metrics/widget returns timeseries response
+class TestWidgetTimeseries:
+    def test_widget_timeseries_response(self, client):
+        with patch("app.routers.widget.redis_cache") as mock_cache, \
+             patch("app.routers.widget.build_widget_query") as mock_query:
+            mock_cache.make_cache_key.return_value = "test_widget_key"
+            mock_cache.get_cached.return_value = None
+            mock_cache.set_cached = MagicMock()
+            mock_query.return_value = MOCK_WIDGET_TIMESERIES
+
+            resp = client.post("/api/metrics/widget", json={
+                "metric": "run_count",
+                "period": "30d",
+            })
+            assert resp.status_code == 200
+            data = resp.json()
+
+            assert data["type"] == "timeseries"
+            assert data["metric"] == "run_count"
+            assert "summary" in data
+            assert data["summary"]["value"] == 5000.0
+            assert data["summary"]["change_pct"] == 5.2
+            assert len(data["data"]) == 2
+            assert data["data"][0]["date"] == "2025-01-01"
+
+            # Verify build_widget_query was called with correct args
+            mock_query.assert_called_once_with(
+                org_id="org_acme",
+                metric="run_count",
+                period="30d",
+                breakdown=None,
+                filters=None,
+            )
+
+
+# API-I12: POST /api/metrics/widget with breakdown returns breakdown response
+class TestWidgetBreakdown:
+    def test_widget_breakdown_response(self, client):
+        with patch("app.routers.widget.redis_cache") as mock_cache, \
+             patch("app.routers.widget.build_widget_query") as mock_query:
+            mock_cache.make_cache_key.return_value = "test_widget_key"
+            mock_cache.get_cached.return_value = None
+            mock_cache.set_cached = MagicMock()
+            mock_query.return_value = MOCK_WIDGET_BREAKDOWN
+
+            resp = client.post("/api/metrics/widget", json={
+                "metric": "cost",
+                "period": "30d",
+                "breakdown": "team",
+            })
+            assert resp.status_code == 200
+            data = resp.json()
+
+            assert data["type"] == "breakdown"
+            assert data["metric"] == "cost"
+            assert data["dimension"] == "team"
+            assert len(data["data"]) == 2
+            assert data["data"][0]["label"] == "platform"
+
+    def test_widget_with_filters(self, client):
+        with patch("app.routers.widget.redis_cache") as mock_cache, \
+             patch("app.routers.widget.build_widget_query") as mock_query:
+            mock_cache.make_cache_key.return_value = "test_widget_key"
+            mock_cache.get_cached.return_value = None
+            mock_cache.set_cached = MagicMock()
+            mock_query.return_value = MOCK_WIDGET_TIMESERIES
+
+            resp = client.post("/api/metrics/widget", json={
+                "metric": "cost",
+                "period": "7d",
+                "filters": {
+                    "teams": ["platform"],
+                    "agent_types": ["coding"],
+                },
+            })
+            assert resp.status_code == 200
+
+            mock_query.assert_called_once_with(
+                org_id="org_acme",
+                metric="cost",
+                period="7d",
+                breakdown=None,
+                filters={"teams": ["platform"], "agent_types": ["coding"]},
+            )
+
+
+# API-I13: POST /api/metrics/widget validates request body
+class TestWidgetValidation:
+    def test_invalid_metric_returns_422(self, client):
+        resp = client.post("/api/metrics/widget", json={
+            "metric": "nonexistent",
+            "period": "30d",
+        })
+        assert resp.status_code == 422
+
+    def test_invalid_period_returns_422(self, client):
+        resp = client.post("/api/metrics/widget", json={
+            "metric": "run_count",
+            "period": "15d",
+        })
+        assert resp.status_code == 422
+
+    def test_invalid_breakdown_returns_422(self, client):
+        resp = client.post("/api/metrics/widget", json={
+            "metric": "run_count",
+            "period": "30d",
+            "breakdown": "nonexistent",
+        })
+        assert resp.status_code == 422
+
+    def test_missing_metric_returns_422(self, client):
+        resp = client.post("/api/metrics/widget", json={
+            "period": "30d",
+        })
+        assert resp.status_code == 422
+
+    def test_widget_cache_hit(self, client):
+        cached_data = MOCK_WIDGET_TIMESERIES
+        with patch("app.routers.widget.redis_cache") as mock_cache:
+            mock_cache.make_cache_key.return_value = "test_widget_key"
+            mock_cache.get_cached.return_value = cached_data
+
+            resp = client.post("/api/metrics/widget", json={
+                "metric": "run_count",
+                "period": "30d",
+            })
+            assert resp.status_code == 200
+            data = resp.json()
+            assert data["type"] == "timeseries"
+            assert data["summary"]["value"] == 5000.0
+
+    def test_widget_query_failure_returns_503(self, client):
+        with patch("app.routers.widget.redis_cache") as mock_cache, \
+             patch("app.routers.widget.build_widget_query") as mock_query:
+            mock_cache.make_cache_key.return_value = "test_widget_key"
+            mock_cache.get_cached.return_value = None
+            mock_query.side_effect = Exception("ClickHouse down")
+
+            resp = client.post("/api/metrics/widget", json={
+                "metric": "run_count",
+                "period": "30d",
+            })
+            assert resp.status_code == 503
+
+
+# API-I14: Widget NaN handling — quantile/avg on empty data must not produce 500
+class TestWidgetNanHandling:
+    """ClickHouse quantile() and avg() return nan on empty result sets.
+    Python's json.dumps rejects float('nan') with ValueError, causing a 500.
+    These tests verify that the centralized NanSafeJSONResponse serializer
+    converts NaN to null at the HTTP boundary, preventing 500 errors."""
+
+    def test_nan_timeseries_endpoint_returns_200(self, client):
+        """Endpoint must return 200 with null values when build_widget_query
+        produces NaN (from empty ClickHouse quantile/avg results)."""
+        nan_response = {
+            "type": "timeseries",
+            "metric": "latency_p50",
+            "summary": {"value": float("nan"), "change_pct": None},
+            "data": [{"date": "2025-01-15", "value": float("nan"), "is_partial": False}],
+        }
+        with patch("app.routers.widget.redis_cache") as mock_cache, \
+             patch("app.routers.widget.build_widget_query") as mock_query:
+            mock_cache.make_cache_key.return_value = "test_key"
+            mock_cache.get_cached.return_value = None
+            mock_cache.set_cached = MagicMock()
+            mock_query.return_value = nan_response
+
+            resp = client.post("/api/metrics/widget", json={
+                "metric": "latency_p50",
+                "period": "30d",
+            })
+            assert resp.status_code == 200
+            data = resp.json()
+            assert data["summary"]["value"] is None
+            assert data["data"][0]["value"] is None
+
+    def test_nan_breakdown_endpoint_returns_200(self, client):
+        """Breakdown response with NaN values must serialize to null."""
+        nan_response = {
+            "type": "breakdown",
+            "metric": "queue_wait_avg",
+            "dimension": "team",
+            "data": [
+                {"label": "platform", "value": float("nan")},
+                {"label": "backend", "value": float("inf")},
+            ],
+        }
+        with patch("app.routers.widget.redis_cache") as mock_cache, \
+             patch("app.routers.widget.build_widget_query") as mock_query:
+            mock_cache.make_cache_key.return_value = "test_key"
+            mock_cache.get_cached.return_value = None
+            mock_cache.set_cached = MagicMock()
+            mock_query.return_value = nan_response
+
+            resp = client.post("/api/metrics/widget", json={
+                "metric": "queue_wait_avg",
+                "period": "30d",
+                "breakdown": "team",
+            })
+            assert resp.status_code == 200
+            data = resp.json()
+            for pt in data["data"]:
+                assert pt["value"] is None
+
+    def test_all_nan_prone_metrics_return_200(self, client):
+        """All metrics using quantile/avg must return 200 even with NaN data."""
+        nan_metrics = ["latency_p50", "latency_p95", "latency_p99", "queue_wait_avg", "queue_wait_p95"]
+
+        for metric in nan_metrics:
+            nan_response = {
+                "type": "timeseries",
+                "metric": metric,
+                "summary": {"value": float("nan"), "change_pct": float("nan")},
+                "data": [],
+            }
+            with patch("app.routers.widget.redis_cache") as mock_cache, \
+                 patch("app.routers.widget.build_widget_query") as mock_query:
+                mock_cache.make_cache_key.return_value = "test_key"
+                mock_cache.get_cached.return_value = None
+                mock_cache.set_cached = MagicMock()
+                mock_query.return_value = nan_response
+
+                resp = client.post("/api/metrics/widget", json={
+                    "metric": metric,
+                    "period": "30d",
+                })
+                assert resp.status_code == 200, f"{metric} returned {resp.status_code}"
+                data = resp.json()
+                assert data["summary"]["value"] is None
+                assert data["summary"]["change_pct"] is None
+
+    def test_finite_values_pass_through_unchanged(self, client):
+        """Normal finite values must not be affected by NaN sanitization."""
+        normal_response = {
+            "type": "timeseries",
+            "metric": "latency_p50",
+            "summary": {"value": 123.45, "change_pct": -2.3},
+            "data": [{"date": "2025-01-15", "value": 99.9, "is_partial": False}],
+        }
+        with patch("app.routers.widget.redis_cache") as mock_cache, \
+             patch("app.routers.widget.build_widget_query") as mock_query:
+            mock_cache.make_cache_key.return_value = "test_key"
+            mock_cache.get_cached.return_value = None
+            mock_cache.set_cached = MagicMock()
+            mock_query.return_value = normal_response
+
+            resp = client.post("/api/metrics/widget", json={
+                "metric": "latency_p50",
+                "period": "30d",
+            })
+            assert resp.status_code == 200
+            data = resp.json()
+            assert data["summary"]["value"] == 123.45
+            assert data["summary"]["change_pct"] == -2.3
+            assert data["data"][0]["value"] == 99.9

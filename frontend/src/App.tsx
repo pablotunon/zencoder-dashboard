@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { AppShell } from "@/components/layout/AppShell";
 import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
+import { DashboardPage } from "@/pages/Dashboard";
 import { OverviewPage } from "@/pages/Overview";
 import { UsagePage } from "@/pages/Usage";
 import { CostPage } from "@/pages/Cost";
@@ -39,11 +40,12 @@ export default function App() {
             </RequireAuth>
           }
         >
+          <Route path="/" element={<DashboardPage />} />
           <Route path="/overview" element={<OverviewPage />} />
           <Route path="/usage" element={<UsagePage />} />
           <Route path="/cost" element={<CostPage />} />
           <Route path="/performance" element={<PerformancePage />} />
-          <Route path="*" element={<Navigate to="/overview" replace />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>
     </ErrorBoundary>

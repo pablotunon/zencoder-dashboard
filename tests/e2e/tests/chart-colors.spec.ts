@@ -1,4 +1,5 @@
-import { test, expect } from "@playwright/test";
+import { expect } from "@playwright/test";
+import { browserTest } from "./auth.setup";
 
 /**
  * Regression test for the "black graphs" bug.
@@ -13,18 +14,15 @@ import { test, expect } from "@playwright/test";
  * This test verifies that chart gradient stops resolve to actual colors
  * (not black fallbacks).
  */
-test.describe("Chart colors are not black", () => {
-  test("overview page chart gradient stops have color", async ({ page }) => {
-    await page.goto("/");
+browserTest.describe("Chart colors are not black", () => {
+  browserTest("overview page chart gradient stops have color", async ({ authedPage }) => {
+    await authedPage.goto("/");
 
     // Wait for chart to render
-    const chart = page.locator(".recharts-responsive-container").first();
+    const chart = authedPage.locator(".recharts-responsive-container").first();
     await expect(chart).toBeVisible({ timeout: 15_000 });
 
-    // Tremor AreaChart uses <linearGradient> with class="text-{color}-500"
-    // and <stop stop-color="currentColor">. If the text-* class is purged,
-    // currentColor falls back to black.
-    const stopColors = await page.evaluate(() => {
+    const stopColors = await authedPage.evaluate(() => {
       const stops = document.querySelectorAll("linearGradient stop");
       return Array.from(stops).map((s) => getComputedStyle(s).stopColor);
     });
@@ -38,29 +36,25 @@ test.describe("Chart colors are not black", () => {
     }
   });
 
-  test("performance page charts have non-black gradient colors", async ({
-    page,
+  browserTest("performance page charts have non-black gradient colors", async ({
+    authedPage,
   }) => {
-    await page.goto("/performance");
+    await authedPage.goto("/performance");
 
-    // Wait for at least one chart to render
-    const chart = page.locator(".recharts-responsive-container").first();
+    const chart = authedPage.locator(".recharts-responsive-container").first();
     await expect(chart).toBeVisible({ timeout: 15_000 });
 
-    // Collect all gradient stop colors and line stroke colors
-    const colors = await page.evaluate(() => {
+    const colors = await authedPage.evaluate(() => {
       const result: { stopColors: string[]; strokeColors: string[] } = {
         stopColors: [],
         strokeColors: [],
       };
 
-      // Check gradient stops
       const stops = document.querySelectorAll("linearGradient stop");
       for (const s of stops) {
         result.stopColors.push(getComputedStyle(s).stopColor);
       }
 
-      // Check line strokes (Tremor applies stroke-* classes to recharts groups)
       const lines = document.querySelectorAll(".recharts-line-curve");
       for (const l of lines) {
         result.strokeColors.push(getComputedStyle(l).stroke);
@@ -69,7 +63,6 @@ test.describe("Chart colors are not black", () => {
       return result;
     });
 
-    // At least some gradient stops should exist
     expect(colors.stopColors.length + colors.strokeColors.length).toBeGreaterThan(0);
 
     for (const color of [...colors.stopColors, ...colors.strokeColors]) {
@@ -80,13 +73,13 @@ test.describe("Chart colors are not black", () => {
     }
   });
 
-  test("cost page charts have non-black gradient colors", async ({ page }) => {
-    await page.goto("/cost");
+  browserTest("cost page charts have non-black gradient colors", async ({ authedPage }) => {
+    await authedPage.goto("/cost");
 
-    const chart = page.locator(".recharts-responsive-container").first();
+    const chart = authedPage.locator(".recharts-responsive-container").first();
     await expect(chart).toBeVisible({ timeout: 15_000 });
 
-    const stopColors = await page.evaluate(() => {
+    const stopColors = await authedPage.evaluate(() => {
       const stops = document.querySelectorAll("linearGradient stop");
       return Array.from(stops).map((s) => getComputedStyle(s).stopColor);
     });

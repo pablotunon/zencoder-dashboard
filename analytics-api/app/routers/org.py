@@ -32,16 +32,19 @@ async def get_current_org(ctx: OrgContext = Depends(get_org_context)):
     try:
         teams = await pg_service.get_teams(ctx.org_id)
         projects = await pg_service.get_projects(ctx.org_id)
+        licensed_users = await pg_service.get_total_licensed_users(ctx.org_id)
     except Exception:
         logger.exception("PostgreSQL query failed for teams/projects")
         teams = []
         projects = []
+        licensed_users = 0
 
     response = OrgResponse(
         org_id=org["org_id"],
         name=org["name"],
         plan=org["plan"],
         monthly_budget=float(org["monthly_budget"]) if org["monthly_budget"] else None,
+        licensed_users=licensed_users,
         teams=[TeamInfo(team_id=t["team_id"], name=t["name"], slug=t["slug"]) for t in teams],
         projects=[
             ProjectInfo(

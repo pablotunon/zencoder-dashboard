@@ -1,5 +1,6 @@
 import { NavLink } from "react-router-dom";
 import {
+  Squares2X2Icon,
   ChartBarIcon,
   UsersIcon,
   CurrencyDollarIcon,
@@ -9,6 +10,7 @@ import {
 import { useAuth } from "@/hooks/useAuth";
 
 const navItems = [
+  { to: "/", label: "Dashboard", icon: Squares2X2Icon, end: true },
   { to: "/overview", label: "Overview", icon: ChartBarIcon },
   { to: "/usage", label: "Usage & Adoption", icon: UsersIcon },
   { to: "/cost", label: "Cost & Efficiency", icon: CurrencyDollarIcon },
@@ -33,10 +35,11 @@ export function Sidebar() {
 
       {/* Navigation */}
       <nav className="flex-1 space-y-1 px-3 py-4">
-        {navItems.map(({ to, label, icon: Icon }) => (
+        {navItems.map(({ to, label, icon: Icon, end }) => (
           <NavLink
             key={to}
             to={to}
+            end={end}
             className={({ isActive }) =>
               `flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
                 isActive

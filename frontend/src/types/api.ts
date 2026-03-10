@@ -59,7 +59,6 @@ export interface OverviewResponse {
   kpi_cards: KpiCards;
   usage_trend: TimeSeriesPoint[];
   team_breakdown: TeamBreakdown[];
-  active_runs_count: number;
 }
 
 // --- Usage ---
@@ -221,6 +220,7 @@ export interface OrgResponse {
   name: string;
   plan: string;
   monthly_budget: number | null;
+  licensed_users: number;
   teams: TeamInfo[];
   projects: ProjectInfo[];
 }
