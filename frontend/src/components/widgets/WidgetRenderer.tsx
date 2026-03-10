@@ -4,7 +4,6 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
-  Legend,
   Pie,
   PieChart,
   Tooltip,
@@ -774,67 +773,70 @@ function PieWidget({
   );
 
   return (
-    <ChartContainer config={config} className="h-64 w-full">
-      <PieChart accessibilityLayer>
-        <Tooltip
-          content={({ active, payload }) => {
-            if (!active || !payload?.length) return null;
-            const item = payload[0];
-            if (!item) return null;
-            return (
-              <div className="rounded-md border border-gray-200 bg-white p-2 text-sm shadow-lg">
-                <div className="flex items-center justify-between gap-4">
-                  <div className="flex items-center gap-1.5">
-                    <span
-                      className="inline-block h-2.5 w-2.5 rounded-full"
-                      style={{
-                        backgroundColor: String(
-                          (item.payload as Record<string, unknown>)?.fill ??
-                            "#888",
-                        ),
-                      }}
-                    />
-                    <span className="text-gray-600">{String(item.name)}</span>
+    <div className="flex items-center justify-center gap-6">
+      <ChartContainer config={config} className="h-64 w-48 shrink-0">
+        <PieChart accessibilityLayer>
+          <Tooltip
+            content={({ active, payload }) => {
+              if (!active || !payload?.length) return null;
+              const item = payload[0];
+              if (!item) return null;
+              return (
+                <div className="rounded-md border border-gray-200 bg-white p-2 text-sm shadow-lg">
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-1.5">
+                      <span
+                        className="inline-block h-2.5 w-2.5 rounded-full"
+                        style={{
+                          backgroundColor: String(
+                            (item.payload as Record<string, unknown>)?.fill ??
+                              "#888",
+                          ),
+                        }}
+                      />
+                      <span className="text-gray-600">{String(item.name)}</span>
+                    </div>
+                    <span className="font-medium text-gray-900">
+                      {formatter(Number(item.value))}
+                    </span>
                   </div>
-                  <span className="font-medium text-gray-900">
-                    {formatter(Number(item.value))}
-                  </span>
                 </div>
-              </div>
-            );
-          }}
-        />
-        <Pie
-          data={data.data.map((item, i) => ({
-            name: item.label,
-            value: item.value,
-            fill: PIE_COLORS[i % PIE_COLORS.length],
-          }))}
-          dataKey="value"
-          nameKey="name"
-          innerRadius="50%"
-          outerRadius="80%"
-          paddingAngle={2}
-        >
-          {data.data.map((item, i) => (
-            <Cell
-              key={item.label}
-              fill={PIE_COLORS[i % PIE_COLORS.length]}
+              );
+            }}
+          />
+          <Pie
+            data={data.data.map((item, i) => ({
+              name: item.label,
+              value: item.value,
+              fill: PIE_COLORS[i % PIE_COLORS.length],
+            }))}
+            dataKey="value"
+            nameKey="name"
+            innerRadius="50%"
+            outerRadius="80%"
+            paddingAngle={2}
+          >
+            {data.data.map((item, i) => (
+              <Cell
+                key={item.label}
+                fill={PIE_COLORS[i % PIE_COLORS.length]}
+              />
+            ))}
+          </Pie>
+        </PieChart>
+      </ChartContainer>
+      <ul className="flex flex-col gap-1.5">
+        {data.data.map((item, i) => (
+          <li key={item.label} className="flex items-center gap-2">
+            <span
+              className="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
+              style={{ backgroundColor: PIE_COLORS[i % PIE_COLORS.length] }}
             />
-          ))}
-        </Pie>
-        <Legend
-          layout="vertical"
-          verticalAlign="middle"
-          align="right"
-          iconType="circle"
-          iconSize={8}
-          formatter={(value: string) => (
-            <span className="text-xs text-gray-600">{value}</span>
-          )}
-        />
-      </PieChart>
-    </ChartContainer>
+            <span className="text-xs text-gray-600">{item.label}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 
