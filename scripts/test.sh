@@ -8,7 +8,7 @@ set -euo pipefail
 #   ./scripts/test.sh simulator    # run tests for one service
 #   ./scripts/test.sh ingestion analytics-api  # run tests for specific services
 
-SERVICES=("simulator" "ingestion" "aggregation-worker" "analytics-api")
+SERVICES=("simulator" "ingestion" "aggregation-worker" "analytics-api" "frontend")
 
 # Map service name to its test command
 test_cmd() {
@@ -17,6 +17,7 @@ test_cmd() {
     ingestion)          echo "cargo test" ;;
     aggregation-worker) echo "pytest" ;;
     analytics-api)      echo "pytest" ;;
+    frontend)           echo "npm run test" ;;
     *)                  echo ""; return 1 ;;
   esac
 }

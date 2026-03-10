@@ -50,6 +50,22 @@ async function fetchJson<T>(url: string): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+export async function postJson<T>(url: string, body: unknown): Promise<T> {
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(body),
+  });
+  if (res.status === 401) {
+    _onUnauthorized?.();
+    throw new Error("Unauthorized");
+  }
+  if (!res.ok) {
+    throw new Error(`API error ${res.status}: ${res.statusText}`);
+  }
+  return res.json() as Promise<T>;
+}
+
 // --- Auth API ---
 
 export interface LoginResponse {
@@ -82,9 +98,7 @@ export async function apiLogout(): Promise<void> {
 }
 
 export async function apiGetMe(): Promise<AuthUser> {
-  const res = await fetch(`${BASE_URL}/auth/me`, { headers: authHeaders() });
-  if (!res.ok) throw new Error("Session invalid");
-  return res.json() as Promise<AuthUser>;
+  return fetchJson(`${BASE_URL}/auth/me`);
 }
 
 export async function fetchOverview(

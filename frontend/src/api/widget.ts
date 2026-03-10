@@ -1,5 +1,6 @@
 import { useQuery, useQueries } from "@tanstack/react-query";
 import { useMemo } from "react";
+import { postJson } from "@/api/client";
 import type {
   MetricKey,
   BreakdownDimension,
@@ -37,17 +38,7 @@ export async function postWidgetQuery(
     body.filters = params.filters;
   }
 
-  const res = await fetch("/api/metrics/widget", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-
-  if (!res.ok) {
-    throw new Error(`Widget query failed: ${res.status} ${res.statusText}`);
-  }
-
-  return res.json() as Promise<WidgetQueryResponse>;
+  return postJson<WidgetQueryResponse>("/api/metrics/widget", body);
 }
 
 /**
