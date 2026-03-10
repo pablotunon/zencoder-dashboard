@@ -27,7 +27,7 @@ Spec saved to `.zenflow/tasks/custom-pages-51cf/spec.md`. Difficulty: Hard. Full
 
 ---
 
-### [ ] Step: Database schema and backend templates
+### [x] Step: Database schema and backend templates
 <!-- chat-id: ab1aa7e3-a059-41d7-a597-b4a3e3549abe -->
 
 Update `init-scripts/postgres/002-user-pages.sql` to add the `slug` column and unique constraint. Create `analytics-api/app/services/page_templates.py` with the 4 default page templates (Overview, Usage, Cost, Performance) extracted from the current frontend page components.
@@ -38,7 +38,8 @@ Update `init-scripts/postgres/002-user-pages.sql` to add the `slug` column and u
 
 ---
 
-### [ ] Step: Backend pages API
+### [x] Step: Backend pages API
+<!-- chat-id: d295f46c-e497-4dbb-af61-53562002003c -->
 
 Create the pages service layer and API router.
 

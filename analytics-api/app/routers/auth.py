@@ -12,6 +12,7 @@ from app.models.auth import (
     OrgProfile,
     UserProfile,
 )
+from app.services import page_service
 from app.services import postgres as pg_service
 from app.services import redis_cache
 
@@ -69,6 +70,12 @@ async def login(body: LoginRequest):
         "role": user["role"],
         "team_id": user.get("team_id"),
     })
+
+    # Seed default pages on first login (or first login after feature ships)
+    try:
+        await page_service.seed_default_pages(user["user_id"], user["org_id"])
+    except Exception:
+        logger.warning("Failed to seed default pages for user %s", user["user_id"])
 
     return LoginResponse(
         token=token,

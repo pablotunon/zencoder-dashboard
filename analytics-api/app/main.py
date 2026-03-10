@@ -5,7 +5,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from app.json_response import ORJSONResponse
-from app.routers import auth, cost, health, org, overview, performance, usage, widget
+from app.routers import auth, cost, health, org, overview, pages, performance, usage, widget
 from app.services import clickhouse as ch_service
 from app.services import postgres as pg_service
 from app.services import redis_cache
@@ -69,3 +69,4 @@ app.include_router(usage.router)
 app.include_router(cost.router)
 app.include_router(performance.router)
 app.include_router(widget.router)
+app.include_router(pages.router)
