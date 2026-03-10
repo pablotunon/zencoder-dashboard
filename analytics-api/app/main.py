@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
-from app.routers import cost, health, org, overview, performance, usage, widget
+from app.routers import auth, cost, health, org, overview, performance, usage, widget
 from app.services import clickhouse as ch_service
 from app.services import postgres as pg_service
 from app.services import redis_cache
@@ -60,6 +60,7 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
 
 
 app.include_router(health.router)
+app.include_router(auth.router)
 app.include_router(org.router)
 app.include_router(overview.router)
 app.include_router(usage.router)

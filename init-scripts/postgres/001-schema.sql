@@ -29,7 +29,7 @@ CREATE TABLE users (
     is_active BOOLEAN DEFAULT TRUE,
     password_hash VARCHAR(255),
     created_at TIMESTAMP DEFAULT NOW(),
-    UNIQUE (org_id, email)
+    UNIQUE (email)
 );
 
 CREATE TABLE projects (
@@ -40,3 +40,14 @@ CREATE TABLE projects (
     repository_url VARCHAR(512),
     created_at TIMESTAMP DEFAULT NOW()
 );
+
+CREATE TABLE api_keys (
+    api_key_id VARCHAR(64) PRIMARY KEY,
+    org_id VARCHAR(64) REFERENCES organizations(org_id),
+    key_hash VARCHAR(255) NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX idx_api_keys_org ON api_keys(org_id);

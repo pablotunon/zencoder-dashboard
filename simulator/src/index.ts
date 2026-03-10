@@ -3,15 +3,15 @@ import { seedDatabase } from "./seed-data.js";
 import {
   generateRunEvents,
   createEventGeneratorContext,
+  getOrgEventProfile,
   type AgentEvent,
+  type EventGeneratorContext,
 } from "./generators/events.js";
 import {
   expectedEventsForDay,
   distributeEventsAcrossHours,
 } from "./generators/patterns.js";
 import { sendEvents } from "./sender.js";
-
-const BASE_DAILY_EVENTS = 200; // ~200 agent runs on a typical weekday
 
 async function main() {
   const config = loadConfig();
@@ -35,9 +35,10 @@ async function main() {
     const orgUsers = users.filter((u) => u.org_id === org.id);
     const orgProjects = projects.filter((p) => p.org_id === org.id);
     const ctx = createEventGeneratorContext(org, orgUsers, orgProjects);
+    const profile = getOrgEventProfile(org.id);
 
     console.log(
-      `[simulator] Generating ${config.backfillDays} days of history for ${org.name}...`,
+      `[simulator] Generating ${config.backfillDays} days of history for ${org.name} (~${profile.baseDailyEvents} events/day)...`,
     );
 
     let totalEvents = 0;
@@ -47,7 +48,7 @@ async function main() {
       dayDate.setUTCDate(dayDate.getUTCDate() - daysAgo);
       dayDate.setUTCHours(0, 0, 0, 0);
 
-      const dayEventCount = expectedEventsForDay(dayDate, BASE_DAILY_EVENTS);
+      const dayEventCount = expectedEventsForDay(dayDate, profile.baseDailyEvents);
       const hourDistribution = distributeEventsAcrossHours(dayEventCount);
 
       const dayEvents: AgentEvent[] = [];
@@ -85,31 +86,28 @@ async function main() {
     );
   }
 
-  // Step 3: Live mode
+  // Step 3: Live mode — generate events for all orgs (round-robin)
   console.log("\n[simulator] === Phase 3: Live Mode ===");
   console.log(
-    `[simulator] Generating ~${config.liveEventsPerSec} events/sec...`,
+    `[simulator] Generating ~${config.liveEventsPerSec} events/sec across ${orgs.length} org(s)...`,
   );
 
-  // Pick the first org for live mode (single org in Phase A)
-  const liveOrg = orgs[0];
-  const liveUsers = users.filter((u) => u.org_id === liveOrg.id);
-  const liveProjects = projects.filter(
-    (p) => p.org_id === liveOrg.id,
-  );
-  const liveCtx = createEventGeneratorContext(
-    liveOrg,
-    liveUsers,
-    liveProjects,
-  );
+  const liveContexts: EventGeneratorContext[] = orgs.map((org) => {
+    const orgUsers = users.filter((u) => u.org_id === org.id);
+    const orgProjects = projects.filter((p) => p.org_id === org.id);
+    return createEventGeneratorContext(org, orgUsers, orgProjects);
+  });
 
-  // Generate events at the configured rate
+  // Generate events at the configured rate, rotating across orgs
   const intervalMs = 1000 / config.liveEventsPerSec;
+  let orgIndex = 0;
 
   const runLiveLoop = async () => {
     while (true) {
       try {
-        const events = generateRunEvents(liveCtx, new Date());
+        const ctx = liveContexts[orgIndex % liveContexts.length];
+        orgIndex++;
+        const events = generateRunEvents(ctx, new Date());
         await sendEvents(config.ingestionUrl, events);
       } catch (error) {
         console.error("[simulator] Live mode error:", error);

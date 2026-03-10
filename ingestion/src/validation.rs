@@ -3,6 +3,19 @@ use chrono::Utc;
 use crate::models::event::AgentEvent;
 
 const MAX_FUTURE_SECONDS: i64 = 5 * 60; // 5 minutes
+const VALID_ORGS_KEY: &str = "valid_orgs";
+
+/// Check if an org_id exists in the Redis `valid_orgs` set.
+pub async fn check_org_exists(
+    conn: &mut redis::aio::MultiplexedConnection,
+    org_id: &str,
+) -> Result<bool, redis::RedisError> {
+    redis::cmd("SISMEMBER")
+        .arg(VALID_ORGS_KEY)
+        .arg(org_id)
+        .query_async::<bool>(conn)
+        .await
+}
 
 pub fn validate_event(event: &AgentEvent) -> Result<(), String> {
     // Required string fields must not be empty

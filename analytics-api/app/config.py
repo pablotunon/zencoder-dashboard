@@ -25,6 +25,11 @@ class Settings(BaseSettings):
     cache_ttl_metrics: int = 300  # 5 minutes
     cache_ttl_org: int = 600  # 10 minutes
 
+    # JWT
+    jwt_secret: str = "dev-secret-change-in-production"
+    jwt_algorithm: str = "HS256"
+    jwt_expiry_hours: int = 1
+
     model_config = {"env_prefix": "", "case_sensitive": False}
 
 

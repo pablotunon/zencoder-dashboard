@@ -103,6 +103,23 @@ async def get_total_licensed_users(org_id: str) -> int:
     return count or 0
 
 
+async def get_user_by_email(email: str) -> dict[str, Any] | None:
+    """Look up a user by email (globally unique)."""
+    pool = await get_pool()
+    row = await pool.fetchrow(
+        """SELECT u.user_id, u.org_id, u.team_id, u.name, u.email, u.avatar_url,
+                  u.role, u.password_hash, u.is_active,
+                  o.name AS org_name, o.plan AS org_plan
+           FROM users u
+           JOIN organizations o ON u.org_id = o.org_id
+           WHERE u.email = $1""",
+        email,
+    )
+    if row is None:
+        return None
+    return dict(row)
+
+
 async def check_connection() -> bool:
     try:
         pool = await get_pool()

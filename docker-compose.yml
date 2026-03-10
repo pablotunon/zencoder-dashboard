@@ -1,6 +1,6 @@
-# Port isolation: each branch uses different host ports via .ports.env.
+# Port isolation: each branch uses different host ports.
 # Run ./scripts/setup-ports.sh to configure ports for this branch.
-# The script writes .env (auto-read by docker-compose) from .ports.env.
+# The script manages a marked section in .env (auto-read by docker compose).
 
 services:
   # --- Infrastructure ---
@@ -81,6 +81,7 @@ services:
       POSTGRES_PASSWORD: agenthub_dev
       REDIS_HOST: redis
       REDIS_PORT: "6379"
+      JWT_SECRET: "dev-secret-change-in-production"
     depends_on:
       clickhouse:
         condition: service_healthy
@@ -130,12 +131,16 @@ services:
       POSTGRES_DB: agenthub
       POSTGRES_USER: agenthub
       POSTGRES_PASSWORD: agenthub_dev
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
       SIMULATOR_BACKFILL_DAYS: "90"
       SIMULATOR_LIVE_EVENTS_PER_SEC: "3"
     depends_on:
       ingestion:
         condition: service_healthy
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
 
   frontend:

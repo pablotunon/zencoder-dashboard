@@ -5,8 +5,8 @@ import {
   pickAgentType,
   pickErrorCategory,
   weightedRandom,
+  getOrgEventProfile,
   AGENT_TYPE_WEIGHTS,
-  SUCCESS_RATE,
   ERROR_DISTRIBUTION,
   type AgentType,
   type ErrorCategory,
@@ -198,8 +198,9 @@ describe("weightedRandom", () => {
 
 // Additional: success rate validation
 describe("Success rate", () => {
-  it("should succeed approximately 87% of the time", () => {
+  it("should succeed approximately at org-specific rate", () => {
     const ctx = makeCtx();
+    const profile = getOrgEventProfile(ctx.org.id);
     let succeeded = 0;
     const n = 2000;
 
@@ -212,6 +213,6 @@ describe("Success rate", () => {
     }
 
     const rate = succeeded / n;
-    expect(rate).toBeCloseTo(SUCCESS_RATE, 1);
+    expect(rate).toBeCloseTo(profile.successRate, 1);
   });
 });
