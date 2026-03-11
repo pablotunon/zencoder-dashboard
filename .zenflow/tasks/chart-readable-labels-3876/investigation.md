@@ -59,3 +59,23 @@ In `analytics-api/app/routers/widget.py`, after `build_widget_query()` returns `
 
 - Add a test that exercises the widget endpoint with `team` and `project` breakdowns and asserts that labels contain names (not UUIDs)
 - Run existing tests to confirm no regressions
+
+## Implementation Notes
+
+### Changes made
+
+**`analytics-api/app/routers/widget.py`** — Added label enrichment after `build_widget_query()` returns:
+- Imported `postgres as pg_service`
+- After the query result is built and before caching, if the result is a `breakdown` type with `team` or `project` dimension, fetch the name mapping from PostgreSQL and replace raw IDs with human-readable names
+- Falls back to raw ID if a name is not found, and gracefully handles PostgreSQL failures by keeping raw labels
+
+**`analytics-api/tests/test_integration.py`** — Added `TestWidgetLabelEnrichment` class (5 tests):
+1. `test_team_breakdown_labels_enriched` — team UUIDs replaced with names
+2. `test_project_breakdown_labels_enriched` — project UUIDs replaced with names
+3. `test_unknown_ids_fall_back_to_raw_label` — unknown IDs kept as-is
+4. `test_agent_type_breakdown_not_enriched` — non-ID dimensions unchanged
+5. `test_pg_failure_falls_back_to_raw_labels` — PostgreSQL failure degrades gracefully
+
+### Test results
+
+All 130 tests pass (125 existing + 5 new), zero regressions.

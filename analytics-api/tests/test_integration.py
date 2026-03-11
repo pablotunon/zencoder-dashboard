@@ -763,3 +763,155 @@ class TestWidgetNanHandling:
             assert data["summary"]["value"] == 123.45
             assert data["summary"]["change_pct"] == -2.3
             assert data["data"][0]["value"] == 99.9
+
+
+# API-I15: Widget breakdown enriches team/project IDs to human-readable names
+class TestWidgetLabelEnrichment:
+    def test_team_breakdown_labels_enriched(self, client):
+        """Team breakdown labels should show team names, not UUIDs."""
+        raw_result = {
+            "type": "breakdown",
+            "metric": "cost",
+            "dimension": "team",
+            "data": [
+                {"label": "team-uuid-111", "value": 850.0},
+                {"label": "team-uuid-222", "value": 620.0},
+            ],
+        }
+        mock_team_names = AsyncMock(return_value={
+            "team-uuid-111": "Platform",
+            "team-uuid-222": "Backend",
+        })
+        with patch("app.routers.widget.redis_cache") as mock_cache, \
+             patch("app.routers.widget.build_widget_query") as mock_query, \
+             patch("app.routers.widget.pg_service.get_team_names", mock_team_names):
+            mock_cache.make_cache_key.return_value = "test_widget_key"
+            mock_cache.get_cached.return_value = None
+            mock_cache.set_cached = MagicMock()
+            mock_query.return_value = raw_result
+
+            resp = client.post("/api/metrics/widget", json={
+                "metric": "cost",
+                "breakdown": "team",
+            })
+            assert resp.status_code == 200
+            data = resp.json()
+            assert data["data"][0]["label"] == "Platform"
+            assert data["data"][1]["label"] == "Backend"
+
+    def test_project_breakdown_labels_enriched(self, client):
+        """Project breakdown labels should show project names, not UUIDs."""
+        raw_result = {
+            "type": "breakdown",
+            "metric": "run_count",
+            "dimension": "project",
+            "data": [
+                {"label": "proj-uuid-aaa", "value": 300.0},
+                {"label": "proj-uuid-bbb", "value": 150.0},
+            ],
+        }
+        mock_project_names = AsyncMock(return_value={
+            "proj-uuid-aaa": "Billing Service",
+            "proj-uuid-bbb": "Auth Service",
+        })
+        with patch("app.routers.widget.redis_cache") as mock_cache, \
+             patch("app.routers.widget.build_widget_query") as mock_query, \
+             patch("app.routers.widget.pg_service.get_project_names", mock_project_names):
+            mock_cache.make_cache_key.return_value = "test_widget_key"
+            mock_cache.get_cached.return_value = None
+            mock_cache.set_cached = MagicMock()
+            mock_query.return_value = raw_result
+
+            resp = client.post("/api/metrics/widget", json={
+                "metric": "run_count",
+                "breakdown": "project",
+            })
+            assert resp.status_code == 200
+            data = resp.json()
+            assert data["data"][0]["label"] == "Billing Service"
+            assert data["data"][1]["label"] == "Auth Service"
+
+    def test_unknown_ids_fall_back_to_raw_label(self, client):
+        """If a team/project ID is not found in PG, the raw ID is kept."""
+        raw_result = {
+            "type": "breakdown",
+            "metric": "cost",
+            "dimension": "team",
+            "data": [
+                {"label": "team-uuid-111", "value": 850.0},
+                {"label": "team-uuid-unknown", "value": 100.0},
+            ],
+        }
+        mock_team_names = AsyncMock(return_value={
+            "team-uuid-111": "Platform",
+        })
+        with patch("app.routers.widget.redis_cache") as mock_cache, \
+             patch("app.routers.widget.build_widget_query") as mock_query, \
+             patch("app.routers.widget.pg_service.get_team_names", mock_team_names):
+            mock_cache.make_cache_key.return_value = "test_widget_key"
+            mock_cache.get_cached.return_value = None
+            mock_cache.set_cached = MagicMock()
+            mock_query.return_value = raw_result
+
+            resp = client.post("/api/metrics/widget", json={
+                "metric": "cost",
+                "breakdown": "team",
+            })
+            assert resp.status_code == 200
+            data = resp.json()
+            assert data["data"][0]["label"] == "Platform"
+            assert data["data"][1]["label"] == "team-uuid-unknown"
+
+    def test_agent_type_breakdown_not_enriched(self, client):
+        """Non-ID dimensions like agent_type should not be modified."""
+        raw_result = {
+            "type": "breakdown",
+            "metric": "run_count",
+            "dimension": "agent_type",
+            "data": [
+                {"label": "coding", "value": 500.0},
+                {"label": "qa", "value": 200.0},
+            ],
+        }
+        with patch("app.routers.widget.redis_cache") as mock_cache, \
+             patch("app.routers.widget.build_widget_query") as mock_query:
+            mock_cache.make_cache_key.return_value = "test_widget_key"
+            mock_cache.get_cached.return_value = None
+            mock_cache.set_cached = MagicMock()
+            mock_query.return_value = raw_result
+
+            resp = client.post("/api/metrics/widget", json={
+                "metric": "run_count",
+                "breakdown": "agent_type",
+            })
+            assert resp.status_code == 200
+            data = resp.json()
+            assert data["data"][0]["label"] == "coding"
+            assert data["data"][1]["label"] == "qa"
+
+    def test_pg_failure_falls_back_to_raw_labels(self, client):
+        """If PostgreSQL lookup fails, raw labels are preserved."""
+        raw_result = {
+            "type": "breakdown",
+            "metric": "cost",
+            "dimension": "team",
+            "data": [
+                {"label": "team-uuid-111", "value": 850.0},
+            ],
+        }
+        mock_team_names = AsyncMock(side_effect=Exception("PG down"))
+        with patch("app.routers.widget.redis_cache") as mock_cache, \
+             patch("app.routers.widget.build_widget_query") as mock_query, \
+             patch("app.routers.widget.pg_service.get_team_names", mock_team_names):
+            mock_cache.make_cache_key.return_value = "test_widget_key"
+            mock_cache.get_cached.return_value = None
+            mock_cache.set_cached = MagicMock()
+            mock_query.return_value = raw_result
+
+            resp = client.post("/api/metrics/widget", json={
+                "metric": "cost",
+                "breakdown": "team",
+            })
+            assert resp.status_code == 200
+            data = resp.json()
+            assert data["data"][0]["label"] == "team-uuid-111"

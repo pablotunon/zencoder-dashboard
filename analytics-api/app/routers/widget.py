@@ -6,6 +6,7 @@ from app.auth.dependencies import get_org_context
 from app.config import settings
 from app.models.auth import OrgContext
 from app.models.requests import WidgetQueryRequest
+from app.services import postgres as pg_service
 from app.services import redis_cache
 from app.services.widget_query import (
     DIMENSION_REGISTRY,
@@ -47,6 +48,15 @@ async def query_widget(
     except Exception:
         logger.exception("Widget query failed for metric=%s breakdown=%s", body.metric, body.breakdown)
         raise HTTPException(status_code=503, detail="Analytics data temporarily unavailable")
+
+    if result.get("type") == "breakdown" and body.breakdown in ("team", "project"):
+        try:
+            name_fetcher = pg_service.get_team_names if body.breakdown == "team" else pg_service.get_project_names
+            names = await name_fetcher(ctx.org_id)
+            for item in result["data"]:
+                item["label"] = names.get(item["label"], item["label"])
+        except Exception:
+            logger.exception("PostgreSQL lookup failed for %s names", body.breakdown)
 
     redis_cache.set_cached(cache_key, result, settings.cache_ttl_metrics)
     return result
