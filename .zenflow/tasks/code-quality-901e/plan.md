@@ -18,7 +18,7 @@ Do not make assumptions on important decisions — get clarification first.
 
 ## Workflow Steps
 
-### [ ] Step: Technical Specification
+### [x] Step: Technical Specification
 
 Assess the task's difficulty, as underestimating it leads to poor outcomes.
 - easy: Straightforward implementation, trivial bug fix or feature
@@ -52,16 +52,53 @@ Save to `{@artifacts_path}/plan.md`. If the feature is trivial and doesn't warra
 
 ---
 
-### [ ] Step: Implementation
+### [ ] Step: Analytics API - ClickHouse query deduplication
 
-Implement the task according to the technical specification and general engineering best practices.
+Refactor `analytics-api/app/services/clickhouse.py` to eliminate repeated query patterns:
 
-1. Break the task into steps where possible.
-2. Implement the required changes in the codebase
-3. If relevant, write unit tests alongside each change.
-4. Run relevant tests and linters in the end of each step.
-5. Perform basic manual verification if applicable.
-6. After completion, write a report to `{@artifacts_path}/report.md` describing:
-   - What was implemented
-   - How the solution was tested
-   - The biggest issues or challenges encountered
+- Extract `_query_timeseries(org_id, filters, select_exprs, row_mapper)` helper for the 6 time-series functions
+- Extract `_query_breakdown(org_id, filters, group_col, select_exprs, row_mapper)` helper for the 5 breakdown functions
+- Consolidate duplicate filter builder: remove `_build_filter_clause()` from `widget_query.py` and import `build_team_filter()` from `clickhouse.py`
+- Remove dead `_is_today()` function
+- Run `./scripts/test.sh analytics-api` to verify no regressions
+
+### [ ] Step: Analytics API - Router boilerplate extraction
+
+Reduce repetitive boilerplate across all metric routers:
+
+- Create `analytics-api/app/routers/_helpers.py` with:
+  - `cached_endpoint(org_id, name, filters, ttl, fn)` for cache check/store pattern
+  - `query_clickhouse(fn, error_context)` for ClickHouse error handling
+  - `safe_pg_query(fn, default, error_context)` for PostgreSQL fallback
+- Refactor `overview.py`, `usage.py`, `cost.py`, `performance.py`, and `org.py` to use helpers
+- Run `./scripts/test.sh analytics-api` to verify no regressions
+
+### [ ] Step: Frontend - Split WidgetRenderer and deduplicate API client
+
+Split the 1113-line `WidgetRenderer.tsx` into focused widget components and clean up the API client:
+
+- Split `WidgetRenderer.tsx` into per-widget files: `KpiWidget.tsx`, `TimeSeriesWidget.tsx`, `TableWidget.tsx`, `BarWidget.tsx`, `PieWidget.tsx`, `GaugeWidget.tsx`, `StatWidget.tsx`, `ActiveUsersWidget.tsx`, `WidgetCard.tsx`, and a shared `widget-helpers.ts`
+- Keep `WidgetRenderer.tsx` as slim dispatcher
+- Refactor `client.ts`: extract shared `_request()` function to deduplicate 401/error handling across `fetchJson`, `postJson`, `putJson`, `deleteJson`
+- Extract `useOutsideClick` hook from `DateRangePicker.tsx` and `MultiSelect.tsx`
+- Run `./scripts/test.sh frontend` to verify no regressions
+
+### [ ] Step: Aggregation worker and simulator cleanup
+
+Small deduplication and dead code removal:
+
+- Remove unused `EnrichmentCache` initialization from `aggregation-worker/app/main.py`
+- Extract generic retry helper from duplicated `_wait_for_redis()` and `_create_ch_client_with_retry()` in `main.py`
+- Simulator: extract shared `sleep()` to `utils.ts`, import from `index.ts` and `sender.ts`
+- Simulator: extract magic numbers in `events.ts` to named constants
+- Run `./scripts/test.sh aggregation-worker` and `./scripts/test.sh simulator`
+
+### [ ] Step: Ingestion tests and infrastructure
+
+Test helper extraction and infra improvements:
+
+- Ingestion: extract `make_test_event()` and `post_events()` helpers in `integration.rs`
+- Add `.dockerignore` files to `ingestion/`, `analytics-api/`, `aggregation-worker/`, `simulator/`
+- Deduplicate nginx proxy headers in `nginx/nginx.conf`
+- Run `./scripts/test.sh ingestion` and `./scripts/test.sh e2e` for final validation
+- Write report to `{@artifacts_path}/report.md`
