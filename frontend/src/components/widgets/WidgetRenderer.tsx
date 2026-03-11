@@ -24,8 +24,9 @@ import {
   formatPercent,
   formatDuration,
   formatChangePct,
+  formatTimestamp,
 } from "@/lib/formatters";
-import type { Period } from "@/types/api";
+import type { DateRange, Granularity } from "@/types/api";
 import type {
   WidgetConfig,
   ValueFormat,
@@ -57,12 +58,12 @@ const PIE_COLORS = [
   "#0d9488",
 ];
 
-function resolveEffectivePeriod(
+function resolveEffectiveDateRange(
   widget: WidgetConfig,
-  globalPeriod: Period,
-): Period {
-  if (widget.timeRange.useGlobal) return globalPeriod;
-  return widget.timeRange.period;
+  globalDateRange: DateRange,
+): DateRange {
+  if (widget.timeRange.useGlobal) return globalDateRange;
+  return { start: widget.timeRange.start, end: widget.timeRange.end };
 }
 
 function primaryMetric(widget: WidgetConfig): MetricKey {
@@ -73,29 +74,29 @@ function primaryMetric(widget: WidgetConfig): MetricKey {
 
 interface WidgetRendererProps {
   widget: WidgetConfig;
-  globalPeriod: Period;
+  globalDateRange: DateRange;
   onRemove?: () => void;
 }
 
 export function WidgetRenderer({
   widget,
-  globalPeriod,
+  globalDateRange,
   onRemove,
 }: WidgetRendererProps) {
-  const period = resolveEffectivePeriod(widget, globalPeriod);
+  const dateRange = resolveEffectiveDateRange(widget, globalDateRange);
 
   // Sealed widget types — use their own data sources
   if (widget.chartType === "active_users_trend") {
     return (
       <WidgetCard title={widget.title} onRemove={onRemove}>
-        <ActiveUsersTrendWidget period={period} />
+        <ActiveUsersTrendWidget dateRange={dateRange} />
       </WidgetCard>
     );
   }
   if (widget.chartType === "top_users") {
     return (
       <WidgetCard title={widget.title} onRemove={onRemove}>
-        <TopUsersWidget period={period} />
+        <TopUsersWidget dateRange={dateRange} />
       </WidgetCard>
     );
   }
@@ -104,14 +105,14 @@ export function WidgetRenderer({
   if (widget.chartType === "gauge") {
     return (
       <WidgetCard title={widget.title} onRemove={onRemove}>
-        <GaugeWidgetLoader widget={widget} period={period} />
+        <GaugeWidgetLoader widget={widget} dateRange={dateRange} />
       </WidgetCard>
     );
   }
   if (widget.chartType === "stat") {
     return (
       <WidgetCard title={widget.title} onRemove={onRemove}>
-        <StatWidgetLoader widget={widget} period={period} />
+        <StatWidgetLoader widget={widget} dateRange={dateRange} />
       </WidgetCard>
     );
   }
@@ -120,7 +121,7 @@ export function WidgetRenderer({
   if (widget.metrics.length > 1) {
     return (
       <WidgetCard title={widget.title} onRemove={onRemove}>
-        <MultiMetricLoader widget={widget} period={period} />
+        <MultiMetricLoader widget={widget} dateRange={dateRange} />
       </WidgetCard>
     );
   }
@@ -129,7 +130,7 @@ export function WidgetRenderer({
   return (
     <SingleMetricWidget
       widget={widget}
-      globalPeriod={globalPeriod}
+      globalDateRange={globalDateRange}
       onRemove={onRemove}
     />
   );
@@ -139,17 +140,18 @@ export function WidgetRenderer({
 
 function SingleMetricWidget({
   widget,
-  globalPeriod,
+  globalDateRange,
   onRemove,
 }: WidgetRendererProps) {
   const metric = primaryMetric(widget);
   const meta = METRIC_REGISTRY[metric];
-  const period = resolveEffectivePeriod(widget, globalPeriod);
+  const dateRange = resolveEffectiveDateRange(widget, globalDateRange);
   const formatter = meta ? FORMAT_FN[meta.format] : formatNumber;
 
   const { data, isLoading, error, refetch } = useWidgetData({
     metric,
-    period,
+    start: dateRange.start,
+    end: dateRange.end,
     breakdown: widget.breakdownDimension,
     filters: widget.filters,
   });
@@ -179,14 +181,15 @@ function SingleMetricWidget({
 
 function MultiMetricLoader({
   widget,
-  period,
+  dateRange,
 }: {
   widget: WidgetConfig;
-  period: Period;
+  dateRange: DateRange;
 }) {
   const { data, isLoading, error, refetch } = useMultiMetricWidgetData({
     metrics: widget.metrics,
-    period,
+    start: dateRange.start,
+    end: dateRange.end,
     breakdown: widget.breakdownDimension,
     filters: widget.filters,
   });
@@ -246,6 +249,7 @@ function MultiTimeSeriesWidget({
       config={config}
       yFormatter={formatter}
       valueFormatter={formatter}
+      granularity={data.granularity}
     />
   );
 }
@@ -298,16 +302,17 @@ function MultiTableWidget({ data }: { data: MergedBreakdownData }) {
 
 function GaugeWidgetLoader({
   widget,
-  period,
+  dateRange,
 }: {
   widget: WidgetConfig;
-  period: Period;
+  dateRange: DateRange;
 }) {
   const metric = primaryMetric(widget);
   const { data: orgData } = useOrg();
   const { data, isLoading, error, refetch } = useWidgetData({
     metric,
-    period,
+    start: dateRange.start,
+    end: dateRange.end,
     breakdown: widget.breakdownDimension,
     filters: widget.filters,
   });
@@ -391,16 +396,17 @@ function GaugeWidgetLoader({
 
 function StatWidgetLoader({
   widget,
-  period,
+  dateRange,
 }: {
   widget: WidgetConfig;
-  period: Period;
+  dateRange: DateRange;
 }) {
   const metric = primaryMetric(widget);
   const { data: orgData } = useOrg();
   const { data, isLoading, error, refetch } = useWidgetData({
     metric,
-    period,
+    start: dateRange.start,
+    end: dateRange.end,
     breakdown: widget.breakdownDimension,
     filters: widget.filters,
   });
@@ -423,7 +429,8 @@ function StatWidgetLoader({
     denominator = orgData.monthly_budget;
   }
 
-  const pct = denominator ? (currentValue / denominator) * 100 : null;
+  const rawPct = denominator ? (currentValue / denominator) * 100 : null;
+  const pct = rawPct !== null ? Math.min(rawPct, 100) : null;
 
   return (
     <div>
@@ -448,8 +455,8 @@ const ACTIVE_USERS_CONFIG: ChartConfig = {
   mau: { label: "MAU", color: "#f59e0b" },
 };
 
-function ActiveUsersTrendWidget({ period }: { period: Period }) {
-  const { data, isLoading, error, refetch } = useUsageMetrics({ period });
+function ActiveUsersTrendWidget({ dateRange }: { dateRange: DateRange }) {
+  const { data, isLoading, error, refetch } = useUsageMetrics({ start: dateRange.start, end: dateRange.end });
 
   if (isLoading) return <WidgetSkeleton chartType="active_users_trend" />;
   if (error)
@@ -473,8 +480,8 @@ function ActiveUsersTrendWidget({ period }: { period: Period }) {
 
 // ── Sealed: Top Users ────────────────────────────────────────────────────
 
-function TopUsersWidget({ period }: { period: Period }) {
-  const { data, isLoading, error, refetch } = useUsageMetrics({ period });
+function TopUsersWidget({ dateRange }: { dateRange: DateRange }) {
+  const { data, isLoading, error, refetch } = useUsageMetrics({ start: dateRange.start, end: dateRange.end });
 
   if (isLoading) return <WidgetSkeleton chartType="top_users" />;
   if (error)
@@ -607,6 +614,7 @@ function SingleChartDispatch({
           color={color}
           metricKey={metric}
           metricLabel={METRIC_REGISTRY[metric]?.label ?? metric}
+          granularity={data.granularity}
         />
       ) : null;
 
@@ -624,6 +632,7 @@ function SingleChartDispatch({
           color={color}
           metricKey={metric}
           metricLabel={METRIC_REGISTRY[metric]?.label ?? metric}
+          granularity={(data as WidgetTimeseriesResponse).granularity}
         />
       );
 
@@ -682,6 +691,7 @@ function TimeSeriesWidget({
   color,
   metricKey,
   metricLabel,
+  granularity,
 }: {
   data: WidgetTimeseriesResponse;
   variant: "line" | "area" | "bar";
@@ -689,11 +699,12 @@ function TimeSeriesWidget({
   color: string;
   metricKey: string;
   metricLabel: string;
+  granularity?: Granularity;
 }) {
   const chartData = useMemo(
     () =>
       data.data.map((p) => ({
-        date: p.date,
+        timestamp: p.timestamp,
         [metricKey]: p.value,
         is_partial: p.is_partial,
       })),
@@ -710,7 +721,12 @@ function TimeSeriesWidget({
       <ChartContainer config={config} className="h-64 w-full">
         <BarChart data={chartData} accessibilityLayer>
           <CartesianGrid vertical={false} strokeDasharray="3 3" />
-          <XAxis dataKey="date" tickLine={false} axisLine={false} />
+          <XAxis
+            dataKey="timestamp"
+            tickLine={false}
+            axisLine={false}
+            tickFormatter={granularity ? (v: string) => formatTimestamp(v, granularity) : undefined}
+          />
           <YAxis tickLine={false} axisLine={false} tickFormatter={formatter} />
           <Tooltip
             content={({ active, payload, label }) => {
@@ -749,6 +765,7 @@ function TimeSeriesWidget({
       config={config}
       yFormatter={formatter}
       valueFormatter={formatter}
+      granularity={granularity}
     />
   );
 }

@@ -1,0 +1,356 @@
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { DayPicker, getDefaultClassNames } from "react-day-picker";
+import "react-day-picker/style.css";
+import { CalendarIcon, XMarkIcon } from "@heroicons/react/24/outline";
+import { DATE_RANGE_PRESETS } from "@/lib/constants";
+import type { DateRange } from "@/types/api";
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+/** Parse an ISO string into a local Date. */
+function parseISO(iso: string): Date {
+  return new Date(iso);
+}
+
+/** Format a Date to "HH:MM" for time input value. */
+function toTimeString(d: Date): string {
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
+/** Apply HH:MM time string to a Date, returning a new Date. */
+function applyTime(date: Date, time: string): Date {
+  const [h, m] = time.split(":").map(Number);
+  const result = new Date(date);
+  result.setHours(h, m, 0, 0);
+  return result;
+}
+
+/** Format a Date for the trigger button display. */
+function formatDisplay(d: Date): string {
+  const now = new Date();
+  const sameYear = d.getFullYear() === now.getFullYear();
+  const month = d.toLocaleString("en-US", { month: "short" });
+  const day = d.getDate();
+  const hours = d.getHours();
+  const minutes = d.getMinutes();
+
+  let str = sameYear ? `${month} ${day}` : `${month} ${day}, ${d.getFullYear()}`;
+
+  // Only show time if it's not exactly midnight
+  if (hours !== 0 || minutes !== 0) {
+    const period = hours >= 12 ? "PM" : "AM";
+    const h12 = hours % 12 || 12;
+    const mm = String(minutes).padStart(2, "0");
+    str += `, ${h12}:${mm} ${period}`;
+  }
+
+  return str;
+}
+
+/** Find the matching preset index for a given DateRange, or -1 for custom. */
+function findPresetIndex(range: DateRange): number {
+  // Presets compute ranges relative to "now", so we check if the range
+  // roughly matches a preset (within 2 minutes tolerance for the end,
+  // and matching start offset).
+  const end = parseISO(range.end);
+  const start = parseISO(range.start);
+  const durationMs = end.getTime() - start.getTime();
+
+  const toleranceMs = 2 * 60 * 1000; // 2 minutes
+
+  for (let i = 0; i < DATE_RANGE_PRESETS.length; i++) {
+    const preset = DATE_RANGE_PRESETS[i];
+    const pRange = preset.getRange();
+    const pEnd = parseISO(pRange.end);
+    const pStart = parseISO(pRange.start);
+    const pDurationMs = pEnd.getTime() - pStart.getTime();
+
+    if (Math.abs(durationMs - pDurationMs) < toleranceMs && Math.abs(end.getTime() - pEnd.getTime()) < toleranceMs) {
+      return i;
+    }
+  }
+
+  return -1;
+}
+
+// ── Props ────────────────────────────────────────────────────────────────────
+
+interface DateRangePickerProps {
+  value: DateRange;
+  onChange: (range: DateRange) => void;
+}
+
+// ── Component ────────────────────────────────────────────────────────────────
+
+export function DateRangePicker({ value, onChange }: DateRangePickerProps) {
+  const [open, setOpen] = useState(false);
+  const popoverRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+
+  // Draft state (only committed on "Apply")
+  const [draftFrom, setDraftFrom] = useState<Date | undefined>();
+  const [draftTo, setDraftTo] = useState<Date | undefined>();
+  const [fromTime, setFromTime] = useState("00:00");
+  const [toTime, setToTime] = useState("23:59");
+  const [activePreset, setActivePreset] = useState(-1);
+
+  // Sync draft from value when popover opens
+  useEffect(() => {
+    if (open) {
+      const start = parseISO(value.start);
+      const end = parseISO(value.end);
+      setDraftFrom(start);
+      setDraftTo(end);
+      setFromTime(toTimeString(start));
+      setToTime(toTimeString(end));
+      setActivePreset(findPresetIndex(value));
+    }
+  }, [open, value]);
+
+  // Close on outside click
+  useEffect(() => {
+    if (!open) return;
+    const handleClick = (e: MouseEvent) => {
+      if (
+        popoverRef.current &&
+        !popoverRef.current.contains(e.target as Node) &&
+        triggerRef.current &&
+        !triggerRef.current.contains(e.target as Node)
+      ) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [open]);
+
+  // Close on Escape
+  useEffect(() => {
+    if (!open) return;
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("keydown", handleKey);
+    return () => document.removeEventListener("keydown", handleKey);
+  }, [open]);
+
+  const handlePreset = useCallback((index: number) => {
+    const range = DATE_RANGE_PRESETS[index].getRange();
+    const start = parseISO(range.start);
+    const end = parseISO(range.end);
+    setDraftFrom(start);
+    setDraftTo(end);
+    setFromTime(toTimeString(start));
+    setToTime(toTimeString(end));
+    setActivePreset(index);
+  }, []);
+
+  const handleCalendarSelect = useCallback(
+    (range: { from?: Date; to?: Date } | undefined) => {
+      if (!range) return;
+      setActivePreset(-1);
+
+      if (range.from) {
+        setDraftFrom(applyTime(range.from, fromTime));
+      }
+      if (range.to) {
+        setDraftTo(applyTime(range.to, toTime));
+      } else {
+        // Single day click — clear "to"
+        setDraftTo(undefined);
+      }
+    },
+    [fromTime, toTime],
+  );
+
+  const handleFromTimeChange = useCallback(
+    (timeStr: string) => {
+      setFromTime(timeStr);
+      setActivePreset(-1);
+      if (draftFrom) {
+        setDraftFrom(applyTime(draftFrom, timeStr));
+      }
+    },
+    [draftFrom],
+  );
+
+  const handleToTimeChange = useCallback(
+    (timeStr: string) => {
+      setToTime(timeStr);
+      setActivePreset(-1);
+      if (draftTo) {
+        setDraftTo(applyTime(draftTo, timeStr));
+      }
+    },
+    [draftTo],
+  );
+
+  const canApply = draftFrom && draftTo && draftFrom < draftTo;
+
+  const handleApply = useCallback(() => {
+    if (!canApply) return;
+    onChange({
+      start: draftFrom!.toISOString(),
+      end: draftTo!.toISOString(),
+    });
+    setOpen(false);
+  }, [canApply, draftFrom, draftTo, onChange]);
+
+  // Display text for the trigger button
+  const displayText = useMemo(() => {
+    const presetIdx = findPresetIndex(value);
+    if (presetIdx >= 0) {
+      return DATE_RANGE_PRESETS[presetIdx].label;
+    }
+    const start = parseISO(value.start);
+    const end = parseISO(value.end);
+    return `${formatDisplay(start)} - ${formatDisplay(end)}`;
+  }, [value]);
+
+  const defaultClassNames = getDefaultClassNames();
+
+  return (
+    <div className="relative">
+      {/* Trigger button */}
+      <button
+        ref={triggerRef}
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="flex items-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+      >
+        <CalendarIcon className="h-4 w-4 text-gray-400" />
+        <span>{displayText}</span>
+      </button>
+
+      {/* Popover */}
+      {open && (
+        <div
+          ref={popoverRef}
+          className="absolute right-0 top-full z-50 mt-2 flex rounded-xl border border-gray-200 bg-white shadow-xl"
+        >
+          {/* Left panel: Presets */}
+          <div className="flex flex-col border-r border-gray-200 py-2">
+            <span className="px-4 pb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
+              Presets
+            </span>
+            {DATE_RANGE_PRESETS.map((preset, i) => (
+              <button
+                key={preset.label}
+                type="button"
+                onClick={() => handlePreset(i)}
+                className={`px-4 py-1.5 text-left text-sm whitespace-nowrap transition-colors ${
+                  activePreset === i
+                    ? "bg-indigo-50 font-medium text-indigo-700"
+                    : "text-gray-700 hover:bg-gray-50"
+                }`}
+              >
+                {preset.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Right panel: Calendar + time + actions */}
+          <div className="flex flex-col">
+            {/* Calendar */}
+            <div className="p-3">
+              <DayPicker
+                mode="range"
+                numberOfMonths={2}
+                selected={
+                  draftFrom
+                    ? { from: draftFrom, to: draftTo }
+                    : undefined
+                }
+                onSelect={handleCalendarSelect}
+                disabled={{ after: new Date() }}
+                classNames={{
+                  root: `${defaultClassNames.root} text-sm`,
+                  today: "font-bold text-indigo-600",
+                  selected: "bg-indigo-600 text-white",
+                  range_start: "bg-indigo-600 text-white rounded-l-full",
+                  range_end: "bg-indigo-600 text-white rounded-r-full",
+                  range_middle: "bg-indigo-50 text-indigo-900",
+                  chevron: `${defaultClassNames.chevron} fill-indigo-500`,
+                }}
+              />
+            </div>
+
+            {/* Time inputs */}
+            <div className="flex items-center gap-4 border-t border-gray-200 px-4 py-3">
+              <div className="flex items-center gap-2">
+                <label
+                  htmlFor="drp-from-time"
+                  className="text-xs font-medium text-gray-500"
+                >
+                  From
+                </label>
+                <input
+                  id="drp-from-time"
+                  type="time"
+                  step="60"
+                  value={fromTime}
+                  onChange={(e) => handleFromTimeChange(e.target.value)}
+                  className="rounded-md border border-gray-300 px-2 py-1 text-sm text-gray-700 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                />
+              </div>
+              <span className="text-gray-300">&mdash;</span>
+              <div className="flex items-center gap-2">
+                <label
+                  htmlFor="drp-to-time"
+                  className="text-xs font-medium text-gray-500"
+                >
+                  To
+                </label>
+                <input
+                  id="drp-to-time"
+                  type="time"
+                  step="60"
+                  value={toTime}
+                  onChange={(e) => handleToTimeChange(e.target.value)}
+                  className="rounded-md border border-gray-300 px-2 py-1 text-sm text-gray-700 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                />
+              </div>
+            </div>
+
+            {/* Footer: validation + actions */}
+            <div className="flex items-center justify-between border-t border-gray-200 px-4 py-3">
+              <div className="text-xs text-gray-500">
+                {draftFrom && draftTo && draftFrom >= draftTo && (
+                  <span className="text-red-500">
+                    Start must be before end
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setOpen(false)}
+                  className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleApply}
+                  disabled={!canApply}
+                  className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Apply
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Close button */}
+          <button
+            type="button"
+            onClick={() => setOpen(false)}
+            className="absolute right-2 top-2 rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+          >
+            <XMarkIcon className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}

@@ -7,8 +7,8 @@ Each template matches the layout from the original pre-built pages
 from dataclasses import dataclass, field
 
 
-def _time_range(period: str = "30d") -> dict:
-    return {"useGlobal": False, "period": period}
+def _time_range() -> dict:
+    return {"useGlobal": True}
 
 
 @dataclass(frozen=True)

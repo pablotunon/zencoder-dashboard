@@ -1,8 +1,8 @@
 /**
- * Custom Recharts tooltip content that annotates partial-day data points.
+ * Custom Recharts tooltip content that annotates partial data points.
  *
- * When the hovered data point has `is_partial: true`, a "(partial day)"
- * label is appended to the date header inside the tooltip.
+ * When the hovered data point has `is_partial: true`, a "(partial)"
+ * label is appended to the header inside the tooltip.
  */
 
 import type { ChartConfig } from "@/components/ui/chart";
@@ -38,7 +38,7 @@ export function PartialDayTooltip({
         {label}
         {isPartial && (
           <span className="ml-1 font-normal text-amber-600">
-            (partial day)
+            (partial)
           </span>
         )}
       </p>

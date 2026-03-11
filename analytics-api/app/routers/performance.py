@@ -42,11 +42,14 @@ async def get_performance(
         raise HTTPException(status_code=503, detail="Analytics data temporarily unavailable")
 
     response = PerformanceResponse(
-        success_rate_trend=[SuccessRateTrendPoint(**pt) for pt in success_data],
-        latency_trend=[LatencyTrendPoint(**pt) for pt in latency_data],
+        success_rate_trend=[SuccessRateTrendPoint(**pt) for pt in success_data["data"]],
+        success_rate_trend_granularity=success_data["granularity"],
+        latency_trend=[LatencyTrendPoint(**pt) for pt in latency_data["data"]],
+        latency_trend_granularity=latency_data["granularity"],
         error_breakdown=[ErrorBreakdownItem(**eb) for eb in error_data],
         availability=Availability(**availability_data),
-        queue_wait_trend=[QueueWaitTrendPoint(**qw) for qw in queue_wait_data],
+        queue_wait_trend=[QueueWaitTrendPoint(**qw) for qw in queue_wait_data["data"]],
+        queue_wait_trend_granularity=queue_wait_data["granularity"],
     )
 
     redis_cache.set_cached(cache_key, response.model_dump(), settings.cache_ttl_metrics)

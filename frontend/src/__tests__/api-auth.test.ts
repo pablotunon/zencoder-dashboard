@@ -44,7 +44,7 @@ const STUB_WIDGET_TS = {
   type: "timeseries",
   metric: "total_runs",
   summary: { value: 100, change_pct: 5 },
-  data: [{ date: "2025-01-01", value: 10, is_partial: false }],
+  data: [{ timestamp: "2025-01-01T00:00:00", value: 10, is_partial: false }],
 };
 
 /**
@@ -101,19 +101,19 @@ describe("API auth headers", () => {
   });
 
   it("fetchOverview sends Authorization header", async () => {
-    await expect(fetchOverview({ period: "7d" })).resolves.toBeDefined();
+    await expect(fetchOverview({ start: "2025-01-01T00:00:00Z", end: "2025-01-08T00:00:00Z" })).resolves.toBeDefined();
   });
 
   it("fetchUsage sends Authorization header", async () => {
-    await expect(fetchUsage({ period: "7d" })).resolves.toBeDefined();
+    await expect(fetchUsage({ start: "2025-01-01T00:00:00Z", end: "2025-01-08T00:00:00Z" })).resolves.toBeDefined();
   });
 
   it("fetchCost sends Authorization header", async () => {
-    await expect(fetchCost({ period: "7d" })).resolves.toBeDefined();
+    await expect(fetchCost({ start: "2025-01-01T00:00:00Z", end: "2025-01-08T00:00:00Z" })).resolves.toBeDefined();
   });
 
   it("fetchPerformance sends Authorization header", async () => {
-    await expect(fetchPerformance({ period: "7d" })).resolves.toBeDefined();
+    await expect(fetchPerformance({ start: "2025-01-01T00:00:00Z", end: "2025-01-08T00:00:00Z" })).resolves.toBeDefined();
   });
 
   it("fetchOrg sends Authorization header", async () => {
@@ -130,13 +130,13 @@ describe("API auth headers", () => {
 
   it("postWidgetQuery sends Authorization header", async () => {
     await expect(
-      postWidgetQuery({ metric: "total_runs", period: "7d" }),
+      postWidgetQuery({ metric: "total_runs", start: "2025-01-01T00:00:00Z", end: "2025-01-08T00:00:00Z" }),
     ).resolves.toBeDefined();
   });
 
   it("postWidgetQuery with breakdown sends Authorization header", async () => {
     await expect(
-      postWidgetQuery({ metric: "total_runs", period: "30d", breakdown: "team" }),
+      postWidgetQuery({ metric: "total_runs", start: "2025-01-01T00:00:00Z", end: "2025-01-31T00:00:00Z", breakdown: "team" }),
     ).resolves.toBeDefined();
   });
 });
@@ -148,12 +148,12 @@ describe("API without token returns 401", () => {
   });
 
   it("fetchOverview rejects when no token is set", async () => {
-    await expect(fetchOverview({ period: "7d" })).rejects.toThrow("Unauthorized");
+    await expect(fetchOverview({ start: "2025-01-01T00:00:00Z", end: "2025-01-08T00:00:00Z" })).rejects.toThrow("Unauthorized");
   });
 
   it("postWidgetQuery rejects when no token is set", async () => {
     await expect(
-      postWidgetQuery({ metric: "total_runs", period: "7d" }),
+      postWidgetQuery({ metric: "total_runs", start: "2025-01-01T00:00:00Z", end: "2025-01-08T00:00:00Z" }),
     ).rejects.toThrow("Unauthorized");
   });
 });

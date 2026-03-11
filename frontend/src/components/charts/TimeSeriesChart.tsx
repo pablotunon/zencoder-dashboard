@@ -1,16 +1,16 @@
 /**
- * Reusable time-series chart with partial-day visual treatment.
+ * Reusable time-series chart with partial-bucket visual treatment.
  *
  * Supports both "area" and "line" variants. When the data contains an
- * `is_partial: true` point (always the last point — today's incomplete data),
- * the chart renders:
+ * `is_partial: true` point (always the last point — current bucket's
+ * incomplete data), the chart renders:
  *   1. A horizontal SVG gradient that fades the stroke + fill in the last
  *      interval (between the second-to-last and last data points).
  *   2. A dashed vertical reference line at the boundary.
  *   3. A larger, ring-style dot on the partial point.
  */
 
-import { useId, useMemo } from "react";
+import { useCallback, useId, useMemo } from "react";
 import {
   Area,
   AreaChart,
@@ -25,6 +25,8 @@ import {
 } from "recharts";
 import { ChartContainer, type ChartConfig } from "@/components/ui/chart";
 import { PartialDayTooltip } from "@/components/charts/PartialDayTooltip";
+import { formatTimestamp } from "@/lib/formatters";
+import type { Granularity } from "@/types/api";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type DataRow = Record<string, any>;
@@ -51,6 +53,8 @@ interface TimeSeriesChartProps {
   valueFormatter?: (value: number) => string;
   /** Tailwind className for the chart container (height + width). */
   className?: string;
+  /** Granularity of the time series — controls x-axis tick formatting. */
+  granularity?: Granularity;
 }
 
 /**
@@ -65,12 +69,13 @@ function partialOffset(dataLength: number): number | null {
 export function TimeSeriesChart({
   variant = "area",
   data,
-  index = "date",
+  index = "timestamp",
   series: seriesProp,
   config,
   yFormatter,
   valueFormatter,
   className = "h-64 w-full",
+  granularity,
 }: TimeSeriesChartProps) {
   const uid = useId().replace(/:/g, "");
 
@@ -86,6 +91,12 @@ export function TimeSeriesChart({
         color: v.color ?? "#888",
       })),
     [seriesProp, config],
+  );
+
+  // X-axis tick formatter — driven by granularity when provided.
+  const xTickFormatter = useCallback(
+    (value: string) => (granularity ? formatTimestamp(value, granularity) : String(value)),
+    [granularity],
   );
 
   // The X-axis value of the second-to-last point (for the ReferenceLine).
@@ -133,7 +144,7 @@ export function TimeSeriesChart({
         />
 
         <CartesianGrid vertical={false} strokeDasharray="3 3" />
-        <XAxis dataKey={index} tickLine={false} axisLine={false} />
+        <XAxis dataKey={index} tickLine={false} axisLine={false} tickFormatter={xTickFormatter} />
         <YAxis tickLine={false} axisLine={false} tickFormatter={yFormatter} />
         <Tooltip
           content={(props) => (
