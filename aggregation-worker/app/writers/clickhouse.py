@@ -73,6 +73,7 @@ def insert_events(client: Client, events: list[AgentEvent]) -> int:
         "cost_usd",
         "error_category",
         "queue_wait_ms",
+        "user_rating",
     ]
 
     rows = []
@@ -102,6 +103,7 @@ def insert_events(client: Client, events: list[AgentEvent]) -> int:
             event.cost_usd or 0.0,
             event.error_category,
             event.queue_wait_ms or 0,
+            event.user_rating,
         ])
 
     client.insert(

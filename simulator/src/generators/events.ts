@@ -16,6 +16,8 @@ export type ErrorCategory =
   | "tool_error"
   | "internal_error";
 
+export type UserRating = "positive" | "negative";
+
 export interface AgentEvent {
   run_id: string;
   org_id: string;
@@ -33,6 +35,7 @@ export interface AgentEvent {
   error_category?: ErrorCategory;
   tools_used?: string[];
   queue_wait_ms?: number;
+  user_rating?: UserRating;
 }
 
 export const AGENT_TYPE_WEIGHTS: Record<AgentType, number> = {
@@ -140,6 +143,20 @@ function pickModel(): string {
 }
 
 /**
+ * Pick a user rating for a completed run.
+ *
+ * Most runs go unrated (~85%). Of the rated ones, successful runs skew
+ * positive (~80% thumbs-up) while failed runs skew negative (~70% thumbs-down).
+ */
+function pickUserRating(succeeded: boolean): UserRating | undefined {
+  // ~15% of completed runs get a rating
+  if (Math.random() > 0.15) return undefined;
+
+  const positiveChance = succeeded ? 0.8 : 0.3;
+  return Math.random() < positiveChance ? "positive" : "negative";
+}
+
+/**
  * Pick a random subset of tools used.
  */
 function pickTools(): string[] {
@@ -243,6 +260,8 @@ export function generateRunEvents(
 
   const completedAt = new Date(timestamp.getTime() + durationMs);
 
+  const userRating = pickUserRating(succeeded);
+
   const endEvent: AgentEvent = {
     run_id: runId,
     org_id: ctx.org.id,
@@ -260,6 +279,7 @@ export function generateRunEvents(
     tools_used: tools,
     queue_wait_ms: queueWaitMs,
     ...(succeeded ? {} : { error_category: pickErrorCategory() }),
+    ...(userRating ? { user_rating: userRating } : {}),
   };
 
   return [startEvent, endEvent];

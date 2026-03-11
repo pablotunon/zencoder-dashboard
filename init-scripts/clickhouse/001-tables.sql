@@ -16,7 +16,8 @@ CREATE TABLE IF NOT EXISTS agent_runs (
     model LowCardinality(String),
     cost_usd Float64,
     error_category LowCardinality(Nullable(String)),
-    queue_wait_ms UInt64
+    queue_wait_ms UInt64,
+    user_rating LowCardinality(Nullable(String))
 ) ENGINE = MergeTree()
 ORDER BY (org_id, started_at, team_id)
 PARTITION BY toYYYYMM(started_at);

@@ -61,6 +61,7 @@ class WidgetQueryRequest(BaseModel):
         "latency_p50", "latency_p95", "latency_p99",
         "tokens_input", "tokens_output",
         "queue_wait_avg", "queue_wait_p95",
+        "approval_rate", "rating_participation",
     ]
     start: datetime = None  # type: ignore[assignment]
     end: datetime = None  # type: ignore[assignment]
@@ -97,6 +98,7 @@ class BatchWidgetQueryRequest(BaseModel):
         "latency_p50", "latency_p95", "latency_p99",
         "tokens_input", "tokens_output",
         "queue_wait_avg", "queue_wait_p95",
+        "approval_rate", "rating_participation",
     ]]
     start: datetime = None  # type: ignore[assignment]
     end: datetime = None  # type: ignore[assignment]
