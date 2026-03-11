@@ -31,6 +31,13 @@ pub enum ErrorCategory {
     InternalError,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum UserRating {
+    Positive,
+    Negative,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AgentEvent {
     pub run_id: Uuid,
@@ -49,6 +56,7 @@ pub struct AgentEvent {
     pub error_category: Option<ErrorCategory>,
     pub tools_used: Option<Vec<String>>,
     pub queue_wait_ms: Option<u64>,
+    pub user_rating: Option<UserRating>,
 }
 
 #[derive(Debug, Deserialize)]

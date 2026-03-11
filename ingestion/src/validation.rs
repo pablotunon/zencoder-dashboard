@@ -75,6 +75,7 @@ mod tests {
             error_category: None,
             tools_used: None,
             queue_wait_ms: None,
+            user_rating: None,
         }
     }
 

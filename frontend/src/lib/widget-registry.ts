@@ -189,6 +189,32 @@ export const METRIC_REGISTRY: Record<MetricKey, MetricMeta> = {
     validBreakdowns: ["team", "project", "agent_type"],
     color: "#f43f5e",
   },
+
+  // ── User Feedback ───────────────────────────────────────
+  approval_rate: {
+    key: "approval_rate",
+    label: "Approval Rate",
+    description: "Percentage of rated runs that received positive feedback",
+    tooltip: "Of all runs where a user left a rating (thumbs up/down), this shows the percentage that were positive. Only rated runs are counted — unrated runs are excluded. A declining approval rate may indicate degrading output quality even when success rate stays high.",
+    category: "Performance",
+    defaultChartType: "line",
+    compatibleChartTypes: ["line", "area", "bar", "kpi"],
+    format: "percent",
+    validBreakdowns: ["team", "project", "agent_type", "model"],
+    color: "#22c55e",
+  },
+  rating_participation: {
+    key: "rating_participation",
+    label: "Rating Participation",
+    description: "Percentage of completed runs that received a user rating",
+    tooltip: "Shows what fraction of all runs were rated by users. Low participation means the approval rate metric is based on a small sample. Track this alongside approval rate to understand how representative the feedback signal is.",
+    category: "Performance",
+    defaultChartType: "line",
+    compatibleChartTypes: ["line", "area", "bar", "kpi"],
+    format: "percent",
+    validBreakdowns: ["team", "project", "agent_type", "model"],
+    color: "#a855f7",
+  },
 };
 
 /** Metrics grouped by category, for the modal grouped dropdown. */

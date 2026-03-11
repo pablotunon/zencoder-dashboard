@@ -44,6 +44,8 @@ METRIC_REGISTRY: dict[str, MetricDef] = {
     "tokens_output":  MetricDef("sum(tokens_output)",                                                                    "Output Tokens"),
     "queue_wait_avg": MetricDef("avg(queue_wait_ms)",                                                                    "Avg Queue Wait"),
     "queue_wait_p95": MetricDef("quantile(0.95)(queue_wait_ms)",                                                         "Queue Wait P95"),
+    "approval_rate":  MetricDef("countIf(user_rating = 'positive') * 100.0 / greatest(countIf(user_rating IS NOT NULL), 1)", "Approval Rate"),
+    "rating_participation": MetricDef("countIf(user_rating IS NOT NULL) * 100.0 / greatest(count(), 1)",                 "Rating Participation"),
 }
 
 DIMENSION_REGISTRY: dict[str, DimensionDef] = {

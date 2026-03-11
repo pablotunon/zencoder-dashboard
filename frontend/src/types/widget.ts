@@ -13,7 +13,7 @@ export type ChartType =
   | "active_users_trend"
   | "top_users";
 
-// 14 metrics matching the backend METRIC_REGISTRY
+// 16 metrics matching the backend METRIC_REGISTRY
 export type MetricKey =
   | "run_count"
   | "active_users"
@@ -28,7 +28,9 @@ export type MetricKey =
   | "tokens_input"
   | "tokens_output"
   | "queue_wait_avg"
-  | "queue_wait_p95";
+  | "queue_wait_p95"
+  | "approval_rate"
+  | "rating_participation";
 
 // Org-level metrics served from /api/orgs/current (not from agent_runs)
 export type OrgMetricKey = "monthly_budget" | "licensed_users";
