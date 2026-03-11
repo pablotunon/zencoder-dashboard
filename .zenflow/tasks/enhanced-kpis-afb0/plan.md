@@ -42,7 +42,8 @@ Verification: `docker compose exec frontend npm run type-check`
 
 ---
 
-### [ ] Step: Rewrite KpiWidget with sparkline, insights, and tests
+### [x] Step: Rewrite KpiWidget with sparkline, insights, and tests
+<!-- chat-id: af377c98-938d-4262-a63b-8beb4155e843 -->
 
 Enhance the `KpiWidget` component in `frontend/src/components/widgets/WidgetRenderer.tsx`:
 - Add sparkline using recharts `AreaChart` (tiny, no axes, ~48px tall)
