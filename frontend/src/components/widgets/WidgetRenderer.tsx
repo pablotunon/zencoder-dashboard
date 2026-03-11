@@ -1,16 +1,19 @@
 import { useMemo } from "react";
 import {
+  Area,
+  AreaChart,
   Bar,
   BarChart,
   CartesianGrid,
   Cell,
   Pie,
   PieChart,
+  ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
-import { XMarkIcon } from "@heroicons/react/24/outline";
+import { XMarkIcon, InformationCircleIcon } from "@heroicons/react/24/outline";
 import { METRIC_REGISTRY } from "@/lib/widget-registry";
 import { useWidgetData, useMultiMetricWidgetData } from "@/api/widget";
 import { useUsageMetrics, useOrg } from "@/api/hooks";
@@ -31,6 +34,7 @@ import type {
   WidgetConfig,
   ValueFormat,
   MetricKey,
+  MetricMeta,
   WidgetTimeseriesResponse,
   WidgetBreakdownResponse,
 } from "@/types/widget";
@@ -157,7 +161,12 @@ function SingleMetricWidget({
   });
 
   return (
-    <WidgetCard title={widget.title} onRemove={onRemove}>
+    <WidgetCard
+      title={widget.title}
+      subtitle={meta?.description}
+      tooltip={meta?.tooltip}
+      onRemove={onRemove}
+    >
       {isLoading ? (
         <WidgetSkeleton chartType={widget.chartType} />
       ) : error ? (
@@ -534,17 +543,36 @@ function TopUsersWidget({ dateRange }: { dateRange: DateRange }) {
 
 function WidgetCard({
   title,
+  subtitle,
+  tooltip,
   onRemove,
   children,
 }: {
   title: string;
+  subtitle?: string;
+  tooltip?: string;
   onRemove?: () => void;
   children: React.ReactNode;
 }) {
   return (
     <div className="rounded-lg border border-gray-200 bg-white p-6">
       <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-base font-medium text-gray-900">{title}</h2>
+        <div className="min-w-0">
+          <div className="flex items-center gap-1.5">
+            <h2 className="text-base font-medium text-gray-900">{title}</h2>
+            {tooltip && (
+              <div className="group relative">
+                <InformationCircleIcon className="h-4 w-4 shrink-0 text-gray-400 hover:text-gray-600" />
+                <div className="pointer-events-none absolute left-1/2 top-full z-50 mt-1.5 hidden w-64 -translate-x-1/2 rounded-md border border-gray-200 bg-white p-3 text-xs leading-relaxed text-gray-600 shadow-lg group-hover:block">
+                  {tooltip}
+                </div>
+              </div>
+            )}
+          </div>
+          {subtitle && (
+            <p className="mt-0.5 text-sm text-gray-500">{subtitle}</p>
+          )}
+        </div>
         {onRemove && (
           <button
             onClick={onRemove}
@@ -601,7 +629,11 @@ function SingleChartDispatch({
   switch (widget.chartType) {
     case "kpi":
       return data.type === "timeseries" ? (
-        <KpiWidget data={data} formatter={formatter} />
+        <KpiWidget
+          data={data}
+          formatter={formatter}
+          metricMeta={METRIC_REGISTRY[metric]}
+        />
       ) : null;
 
     case "line":
@@ -656,27 +688,109 @@ function SingleChartDispatch({
 function KpiWidget({
   data,
   formatter,
+  metricMeta,
 }: {
   data: WidgetTimeseriesResponse;
   formatter: (v: number) => string;
+  metricMeta?: MetricMeta;
 }) {
-  const changePositive =
-    data.summary.change_pct !== null ? data.summary.change_pct >= 0 : null;
+  const { value, change_pct } = data.summary;
+  const changePositive = change_pct !== null ? change_pct >= 0 : null;
+
+  // Derive previous period value: prevValue = value / (1 + change_pct / 100)
+  const prevValue = useMemo(() => {
+    if (change_pct === null || change_pct === -100) return null;
+    return value / (1 + change_pct / 100);
+  }, [value, change_pct]);
+
+  // Sparkline data: exclude partial buckets
+  const sparklineData = useMemo(
+    () => data.data.filter((p) => !p.is_partial),
+    [data.data],
+  );
+
+  // Period high/low from non-partial data
+  const { low, high } = useMemo(() => {
+    if (sparklineData.length === 0) return { low: null, high: null };
+    let lo = sparklineData[0]!.value;
+    let hi = sparklineData[0]!.value;
+    for (const p of sparklineData) {
+      if (p.value < lo) lo = p.value;
+      if (p.value > hi) hi = p.value;
+    }
+    return { low: lo, high: hi };
+  }, [sparklineData]);
+
+  const sparklineColor = metricMeta?.color ?? "#6366f1";
 
   return (
     <div>
-      <p className="text-3xl font-semibold text-gray-900">
-        {formatter(data.summary.value)}
-      </p>
-      {data.summary.change_pct !== null && (
-        <p
-          className={`mt-1 text-sm font-medium ${
-            changePositive ? "text-green-600" : "text-red-600"
-          }`}
-        >
-          {formatChangePct(data.summary.change_pct)}{" "}
-          <span className="font-normal text-gray-500">vs prev period</span>
-        </p>
+      {/* Value + sparkline row */}
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <p className="text-3xl font-semibold text-gray-900">
+            {formatter(value)}
+          </p>
+          {change_pct !== null && (
+            <p
+              className={`mt-1 text-sm font-medium ${
+                change_pct === 0
+                  ? "text-gray-500"
+                  : changePositive
+                    ? "text-green-600"
+                    : "text-red-600"
+              }`}
+            >
+              {formatChangePct(change_pct)}{" "}
+              <span className="font-normal text-gray-500">vs prev period</span>
+            </p>
+          )}
+          {prevValue !== null && (
+            <p className="mt-0.5 text-xs text-gray-400">
+              was {formatter(prevValue)}
+            </p>
+          )}
+        </div>
+        {sparklineData.length > 1 && (
+          <div className="h-12 w-24 shrink-0">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={sparklineData}>
+                <defs>
+                  <linearGradient id={`kpi-fill-${metricMeta?.key ?? "default"}`} x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor={sparklineColor} stopOpacity={0.3} />
+                    <stop offset="100%" stopColor={sparklineColor} stopOpacity={0.05} />
+                  </linearGradient>
+                </defs>
+                <Area
+                  type="monotone"
+                  dataKey="value"
+                  stroke={sparklineColor}
+                  strokeWidth={1.5}
+                  fill={`url(#kpi-fill-${metricMeta?.key ?? "default"})`}
+                  isAnimationActive={false}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+      </div>
+
+      {/* Period high/low */}
+      {low !== null && high !== null && (
+        <>
+          <div className="mt-3 border-t border-dashed border-gray-200" />
+          <p className="mt-2 text-xs text-gray-400">
+            {low === high ? (
+              <>Constant {formatter(low)}</>
+            ) : (
+              <>
+                Low {formatter(low)}{" "}
+                <span className="mx-1 text-gray-300">&middot;</span> High{" "}
+                {formatter(high)}
+              </>
+            )}
+          </p>
+        </>
       )}
     </div>
   );
