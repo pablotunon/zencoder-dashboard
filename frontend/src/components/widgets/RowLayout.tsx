@@ -152,24 +152,26 @@ function EmptySlot({
   }
 
   return (
-    <div className="group/slot relative flex min-h-[200px] items-center justify-center rounded-lg border-2 border-dashed border-gray-300 bg-gray-50/50 transition-colors hover:border-indigo-400 hover:bg-indigo-50/50">
-      <button
-        onClick={onClick}
-        className="flex items-center justify-center"
-        title="Add widget"
-      >
-        <PlusIcon className="h-8 w-8 text-gray-400" />
-      </button>
+    <button
+      onClick={onClick}
+      className="group/slot relative flex min-h-[200px] cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-gray-300 bg-gray-50/50 transition-colors hover:border-indigo-400 hover:bg-indigo-50/50"
+      title="Add widget"
+    >
+      <PlusIcon className="h-8 w-8 text-gray-400" />
 
       {onRemove && (
-        <button
-          onClick={onRemove}
+        <span
+          role="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onRemove();
+          }}
           className="absolute right-1.5 top-1.5 hidden rounded-full bg-gray-100 p-0.5 text-gray-400 hover:bg-red-100 hover:text-red-600 group-hover/slot:block"
           title="Remove column"
         >
           <XMarkIcon className="h-3.5 w-3.5" />
-        </button>
+        </span>
       )}
-    </div>
+    </button>
   );
 }

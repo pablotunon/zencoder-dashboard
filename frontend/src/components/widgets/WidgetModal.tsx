@@ -91,9 +91,7 @@ export function WidgetModal({ open, onClose, onAdd }: WidgetModalProps) {
       .filter((m): m is MetricKey => m !== "")
       .map((m) => METRIC_REGISTRY[m].label);
     const chartLabel = CHART_TYPE_META[chartType]?.label ?? chartType;
-    return labels.length > 0
-      ? `${labels.join(", ")} (${chartLabel})`
-      : chartLabel;
+    return labels.length > 0 ? labels.join(", ") : chartLabel;
   }, [metrics, chartType]);
 
   useEffect(() => {
