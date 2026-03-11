@@ -12,6 +12,7 @@ import {
 } from "@/lib/widget-registry";
 import { AGENT_TYPE_LABELS, getDefaultDateRange } from "@/lib/constants";
 import { DateRangePicker } from "@/components/ui/DateRangePicker";
+import { MultiSelect } from "@/components/ui/MultiSelect";
 import { useOrg } from "@/api/hooks";
 import type { DateRange } from "@/types/api";
 import type {
@@ -395,98 +396,38 @@ export function WidgetModal({ open, onClose, onAdd }: WidgetModalProps) {
 
             {showFilters && (
               <div className="mt-3 space-y-3 rounded-lg border border-gray-200 p-3">
-                {/* Team filter */}
-                <div>
-                  <label
-                    htmlFor="widget-filter-team"
-                    className="mb-1 block text-xs font-medium text-gray-600"
-                  >
-                    Team
-                  </label>
-                  <select
-                    id="widget-filter-team"
-                    multiple
-                    value={filterTeams}
-                    onChange={(e) =>
-                      setFilterTeams(
-                        Array.from(
-                          e.target.selectedOptions,
-                          (o) => o.value,
-                        ),
-                      )
-                    }
-                    className="w-full rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                    size={Math.min(teams.length || 1, 4)}
-                  >
-                    {teams.map((t) => (
-                      <option key={t.team_id} value={t.team_id}>
-                        {t.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                <MultiSelect
+                  label="Team"
+                  options={teams.map((t) => ({
+                    value: t.team_id,
+                    label: t.name,
+                  }))}
+                  selected={filterTeams}
+                  onChange={setFilterTeams}
+                  placeholder="All teams"
+                />
 
-                {/* Project filter */}
-                <div>
-                  <label
-                    htmlFor="widget-filter-project"
-                    className="mb-1 block text-xs font-medium text-gray-600"
-                  >
-                    Project
-                  </label>
-                  <select
-                    id="widget-filter-project"
-                    multiple
-                    value={filterProjects}
-                    onChange={(e) =>
-                      setFilterProjects(
-                        Array.from(
-                          e.target.selectedOptions,
-                          (o) => o.value,
-                        ),
-                      )
-                    }
-                    className="w-full rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                    size={Math.min(projects.length || 1, 4)}
-                  >
-                    {projects.map((p) => (
-                      <option key={p.project_id} value={p.project_id}>
-                        {p.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                <MultiSelect
+                  label="Project"
+                  options={projects.map((p) => ({
+                    value: p.project_id,
+                    label: p.name,
+                  }))}
+                  selected={filterProjects}
+                  onChange={setFilterProjects}
+                  placeholder="All projects"
+                />
 
-                {/* Agent type filter */}
-                <div>
-                  <label
-                    htmlFor="widget-filter-agent-type"
-                    className="mb-1 block text-xs font-medium text-gray-600"
-                  >
-                    Agent Type
-                  </label>
-                  <select
-                    id="widget-filter-agent-type"
-                    multiple
-                    value={filterAgentTypes}
-                    onChange={(e) =>
-                      setFilterAgentTypes(
-                        Array.from(
-                          e.target.selectedOptions,
-                          (o) => o.value,
-                        ),
-                      )
-                    }
-                    className="w-full rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                    size={Math.min(agentTypes.length, 4)}
-                  >
-                    {agentTypes.map(([value, label]) => (
-                      <option key={value} value={value}>
-                        {label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                <MultiSelect
+                  label="Agent Type"
+                  options={agentTypes.map(([value, label]) => ({
+                    value,
+                    label,
+                  }))}
+                  selected={filterAgentTypes}
+                  onChange={setFilterAgentTypes}
+                  placeholder="All agent types"
+                />
               </div>
             )}
           </div>
