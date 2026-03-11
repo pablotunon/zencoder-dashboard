@@ -25,6 +25,8 @@ from app.services.redis_cache import make_cache_key
 from app.services.widget_query import (
     DIMENSION_REGISTRY,
     METRIC_REGISTRY,
+    DimensionDef,
+    MetricDef,
     _build_filter_clause,
 )
 
@@ -214,15 +216,17 @@ class TestWidgetQueryRequest:
             req = WidgetQueryRequest(metric="run_count", breakdown=key)
             assert req.breakdown == key
 
-    def test_metric_registry_has_required_fields(self):
+    def test_metric_registry_uses_dataclass(self):
         for key, entry in METRIC_REGISTRY.items():
-            assert "expr" in entry, f"Metric {key} missing 'expr'"
-            assert "label" in entry, f"Metric {key} missing 'label'"
+            assert isinstance(entry, MetricDef), f"Metric {key} is not a MetricDef"
+            assert entry.expr, f"Metric {key} has empty expr"
+            assert entry.label, f"Metric {key} has empty label"
 
-    def test_dimension_registry_has_required_fields(self):
+    def test_dimension_registry_uses_dataclass(self):
         for key, entry in DIMENSION_REGISTRY.items():
-            assert "column" in entry, f"Dimension {key} missing 'column'"
-            assert "label" in entry, f"Dimension {key} missing 'label'"
+            assert isinstance(entry, DimensionDef), f"Dimension {key} is not a DimensionDef"
+            assert entry.column, f"Dimension {key} has empty column"
+            assert entry.label, f"Dimension {key} has empty label"
 
 
 class TestWidgetFilterClause:
