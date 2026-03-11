@@ -173,6 +173,9 @@ export function DateRangePicker({ value, onChange }: DateRangePickerProps) {
   const [toTime, setToTime] = useState("23:59");
   const [activePreset, setActivePreset] = useState(-1);
 
+  // Track which boundary was last changed by a calendar click: "from" | "to" | null
+  const [lastChanged, setLastChanged] = useState<"from" | "to" | null>(null);
+
   // Sync draft from value when popover opens
   useEffect(() => {
     if (open) {
@@ -183,6 +186,7 @@ export function DateRangePicker({ value, onChange }: DateRangePickerProps) {
       setFromTime(toTimeString(start));
       setToTime(toTimeString(end));
       setActivePreset(findPresetIndex(value));
+      setLastChanged(null);
     }
   }, [open, value]);
 
@@ -222,6 +226,7 @@ export function DateRangePicker({ value, onChange }: DateRangePickerProps) {
     setFromTime(toTimeString(start));
     setToTime(toTimeString(end));
     setActivePreset(index);
+    setLastChanged(null);
   }, []);
 
   const handleCalendarSelect = useCallback(
@@ -229,17 +234,36 @@ export function DateRangePicker({ value, onChange }: DateRangePickerProps) {
       if (!range) return;
       setActivePreset(-1);
 
-      if (range.from) {
-        setDraftFrom(applyTime(range.from, fromTime));
-      }
-      if (range.to) {
-        setDraftTo(applyTime(range.to, toTime));
+      const newFrom = range.from ? applyTime(range.from, fromTime) : undefined;
+      const newTo = range.to ? applyTime(range.to, toTime) : undefined;
+
+      // Detect which boundary changed by comparing date portions
+      const fromDateChanged = !draftFrom || !newFrom ||
+        newFrom.toDateString() !== draftFrom.toDateString();
+      const toDateChanged = !draftTo || !newTo ||
+        (newTo ? newTo.toDateString() : "") !== (draftTo ? draftTo.toDateString() : "");
+
+      if (newFrom) setDraftFrom(newFrom);
+      if (newTo) {
+        setDraftTo(newTo);
       } else {
-        // Single day click — clear "to"
         setDraftTo(undefined);
       }
+
+      // Determine what changed for the feedback indicator
+      if (!newTo) {
+        // Range was reset (single click) — start date picked
+        setLastChanged("from");
+      } else if (fromDateChanged && !toDateChanged) {
+        setLastChanged("from");
+      } else if (toDateChanged && !fromDateChanged) {
+        setLastChanged("to");
+      } else {
+        // Both changed (e.g. new range picked from scratch) — highlight end since start is implicit
+        setLastChanged("to");
+      }
     },
-    [fromTime, toTime],
+    [fromTime, toTime, draftFrom, draftTo],
   );
 
   const handleFromTimeChange = useCallback(
@@ -267,6 +291,12 @@ export function DateRangePicker({ value, onChange }: DateRangePickerProps) {
   // Derive selection phase for UX indicator
   const selectionPhase: "from" | "to" | "complete" =
     !draftFrom ? "from" : !draftTo ? "to" : "complete";
+
+  /** Short date label for the feedback indicator. */
+  const shortDate = (d: Date | undefined) => {
+    if (!d) return "";
+    return d.toLocaleString("en-US", { month: "short", day: "numeric" });
+  };
 
   const canApply = draftFrom && draftTo && draftFrom < draftTo;
 
@@ -364,12 +394,25 @@ export function DateRangePicker({ value, onChange }: DateRangePickerProps) {
                 <span className="text-indigo-600">&#9654; Select start date</span>
               )}
               {selectionPhase === "to" && (
-                <span className="text-indigo-600">&#9654; Select end date</span>
+                <span className="text-indigo-600">
+                  Start: {shortDate(draftFrom)} &mdash; now select end date
+                </span>
               )}
               {selectionPhase === "complete" && draftFrom && draftTo && (
-                <span className="text-gray-500">
-                  {formatDisplay(draftFrom)} &mdash; {formatDisplay(draftTo)}
-                </span>
+                lastChanged ? (
+                  <span className="text-indigo-600">
+                    {lastChanged === "from"
+                      ? `Start changed \u2192 ${shortDate(draftFrom)}`
+                      : `End changed \u2192 ${shortDate(draftTo)}`}
+                    <span className="ml-2 text-gray-400">
+                      ({formatDisplay(draftFrom)} &mdash; {formatDisplay(draftTo)})
+                    </span>
+                  </span>
+                ) : (
+                  <span className="text-gray-500">
+                    {formatDisplay(draftFrom)} &mdash; {formatDisplay(draftTo)}
+                  </span>
+                )
               )}
             </div>
 
@@ -380,7 +423,7 @@ export function DateRangePicker({ value, onChange }: DateRangePickerProps) {
                 label="From"
                 value={fromTime}
                 onChange={handleFromTimeChange}
-                highlighted={selectionPhase === "from"}
+                highlighted={lastChanged === "from" || selectionPhase === "from"}
               />
               <span className="text-gray-300">&mdash;</span>
               <TimeInput
@@ -388,7 +431,7 @@ export function DateRangePicker({ value, onChange }: DateRangePickerProps) {
                 label="To"
                 value={toTime}
                 onChange={handleToTimeChange}
-                highlighted={selectionPhase === "to"}
+                highlighted={lastChanged === "to" || selectionPhase === "to"}
               />
             </div>
 

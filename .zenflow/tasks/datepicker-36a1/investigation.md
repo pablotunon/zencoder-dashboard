@@ -205,10 +205,18 @@ All three fixes were implemented in `frontend/src/components/ui/DateRangePicker.
   - Shows a clock icon for visual consistency
   - Includes `normalizeTime()` helper for validation
 
-### Fix 3: Selection phase indicator
-- Added a `selectionPhase` derived state: `"from"` | `"to"` | `"complete"` based on `draftFrom` and `draftTo`.
-- Added a status banner (`data-testid="selection-phase"`) between the calendar and time inputs showing "▶ Select start date", "▶ Select end date", or the range summary.
-- The active time input (From or To) gets a highlighted background (`bg-indigo-50 ring-1 ring-indigo-200`) matching the selection phase.
+### Fix 3: Selection phase indicator (revised)
+- Initial version had a `selectionPhase` derived state (`"from"` | `"to"` | `"complete"`) but it was ineffective because react-day-picker's `mode="range"` always returns both `from` and `to` when clicking inside an existing range — `selectionPhase` was perpetually "complete".
+- **Root cause**: react-day-picker adjusts the nearest boundary on click within range, never clearing `to`. The "Select start/end date" messages were never displayed during normal interaction.
+- **Revised approach**: Added a `lastChanged` state (`"from"` | `"to"` | null) that tracks which boundary was actually modified. The `handleCalendarSelect` callback compares old vs new date values to detect changes.
+- The indicator now shows actionable feedback: "Start changed → Feb 8" or "End changed → Mar 5" in indigo, with the full range summary in gray parentheses.
+- The corresponding time input (From or To) gets highlighted (`bg-indigo-50 ring-1 ring-indigo-200`) based on `lastChanged`.
+- `lastChanged` resets to `null` on popover open and preset selection.
+
+### Granularity Investigation
+- **Finding**: Granularity is NOT broken. The backend `resolve_granularity()` correctly returns `"minute"` for ≤6h spans regardless of whether the range is "Last 1 hour" or a custom past window.
+- **Evidence**: "Last 1 hour" returns 61 data points with `granularity: "minute"`. Custom 1-hour past window (Mar 3, 14:00-15:00) returns 16 data points with `granularity: "minute"`.
+- **Root cause of perceived issue**: The simulated data is sparser for past periods. "Last 1 hour" has ~61 data points (one per minute) because the simulator generates events in real time. A random past hour may only have 16 data points because the simulator doesn't backfill every minute uniformly.
 
 ### Test Results
 - 3 new tests added to `frontend/src/__tests__/date-range-picker.test.tsx`:
@@ -223,4 +231,8 @@ All three fixes were implemented in `frontend/src/components/ui/DateRangePicker.
 - Confirmed invalid input ("99:99") reverts to previous valid value on blur
 - Confirmed valid input ("14:30") is accepted and updates the range display
 - Confirmed no console errors triggered by any datepicker interaction (only pre-existing Vite HMR WebSocket errors)
-- Confirmed selection phase indicator displays range summary correctly
+- Confirmed "End changed → Feb 20" shows when clicking inside range (moves end boundary)
+- Confirmed "Start changed → Feb 8" shows when clicking before range start (moves start boundary)
+- Confirmed "From" time input highlights on start change, "To" highlights on end change
+- Confirmed preset selection clears indicator and shows neutral range summary
+- Confirmed granularity = "minute" for both "Last 1 hour" preset and custom 1-hour past window
