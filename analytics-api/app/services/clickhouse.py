@@ -1,6 +1,6 @@
 import logging
-from datetime import date, timedelta
-from typing import Any
+from datetime import date, datetime, timedelta, timezone
+from typing import Any, Literal
 
 import clickhouse_connect
 from clickhouse_connect.driver.client import Client
@@ -8,9 +8,78 @@ from clickhouse_connect.driver.client import Client
 from app.config import settings
 from app.models.requests import MetricFilters
 
+Granularity = Literal["minute", "hour", "day", "week"]
+
+BUCKET_FUNCTIONS: dict[Granularity, str] = {
+    "minute": "toStartOfMinute(started_at)",
+    "hour": "toStartOfHour(started_at)",
+    "day": "toDate(started_at)",
+    "week": "toStartOfWeek(started_at)",
+}
+
+
+def resolve_granularity(start: datetime, end: datetime) -> tuple[str, Granularity]:
+    """Pick a ClickHouse bucket function based on range span.
+
+    Returns (bucket_sql_expression, granularity_label).
+    """
+    span = end - start
+    hours = span.total_seconds() / 3600
+
+    if hours <= 6:
+        g: Granularity = "minute"
+    elif hours <= 48:
+        g = "hour"
+    elif span.days <= 90:
+        g = "day"
+    else:
+        g = "week"
+
+    return BUCKET_FUNCTIONS[g], g
+
+
+def previous_range(start: datetime, end: datetime) -> tuple[datetime, datetime]:
+    """Shift a range back by its own duration for change-% calculation."""
+    duration = end - start
+    return start - duration, start
+
+
+def _is_current_bucket(timestamp: datetime | date | str, granularity: Granularity) -> bool:
+    """Check if a bucket timestamp represents the current (partial) bucket."""
+    now = datetime.now(timezone.utc)
+
+    if isinstance(timestamp, str):
+        try:
+            timestamp = datetime.fromisoformat(timestamp)
+        except ValueError:
+            timestamp = datetime.combine(date.fromisoformat(timestamp), datetime.min.time(), tzinfo=timezone.utc)
+
+    if isinstance(timestamp, date) and not isinstance(timestamp, datetime):
+        timestamp = datetime.combine(timestamp, datetime.min.time(), tzinfo=timezone.utc)
+
+    if timestamp.tzinfo is None:
+        timestamp = timestamp.replace(tzinfo=timezone.utc)
+
+    if granularity == "minute":
+        return timestamp >= now.replace(second=0, microsecond=0)
+    elif granularity == "hour":
+        return timestamp >= now.replace(minute=0, second=0, microsecond=0)
+    elif granularity == "day":
+        return timestamp.date() >= now.date()
+    else:  # week
+        # Current week: Monday of this week
+        days_since_monday = now.weekday()
+        week_start = (now - timedelta(days=days_since_monday)).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        )
+        return timestamp >= week_start
+
 
 def _is_today(date_val: date | str) -> bool:
-    """Check if a date value represents today (partial data)."""
+    """Check if a date value represents today (partial data).
+
+    Kept for backward compatibility during migration. Use _is_current_bucket() for new code.
+    """
     return str(date_val) == str(date.today())
 
 logger = logging.getLogger(__name__)

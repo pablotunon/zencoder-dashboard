@@ -30,7 +30,8 @@ Spec saved to `.zenflow/tasks/date-ranges-b516/spec.md`. Key decisions:
 
 ---
 
-### [ ] Step 1: Backend date/time utilities and request models
+### [x] Step 1: Backend date/time utilities and request models
+<!-- chat-id: 62573f11-1d76-40f8-bbc5-27e63465dde2 -->
 
 Update the core backend infrastructure that all endpoints depend on.
 

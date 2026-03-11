@@ -1,15 +1,51 @@
+from datetime import datetime, timedelta, timezone
 from typing import Literal
 
 from fastapi import Query
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
+
+
+def _now_utc() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _default_start() -> datetime:
+    return _now_utc() - timedelta(days=30)
+
+
+def _default_end() -> datetime:
+    return _now_utc()
 
 
 class MetricFilters(BaseModel):
-    period: Literal["7d", "30d", "90d"] = "30d"
+    start: datetime = None  # type: ignore[assignment]
+    end: datetime = None  # type: ignore[assignment]
     teams: list[str] | None = None
     projects: list[str] | None = None
     agent_types: list[str] | None = None
     group_by: Literal["team", "project", "agent_type"] | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _apply_defaults(cls, values: dict) -> dict:
+        now = _now_utc()
+        if values.get("start") is None:
+            values["start"] = now - timedelta(days=30)
+        if values.get("end") is None:
+            values["end"] = now
+        return values
+
+    @model_validator(mode="after")
+    def _validate_range(self) -> "MetricFilters":
+        if self.start >= self.end:
+            raise ValueError("start must be before end")
+        max_range = timedelta(days=366)
+        if (self.end - self.start) > max_range:
+            raise ValueError("date range must not exceed 1 year")
+        now = _now_utc()
+        if self.end > now + timedelta(days=1):
+            raise ValueError("end must not be more than 1 day in the future")
+        return self
 
 
 class WidgetFilters(BaseModel):
@@ -26,9 +62,32 @@ class WidgetQueryRequest(BaseModel):
         "tokens_input", "tokens_output",
         "queue_wait_avg", "queue_wait_p95",
     ]
-    period: Literal["7d", "30d", "90d"]
+    start: datetime = None  # type: ignore[assignment]
+    end: datetime = None  # type: ignore[assignment]
     breakdown: Literal["team", "project", "agent_type", "error_category", "model"] | None = None
     filters: WidgetFilters | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _apply_defaults(cls, values: dict) -> dict:
+        now = _now_utc()
+        if values.get("start") is None:
+            values["start"] = now - timedelta(days=30)
+        if values.get("end") is None:
+            values["end"] = now
+        return values
+
+    @model_validator(mode="after")
+    def _validate_range(self) -> "WidgetQueryRequest":
+        if self.start >= self.end:
+            raise ValueError("start must be before end")
+        max_range = timedelta(days=366)
+        if (self.end - self.start) > max_range:
+            raise ValueError("date range must not exceed 1 year")
+        now = _now_utc()
+        if self.end > now + timedelta(days=1):
+            raise ValueError("end must not be more than 1 day in the future")
+        return self
 
 
 def parse_csv(value: str | None) -> list[str] | None:
@@ -38,16 +97,21 @@ def parse_csv(value: str | None) -> list[str] | None:
 
 
 def get_metric_filters(
-    period: Literal["7d", "30d", "90d"] = Query("30d"),
+    start: str | None = Query(None, description="ISO8601 start datetime"),
+    end: str | None = Query(None, description="ISO8601 end datetime"),
     teams: str | None = Query(None),
     projects: str | None = Query(None),
     agent_types: str | None = Query(None),
     group_by: Literal["team", "project", "agent_type"] | None = Query(None),
 ) -> MetricFilters:
-    return MetricFilters(
-        period=period,
-        teams=parse_csv(teams),
-        projects=parse_csv(projects),
-        agent_types=parse_csv(agent_types),
-        group_by=group_by,
-    )
+    kwargs: dict = {
+        "teams": parse_csv(teams),
+        "projects": parse_csv(projects),
+        "agent_types": parse_csv(agent_types),
+        "group_by": group_by,
+    }
+    if start is not None:
+        kwargs["start"] = datetime.fromisoformat(start)
+    if end is not None:
+        kwargs["end"] = datetime.fromisoformat(end)
+    return MetricFilters(**kwargs)
