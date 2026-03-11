@@ -20,7 +20,7 @@ If you are blocked and need user clarification, mark the current step with `[!]`
 
 ## Workflow Steps
 
-### [ ] Step: Technical Specification
+### [x] Step: Technical Specification
 <!-- chat-id: c2c17b76-866e-4f7a-b57c-d9b7c7ee1f32 -->
 
 Assess the task's difficulty, as underestimating it leads to poor outcomes.
@@ -55,16 +55,23 @@ Save to `{@artifacts_path}/plan.md`. If the feature is trivial and doesn't warra
 
 ---
 
-### [ ] Step: Implementation
+### [ ] Step: Backend batch endpoint with tests
 
-Implement the task according to the technical specification and general engineering best practices.
+Implement the backend batch endpoint and its tests. See `spec.md` for full contract.
 
-1. Break the task into steps where possible.
-2. Implement the required changes in the codebase
-3. If relevant, write unit tests alongside each change.
-4. Run relevant tests and linters in the end of each step.
-5. Perform basic manual verification if applicable.
-6. After completion, write a report to `{@artifacts_path}/report.md` describing:
-   - What was implemented
-   - How the solution was tested
-   - The biggest issues or challenges encountered
+- Add `BatchWidgetQueryRequest` model to `analytics-api/app/models/requests.py` (list of metrics, shared start/end/breakdown/filters, 1-10 metrics validation, no duplicates)
+- Add `BatchWidgetQueryResponse` model to `analytics-api/app/models/responses.py` (results dict keyed by metric)
+- Add `POST /api/metrics/widget/batch` handler to `analytics-api/app/routers/widget.py` — loop over metrics, use per-metric Redis caching, call existing `build_widget_query()` for each
+- Add unit tests to `analytics-api/tests/test_unit.py` for `BatchWidgetQueryRequest` validation (valid list, empty rejected, >10 rejected, duplicates rejected)
+- Add integration tests to `analytics-api/tests/test_integration.py` for batch endpoint (timeseries response, breakdown response, invalid metric returns 400, cache behavior, auth required)
+- Run: `docker compose exec analytics-api pytest`
+
+### [ ] Step: Frontend batch integration with tests
+
+Update the frontend to use the batch endpoint. See `spec.md` for full contract.
+
+- Add `postBatchWidgetQuery` function and `BatchWidgetQueryParams`/`BatchWidgetQueryResponse` types to `frontend/src/api/widget.ts`
+- Update `useMultiMetricWidgetData` hook to use a single `useQuery` calling `postBatchWidgetQuery` instead of `useQueries` with N individual calls. Keep existing `mergeTimeSeries`/`mergeBreakdowns` logic.
+- Add auth test for `postBatchWidgetQuery` to `frontend/src/__tests__/api-auth.test.ts`
+- Run: `docker compose exec frontend npm run test`
+- Write completion report to `{@artifacts_path}/report.md`
