@@ -98,7 +98,8 @@ Update TypeScript types, API client, and data hooks.
   - Update hook parameter types
 - Run `./scripts/test.sh frontend` and `docker compose exec frontend npm run lint`
 
-### [ ] Step 5: DateRangePicker component
+### [x] Step 5: DateRangePicker component
+<!-- chat-id: 33c051b3-1f3e-48c3-85aa-26fb56cde060 -->
 
 Build the new date/time range picker UI component.
 
