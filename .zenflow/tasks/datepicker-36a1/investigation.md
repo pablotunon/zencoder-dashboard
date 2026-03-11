@@ -198,6 +198,12 @@ All three fixes were implemented in `frontend/src/components/ui/DateRangePicker.
 
 ### Fix 2: 24h time format
 - `formatDisplay()` now uses `padStart(2, "0")` for hours instead of 12-hour conversion. Removed the `period` (AM/PM) variable entirely.
+- Replaced native `<input type="time">` with a custom `TimeInput` component using `<input type="text" inputMode="numeric">`. The native time input renders AM/PM controls based on browser locale regardless of the stored value. The custom component:
+  - Accepts only digits and colons during typing
+  - Validates HH:MM format on blur (hours 0-23, minutes 0-59)
+  - Reverts to the previous valid value if input is invalid
+  - Shows a clock icon for visual consistency
+  - Includes `normalizeTime()` helper for validation
 
 ### Fix 3: Selection phase indicator
 - Added a `selectionPhase` derived state: `"from"` | `"to"` | `"complete"` based on `draftFrom` and `draftTo`.
@@ -211,3 +217,10 @@ All three fixes were implemented in `frontend/src/components/ui/DateRangePicker.
   3. "shows selection phase indicator when popover is open" — verifies the phase indicator renders
 - All 26 tests pass (15 in date-range-picker, 7 in api-auth, 4 in widget-filters)
 - 0 lint errors introduced
+
+### Playwright Browser Verification
+- Confirmed time inputs display 24h format visually (no AM/PM controls)
+- Confirmed invalid input ("99:99") reverts to previous valid value on blur
+- Confirmed valid input ("14:30") is accepted and updates the range display
+- Confirmed no console errors triggered by any datepicker interaction (only pre-existing Vite HMR WebSocket errors)
+- Confirmed selection phase indicator displays range summary correctly

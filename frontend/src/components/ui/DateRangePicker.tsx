@@ -1,7 +1,7 @@
-import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo, type ChangeEvent } from "react";
 import { DayPicker, getDefaultClassNames } from "react-day-picker";
 import "react-day-picker/style.css";
-import { CalendarIcon, XMarkIcon } from "@heroicons/react/24/outline";
+import { CalendarIcon, ClockIcon, XMarkIcon } from "@heroicons/react/24/outline";
 import { DATE_RANGE_PRESETS } from "@/lib/constants";
 import type { DateRange } from "@/types/api";
 
@@ -72,6 +72,84 @@ function findPresetIndex(range: DateRange): number {
   }
 
   return -1;
+}
+
+/** Validate and normalize an HH:MM string. Returns the valid time or the fallback. */
+function normalizeTime(raw: string, fallback: string): string {
+  const match = raw.match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return fallback;
+  const h = parseInt(match[1], 10);
+  const m = parseInt(match[2], 10);
+  if (h < 0 || h > 23 || m < 0 || m > 59) return fallback;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
+
+/** Controlled 24h time input (HH:MM text field). */
+function TimeInput({
+  id,
+  label,
+  value,
+  onChange,
+  highlighted,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (time: string) => void;
+  highlighted?: boolean;
+}) {
+  const [draft, setDraft] = useState(value);
+  // Keep draft in sync when value changes externally (e.g. preset click)
+  useEffect(() => { setDraft(value); }, [value]);
+
+  const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
+    // Allow typing freely — only digits and colon
+    const v = e.target.value.replace(/[^\d:]/g, "");
+    setDraft(v);
+  };
+
+  const handleBlur = () => {
+    const normalized = normalizeTime(draft, value);
+    setDraft(normalized);
+    if (normalized !== value) {
+      onChange(normalized);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      const normalized = normalizeTime(draft, value);
+      setDraft(normalized);
+      if (normalized !== value) {
+        onChange(normalized);
+      }
+    }
+  };
+
+  return (
+    <div className={`flex items-center gap-2 rounded-md px-2 py-1 ${
+      highlighted ? "bg-indigo-50 ring-1 ring-indigo-200" : ""
+    }`}>
+      <label htmlFor={id} className="text-xs font-medium text-gray-500">
+        {label}
+      </label>
+      <div className="relative">
+        <input
+          id={id}
+          type="text"
+          inputMode="numeric"
+          placeholder="HH:MM"
+          maxLength={5}
+          value={draft}
+          onChange={handleChange}
+          onBlur={handleBlur}
+          onKeyDown={handleKeyDown}
+          className="w-[4.5rem] rounded-md border border-gray-300 py-1 pl-2 pr-7 text-sm tabular-nums text-gray-700 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+        />
+        <ClockIcon className="pointer-events-none absolute right-1.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+      </div>
+    </div>
+  );
 }
 
 // ── Props ────────────────────────────────────────────────────────────────────
@@ -297,43 +375,21 @@ export function DateRangePicker({ value, onChange }: DateRangePickerProps) {
 
             {/* Time inputs */}
             <div className="flex items-center gap-4 border-t border-gray-200 px-4 py-3">
-              <div className={`flex items-center gap-2 rounded-md px-2 py-1 ${
-                selectionPhase === "from" ? "bg-indigo-50 ring-1 ring-indigo-200" : ""
-              }`}>
-                <label
-                  htmlFor="drp-from-time"
-                  className="text-xs font-medium text-gray-500"
-                >
-                  From
-                </label>
-                <input
-                  id="drp-from-time"
-                  type="time"
-                  step="60"
-                  value={fromTime}
-                  onChange={(e) => handleFromTimeChange(e.target.value)}
-                  className="rounded-md border border-gray-300 px-2 py-1 text-sm text-gray-700 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                />
-              </div>
+              <TimeInput
+                id="drp-from-time"
+                label="From"
+                value={fromTime}
+                onChange={handleFromTimeChange}
+                highlighted={selectionPhase === "from"}
+              />
               <span className="text-gray-300">&mdash;</span>
-              <div className={`flex items-center gap-2 rounded-md px-2 py-1 ${
-                selectionPhase === "to" ? "bg-indigo-50 ring-1 ring-indigo-200" : ""
-              }`}>
-                <label
-                  htmlFor="drp-to-time"
-                  className="text-xs font-medium text-gray-500"
-                >
-                  To
-                </label>
-                <input
-                  id="drp-to-time"
-                  type="time"
-                  step="60"
-                  value={toTime}
-                  onChange={(e) => handleToTimeChange(e.target.value)}
-                  className="rounded-md border border-gray-300 px-2 py-1 text-sm text-gray-700 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                />
-              </div>
+              <TimeInput
+                id="drp-to-time"
+                label="To"
+                value={toTime}
+                onChange={handleToTimeChange}
+                highlighted={selectionPhase === "to"}
+              />
             </div>
 
             {/* Footer: validation + actions */}
