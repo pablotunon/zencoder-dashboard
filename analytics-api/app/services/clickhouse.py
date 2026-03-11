@@ -155,8 +155,8 @@ def build_team_filter(filters: MetricFilters, table_prefix: str = "") -> tuple[s
 
 def query_overview_kpis(org_id: str, filters: MetricFilters) -> dict[str, Any]:
     client = get_client()
-    start, end = period_to_dates(filters.period)
-    prev_start, prev_end = previous_period_dates(filters.period)
+    start, end = filters.start, filters.end
+    prev_start, prev_end = previous_range(start, end)
     extra_where, extra_params = build_team_filter(filters)
 
     base_query = """
@@ -167,8 +167,8 @@ def query_overview_kpis(org_id: str, filters: MetricFilters) -> dict[str, Any]:
             countIf(status = 'completed') * 100.0 / greatest(count(), 1) AS success_rate
         FROM agent_runs
         WHERE org_id = %(org_id)s
-          AND toDate(started_at) >= %(start)s
-          AND toDate(started_at) < %(end)s
+          AND started_at >= %(start)s
+          AND started_at < %(end)s
     """
     base_query += extra_where
 
@@ -201,37 +201,46 @@ def query_overview_kpis(org_id: str, filters: MetricFilters) -> dict[str, Any]:
     }
 
 
-def query_usage_trend(org_id: str, filters: MetricFilters) -> list[dict[str, Any]]:
+def query_usage_trend(org_id: str, filters: MetricFilters) -> dict[str, Any]:
     client = get_client()
-    start, end = period_to_dates(filters.period)
+    start, end = filters.start, filters.end
+    bucket_fn, granularity = resolve_granularity(start, end)
     extra_where, extra_params = build_team_filter(filters)
 
     query = f"""
         SELECT
-            toDate(started_at) AS date,
+            {bucket_fn} AS timestamp,
             count() AS runs,
             sum(cost_usd) AS cost
         FROM agent_runs
         WHERE org_id = %(org_id)s
-          AND toDate(started_at) >= %(start)s
-          AND toDate(started_at) < %(end)s
+          AND started_at >= %(start)s
+          AND started_at < %(end)s
           {extra_where}
-        GROUP BY date
-        ORDER BY date
+        GROUP BY timestamp
+        ORDER BY timestamp
     """
     result = client.query(
         query,
         parameters={"org_id": org_id, "start": start, "end": end, **extra_params},
     )
-    return [
-        {"date": str(row[0]), "runs": row[1], "cost": round(float(row[2]), 2), "is_partial": _is_today(row[0])}
-        for row in result.result_rows
-    ]
+    return {
+        "granularity": granularity,
+        "data": [
+            {
+                "timestamp": str(row[0]),
+                "runs": row[1],
+                "cost": round(float(row[2]), 2),
+                "is_partial": _is_current_bucket(row[0], granularity),
+            }
+            for row in result.result_rows
+        ],
+    }
 
 
 def query_team_breakdown(org_id: str, filters: MetricFilters) -> list[dict[str, Any]]:
     client = get_client()
-    start, end = period_to_dates(filters.period)
+    start, end = filters.start, filters.end
     extra_where, extra_params = build_team_filter(filters)
 
     query = f"""
@@ -243,8 +252,8 @@ def query_team_breakdown(org_id: str, filters: MetricFilters) -> list[dict[str, 
             countIf(status = 'completed') * 100.0 / greatest(count(), 1) AS success_rate
         FROM agent_runs
         WHERE org_id = %(org_id)s
-          AND toDate(started_at) >= %(start)s
-          AND toDate(started_at) < %(end)s
+          AND started_at >= %(start)s
+          AND started_at < %(end)s
           {extra_where}
         GROUP BY team_id
         ORDER BY runs DESC
@@ -268,22 +277,23 @@ def query_team_breakdown(org_id: str, filters: MetricFilters) -> list[dict[str, 
 # --- Usage queries ---
 
 
-def query_active_users_trend(org_id: str, filters: MetricFilters) -> list[dict[str, Any]]:
+def query_active_users_trend(org_id: str, filters: MetricFilters) -> dict[str, Any]:
     client = get_client()
-    start, end = period_to_dates(filters.period)
+    start, end = filters.start, filters.end
+    bucket_fn, granularity = resolve_granularity(start, end)
     extra_where, extra_params = build_team_filter(filters)
 
     query = f"""
         SELECT
-            toDate(started_at) AS date,
+            {bucket_fn} AS timestamp,
             uniq(user_id) AS dau
         FROM agent_runs
         WHERE org_id = %(org_id)s
-          AND toDate(started_at) >= %(start)s
-          AND toDate(started_at) < %(end)s
+          AND started_at >= %(start)s
+          AND started_at < %(end)s
           {extra_where}
-        GROUP BY date
-        ORDER BY date
+        GROUP BY timestamp
+        ORDER BY timestamp
     """
     result = client.query(
         query,
@@ -291,7 +301,7 @@ def query_active_users_trend(org_id: str, filters: MetricFilters) -> list[dict[s
     )
 
     rows = result.result_rows
-    dau_by_date: dict[str, int] = {str(row[0]): row[1] for row in rows}
+    dau_by_ts: dict[str, int] = {str(row[0]): row[1] for row in rows}
 
     # Compute WAU/MAU using a join approach compatible with ClickHouse 24
     # Get the wider-window data for rolling aggregation
@@ -319,45 +329,56 @@ def query_active_users_trend(org_id: str, filters: MetricFilters) -> list[dict[s
     for row in wide_result.result_rows:
         user_dates[str(row[0])].add(row[1])
 
-    # Compute WAU and MAU for each day in our target range
-    wau_by_date: dict[str, int] = {}
-    mau_by_date: dict[str, int] = {}
+    # Compute WAU and MAU for each bucket in our target range
+    wau_by_ts: dict[str, int] = {}
+    mau_by_ts: dict[str, int] = {}
 
     for row in rows:
-        d = row[0]
-        d_str = str(d)
+        ts = row[0]
+        ts_str = str(ts)
+
+        # Determine the date for rolling window lookup
+        if isinstance(ts, datetime):
+            d = ts.date()
+        elif isinstance(ts, date):
+            d = ts
+        else:
+            d = date.fromisoformat(str(ts)[:10])
 
         # WAU: unique users in [d-6, d]
         wau_users: set[str] = set()
         for offset in range(7):
             check_date = str(d - timedelta(days=offset))
             wau_users.update(user_dates.get(check_date, set()))
-        wau_by_date[d_str] = len(wau_users)
+        wau_by_ts[ts_str] = len(wau_users)
 
         # MAU: unique users in [d-29, d]
         mau_users: set[str] = set()
         for offset in range(30):
             check_date = str(d - timedelta(days=offset))
             mau_users.update(user_dates.get(check_date, set()))
-        mau_by_date[d_str] = len(mau_users)
+        mau_by_ts[ts_str] = len(mau_users)
 
     trend = []
     for row in rows:
-        d = str(row[0])
+        ts = str(row[0])
         trend.append({
-            "date": d,
-            "dau": dau_by_date.get(d, 0),
-            "wau": wau_by_date.get(d, 0),
-            "mau": mau_by_date.get(d, 0),
-            "is_partial": _is_today(row[0]),
+            "timestamp": ts,
+            "dau": dau_by_ts.get(ts, 0),
+            "wau": wau_by_ts.get(ts, 0),
+            "mau": mau_by_ts.get(ts, 0),
+            "is_partial": _is_current_bucket(row[0], granularity),
         })
 
-    return trend
+    return {
+        "granularity": granularity,
+        "data": trend,
+    }
 
 
 def query_agent_type_breakdown(org_id: str, filters: MetricFilters) -> list[dict[str, Any]]:
     client = get_client()
-    start, end = period_to_dates(filters.period)
+    start, end = filters.start, filters.end
     extra_where, extra_params = build_team_filter(filters)
 
     query = f"""
@@ -366,8 +387,8 @@ def query_agent_type_breakdown(org_id: str, filters: MetricFilters) -> list[dict
             count() AS runs
         FROM agent_runs
         WHERE org_id = %(org_id)s
-          AND toDate(started_at) >= %(start)s
-          AND toDate(started_at) < %(end)s
+          AND started_at >= %(start)s
+          AND started_at < %(end)s
           {extra_where}
         GROUP BY agent_type
         ORDER BY runs DESC
@@ -389,7 +410,7 @@ def query_agent_type_breakdown(org_id: str, filters: MetricFilters) -> list[dict
 
 def query_top_users(org_id: str, filters: MetricFilters, limit: int = 10) -> list[dict[str, Any]]:
     client = get_client()
-    start, end = period_to_dates(filters.period)
+    start, end = filters.start, filters.end
     extra_where, extra_params = build_team_filter(filters)
 
     query = f"""
@@ -399,8 +420,8 @@ def query_top_users(org_id: str, filters: MetricFilters, limit: int = 10) -> lis
             max(started_at) AS last_active
         FROM agent_runs
         WHERE org_id = %(org_id)s
-          AND toDate(started_at) >= %(start)s
-          AND toDate(started_at) < %(end)s
+          AND started_at >= %(start)s
+          AND started_at < %(end)s
           {extra_where}
         GROUP BY user_id
         ORDER BY runs DESC
@@ -422,7 +443,7 @@ def query_top_users(org_id: str, filters: MetricFilters, limit: int = 10) -> lis
 
 def query_project_breakdown(org_id: str, filters: MetricFilters) -> list[dict[str, Any]]:
     client = get_client()
-    start, end = period_to_dates(filters.period)
+    start, end = filters.start, filters.end
     extra_where, extra_params = build_team_filter(filters)
 
     query = f"""
@@ -433,8 +454,8 @@ def query_project_breakdown(org_id: str, filters: MetricFilters) -> list[dict[st
             sum(cost_usd) AS cost
         FROM agent_runs
         WHERE org_id = %(org_id)s
-          AND toDate(started_at) >= %(start)s
-          AND toDate(started_at) < %(end)s
+          AND started_at >= %(start)s
+          AND started_at < %(end)s
           {extra_where}
         GROUP BY project_id
         ORDER BY runs DESC
@@ -457,36 +478,44 @@ def query_project_breakdown(org_id: str, filters: MetricFilters) -> list[dict[st
 # --- Cost queries ---
 
 
-def query_cost_trend(org_id: str, filters: MetricFilters) -> list[dict[str, Any]]:
+def query_cost_trend(org_id: str, filters: MetricFilters) -> dict[str, Any]:
     client = get_client()
-    start, end = period_to_dates(filters.period)
+    start, end = filters.start, filters.end
+    bucket_fn, granularity = resolve_granularity(start, end)
     extra_where, extra_params = build_team_filter(filters)
 
     query = f"""
         SELECT
-            toDate(started_at) AS date,
+            {bucket_fn} AS timestamp,
             sum(cost_usd) AS cost
         FROM agent_runs
         WHERE org_id = %(org_id)s
-          AND toDate(started_at) >= %(start)s
-          AND toDate(started_at) < %(end)s
+          AND started_at >= %(start)s
+          AND started_at < %(end)s
           {extra_where}
-        GROUP BY date
-        ORDER BY date
+        GROUP BY timestamp
+        ORDER BY timestamp
     """
     result = client.query(
         query,
         parameters={"org_id": org_id, "start": start, "end": end, **extra_params},
     )
-    return [
-        {"date": str(row[0]), "cost": round(float(row[1]), 2), "is_partial": _is_today(row[0])}
-        for row in result.result_rows
-    ]
+    return {
+        "granularity": granularity,
+        "data": [
+            {
+                "timestamp": str(row[0]),
+                "cost": round(float(row[1]), 2),
+                "is_partial": _is_current_bucket(row[0], granularity),
+            }
+            for row in result.result_rows
+        ],
+    }
 
 
 def query_cost_breakdown(org_id: str, filters: MetricFilters) -> list[dict[str, Any]]:
     client = get_client()
-    start, end = period_to_dates(filters.period)
+    start, end = filters.start, filters.end
     extra_where, extra_params = build_team_filter(filters)
 
     group_col = "team_id"
@@ -503,8 +532,8 @@ def query_cost_breakdown(org_id: str, filters: MetricFilters) -> list[dict[str, 
             sum(cost_usd) / greatest(count(), 1) AS cost_per_run
         FROM agent_runs
         WHERE org_id = %(org_id)s
-          AND toDate(started_at) >= %(start)s
-          AND toDate(started_at) < %(end)s
+          AND started_at >= %(start)s
+          AND started_at < %(end)s
           {extra_where}
         GROUP BY dimension_value
         ORDER BY cost DESC
@@ -524,36 +553,44 @@ def query_cost_breakdown(org_id: str, filters: MetricFilters) -> list[dict[str, 
     ]
 
 
-def query_cost_per_run_trend(org_id: str, filters: MetricFilters) -> list[dict[str, Any]]:
+def query_cost_per_run_trend(org_id: str, filters: MetricFilters) -> dict[str, Any]:
     client = get_client()
-    start, end = period_to_dates(filters.period)
+    start, end = filters.start, filters.end
+    bucket_fn, granularity = resolve_granularity(start, end)
     extra_where, extra_params = build_team_filter(filters)
 
     query = f"""
         SELECT
-            toDate(started_at) AS date,
+            {bucket_fn} AS timestamp,
             sum(cost_usd) / greatest(count(), 1) AS avg_cost_per_run
         FROM agent_runs
         WHERE org_id = %(org_id)s
-          AND toDate(started_at) >= %(start)s
-          AND toDate(started_at) < %(end)s
+          AND started_at >= %(start)s
+          AND started_at < %(end)s
           {extra_where}
-        GROUP BY date
-        ORDER BY date
+        GROUP BY timestamp
+        ORDER BY timestamp
     """
     result = client.query(
         query,
         parameters={"org_id": org_id, "start": start, "end": end, **extra_params},
     )
-    return [
-        {"date": str(row[0]), "avg_cost_per_run": round(float(row[1]), 4), "is_partial": _is_today(row[0])}
-        for row in result.result_rows
-    ]
+    return {
+        "granularity": granularity,
+        "data": [
+            {
+                "timestamp": str(row[0]),
+                "avg_cost_per_run": round(float(row[1]), 4),
+                "is_partial": _is_current_bucket(row[0], granularity),
+            }
+            for row in result.result_rows
+        ],
+    }
 
 
 def query_token_breakdown(org_id: str, filters: MetricFilters) -> dict[str, Any]:
     client = get_client()
-    start, end = period_to_dates(filters.period)
+    start, end = filters.start, filters.end
     extra_where, extra_params = build_team_filter(filters)
 
     total_query = f"""
@@ -562,8 +599,8 @@ def query_token_breakdown(org_id: str, filters: MetricFilters) -> dict[str, Any]
             sum(tokens_output) AS output_tokens
         FROM agent_runs
         WHERE org_id = %(org_id)s
-          AND toDate(started_at) >= %(start)s
-          AND toDate(started_at) < %(end)s
+          AND started_at >= %(start)s
+          AND started_at < %(end)s
           {extra_where}
     """
     total = client.query(
@@ -579,8 +616,8 @@ def query_token_breakdown(org_id: str, filters: MetricFilters) -> dict[str, Any]
             sum(tokens_output) AS output_tokens
         FROM agent_runs
         WHERE org_id = %(org_id)s
-          AND toDate(started_at) >= %(start)s
-          AND toDate(started_at) < %(end)s
+          AND started_at >= %(start)s
+          AND started_at < %(end)s
           {extra_where}
         GROUP BY model
         ORDER BY input_tokens + output_tokens DESC
@@ -602,80 +639,88 @@ def query_token_breakdown(org_id: str, filters: MetricFilters) -> dict[str, Any]
 # --- Performance queries ---
 
 
-def query_success_rate_trend(org_id: str, filters: MetricFilters) -> list[dict[str, Any]]:
+def query_success_rate_trend(org_id: str, filters: MetricFilters) -> dict[str, Any]:
     client = get_client()
-    start, end = period_to_dates(filters.period)
+    start, end = filters.start, filters.end
+    bucket_fn, granularity = resolve_granularity(start, end)
     extra_where, extra_params = build_team_filter(filters)
 
     query = f"""
         SELECT
-            toDate(started_at) AS date,
+            {bucket_fn} AS timestamp,
             countIf(status = 'completed') * 100.0 / greatest(count(), 1) AS success_rate,
             countIf(status = 'failed') * 100.0 / greatest(count(), 1) AS failure_rate,
             countIf(status = 'failed' AND error_category IS NOT NULL) * 100.0 / greatest(count(), 1) AS error_rate
         FROM agent_runs
         WHERE org_id = %(org_id)s
-          AND toDate(started_at) >= %(start)s
-          AND toDate(started_at) < %(end)s
+          AND started_at >= %(start)s
+          AND started_at < %(end)s
           {extra_where}
-        GROUP BY date
-        ORDER BY date
+        GROUP BY timestamp
+        ORDER BY timestamp
     """
     result = client.query(
         query,
         parameters={"org_id": org_id, "start": start, "end": end, **extra_params},
     )
-    return [
-        {
-            "date": str(row[0]),
-            "success_rate": round(float(row[1]), 1),
-            "failure_rate": round(float(row[2]), 1),
-            "error_rate": round(float(row[3]), 1),
-            "is_partial": _is_today(row[0]),
-        }
-        for row in result.result_rows
-    ]
+    return {
+        "granularity": granularity,
+        "data": [
+            {
+                "timestamp": str(row[0]),
+                "success_rate": round(float(row[1]), 1),
+                "failure_rate": round(float(row[2]), 1),
+                "error_rate": round(float(row[3]), 1),
+                "is_partial": _is_current_bucket(row[0], granularity),
+            }
+            for row in result.result_rows
+        ],
+    }
 
 
-def query_latency_trend(org_id: str, filters: MetricFilters) -> list[dict[str, Any]]:
+def query_latency_trend(org_id: str, filters: MetricFilters) -> dict[str, Any]:
     client = get_client()
-    start, end = period_to_dates(filters.period)
+    start, end = filters.start, filters.end
+    bucket_fn, granularity = resolve_granularity(start, end)
     extra_where, extra_params = build_team_filter(filters)
 
     query = f"""
         SELECT
-            toDate(started_at) AS date,
+            {bucket_fn} AS timestamp,
             quantile(0.5)(duration_ms) AS p50,
             quantile(0.95)(duration_ms) AS p95,
             quantile(0.99)(duration_ms) AS p99
         FROM agent_runs
         WHERE org_id = %(org_id)s
-          AND toDate(started_at) >= %(start)s
-          AND toDate(started_at) < %(end)s
+          AND started_at >= %(start)s
+          AND started_at < %(end)s
           AND duration_ms > 0
           {extra_where}
-        GROUP BY date
-        ORDER BY date
+        GROUP BY timestamp
+        ORDER BY timestamp
     """
     result = client.query(
         query,
         parameters={"org_id": org_id, "start": start, "end": end, **extra_params},
     )
-    return [
-        {
-            "date": str(row[0]),
-            "p50": round(float(row[1]), 0),
-            "p95": round(float(row[2]), 0),
-            "p99": round(float(row[3]), 0),
-            "is_partial": _is_today(row[0]),
-        }
-        for row in result.result_rows
-    ]
+    return {
+        "granularity": granularity,
+        "data": [
+            {
+                "timestamp": str(row[0]),
+                "p50": round(float(row[1]), 0),
+                "p95": round(float(row[2]), 0),
+                "p99": round(float(row[3]), 0),
+                "is_partial": _is_current_bucket(row[0], granularity),
+            }
+            for row in result.result_rows
+        ],
+    }
 
 
 def query_error_breakdown(org_id: str, filters: MetricFilters) -> list[dict[str, Any]]:
     client = get_client()
-    start, end = period_to_dates(filters.period)
+    start, end = filters.start, filters.end
     extra_where, extra_params = build_team_filter(filters)
 
     query = f"""
@@ -684,8 +729,8 @@ def query_error_breakdown(org_id: str, filters: MetricFilters) -> list[dict[str,
             count() AS cnt
         FROM agent_runs
         WHERE org_id = %(org_id)s
-          AND toDate(started_at) >= %(start)s
-          AND toDate(started_at) < %(end)s
+          AND started_at >= %(start)s
+          AND started_at < %(end)s
           AND status = 'failed'
           AND error_category IS NOT NULL
           {extra_where}
@@ -707,43 +752,47 @@ def query_error_breakdown(org_id: str, filters: MetricFilters) -> list[dict[str,
     ]
 
 
-def query_queue_wait_trend(org_id: str, filters: MetricFilters) -> list[dict[str, Any]]:
+def query_queue_wait_trend(org_id: str, filters: MetricFilters) -> dict[str, Any]:
     client = get_client()
-    start, end = period_to_dates(filters.period)
+    start, end = filters.start, filters.end
+    bucket_fn, granularity = resolve_granularity(start, end)
     extra_where, extra_params = build_team_filter(filters)
 
     query = f"""
         SELECT
-            toDate(started_at) AS date,
+            {bucket_fn} AS timestamp,
             avg(queue_wait_ms) AS avg_wait_ms,
             quantile(0.95)(queue_wait_ms) AS p95_wait_ms
         FROM agent_runs
         WHERE org_id = %(org_id)s
-          AND toDate(started_at) >= %(start)s
-          AND toDate(started_at) < %(end)s
+          AND started_at >= %(start)s
+          AND started_at < %(end)s
           AND queue_wait_ms > 0
           {extra_where}
-        GROUP BY date
-        ORDER BY date
+        GROUP BY timestamp
+        ORDER BY timestamp
     """
     result = client.query(
         query,
         parameters={"org_id": org_id, "start": start, "end": end, **extra_params},
     )
-    return [
-        {
-            "date": str(row[0]),
-            "avg_wait_ms": round(float(row[1]), 0),
-            "p95_wait_ms": round(float(row[2]), 0),
-            "is_partial": _is_today(row[0]),
-        }
-        for row in result.result_rows
-    ]
+    return {
+        "granularity": granularity,
+        "data": [
+            {
+                "timestamp": str(row[0]),
+                "avg_wait_ms": round(float(row[1]), 0),
+                "p95_wait_ms": round(float(row[2]), 0),
+                "is_partial": _is_current_bucket(row[0], granularity),
+            }
+            for row in result.result_rows
+        ],
+    }
 
 
 def query_availability(org_id: str, filters: MetricFilters) -> dict[str, Any]:
     client = get_client()
-    start, end = period_to_dates(filters.period)
+    start, end = filters.start, filters.end
     extra_where, extra_params = build_team_filter(filters)
 
     query = f"""
@@ -751,8 +800,8 @@ def query_availability(org_id: str, filters: MetricFilters) -> dict[str, Any]:
             countIf(status = 'completed') * 100.0 / greatest(count(), 1) AS uptime_pct
         FROM agent_runs
         WHERE org_id = %(org_id)s
-          AND toDate(started_at) >= %(start)s
-          AND toDate(started_at) < %(end)s
+          AND started_at >= %(start)s
+          AND started_at < %(end)s
           {extra_where}
     """
     result = client.query(
@@ -761,7 +810,6 @@ def query_availability(org_id: str, filters: MetricFilters) -> dict[str, Any]:
     )
     return {
         "uptime_pct": round(float(result.first_row[0]), 1),
-        "period": filters.period,
     }
 
 

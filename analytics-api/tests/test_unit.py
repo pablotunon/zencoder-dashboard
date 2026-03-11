@@ -120,12 +120,13 @@ class TestResponseSerialization:
     def test_overview_response_serializes(self):
         response = OverviewResponse(
             kpi_cards=KpiCards(
-                total_runs=KpiCard(value=1000, change_pct=5.2, period="30d"),
-                active_users=KpiCard(value=42, change_pct=-3.1, period="30d"),
-                total_cost=KpiCard(value=1234.56, change_pct=10.0, period="30d"),
-                success_rate=KpiCard(value=87.5, change_pct=1.2, period="30d"),
+                total_runs=KpiCard(value=1000, change_pct=5.2),
+                active_users=KpiCard(value=42, change_pct=-3.1),
+                total_cost=KpiCard(value=1234.56, change_pct=10.0),
+                success_rate=KpiCard(value=87.5, change_pct=1.2),
             ),
-            usage_trend=[TimeSeriesPoint(date="2025-01-01", runs=100, cost=50.0)],
+            usage_trend=[TimeSeriesPoint(timestamp="2025-01-01T00:00:00", runs=100, cost=50.0)],
+            usage_trend_granularity="day",
             team_breakdown=[
                 TeamBreakdown(
                     team_id="team_1",
@@ -140,11 +141,12 @@ class TestResponseSerialization:
         data = response.model_dump()
         assert data["kpi_cards"]["total_runs"]["value"] == 1000
         assert data["kpi_cards"]["total_runs"]["change_pct"] == 5.2
-        assert data["usage_trend"][0]["date"] == "2025-01-01"
+        assert data["usage_trend"][0]["timestamp"] == "2025-01-01T00:00:00"
+        assert data["usage_trend_granularity"] == "day"
         assert data["team_breakdown"][0]["team_name"] == "Platform"
 
     def test_kpi_card_with_null_change(self):
-        card = KpiCard(value=100, change_pct=None, period="7d")
+        card = KpiCard(value=100, change_pct=None)
         data = card.model_dump()
         assert data["change_pct"] is None
 

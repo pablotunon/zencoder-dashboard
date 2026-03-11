@@ -47,7 +47,8 @@ Update the core backend infrastructure that all endpoints depend on.
 - Write/update unit tests for the new utility functions
 - Run `./scripts/test.sh analytics-api`
 
-### [ ] Step 2: Backend query builder and SQL queries
+### [x] Step 2: Backend query builder and SQL queries
+<!-- chat-id: ea880166-a6c6-4996-b954-e9b8a995c575 -->
 
 Update all SQL queries and the widget query builder to use dynamic bucketing.
 
@@ -63,7 +64,7 @@ Update all SQL queries and the widget query builder to use dynamic bucketing.
 - Update all `query_*` functions in `clickhouse.py` that use `period_to_dates()` to accept `start`/`end`
 - Run `./scripts/test.sh analytics-api`
 
-### [ ] Step 3: Backend routers
+### [x] Step 3: Backend routers
 
 Wire the updated models and query builder into the API endpoints.
 

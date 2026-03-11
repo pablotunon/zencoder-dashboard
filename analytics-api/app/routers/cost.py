@@ -60,9 +60,11 @@ async def get_cost(
     utilization_pct = round(current_spend / monthly_budget * 100, 1) if monthly_budget else None
 
     response = CostResponse(
-        cost_trend=[CostTrendPoint(**pt) for pt in cost_trend_data],
+        cost_trend=[CostTrendPoint(**pt) for pt in cost_trend_data["data"]],
+        cost_trend_granularity=cost_trend_data["granularity"],
         cost_breakdown=[CostBreakdownItem(**cb) for cb in cost_breakdown_data],
-        cost_per_run_trend=[CostPerRunTrendPoint(**cpr) for cpr in cost_per_run_data],
+        cost_per_run_trend=[CostPerRunTrendPoint(**cpr) for cpr in cost_per_run_data["data"]],
+        cost_per_run_trend_granularity=cost_per_run_data["granularity"],
         token_breakdown=TokenBreakdown(
             input_tokens=token_data["input_tokens"],
             output_tokens=token_data["output_tokens"],

@@ -49,10 +49,13 @@ MOCK_KPIS = {
     "success_rate_change": 1.2,
 }
 
-MOCK_USAGE_TREND = [
-    {"date": "2025-01-01", "runs": 100, "cost": 50.0},
-    {"date": "2025-01-02", "runs": 120, "cost": 60.0},
-]
+MOCK_USAGE_TREND = {
+    "granularity": "day",
+    "data": [
+        {"timestamp": "2025-01-01", "runs": 100, "cost": 50.0},
+        {"timestamp": "2025-01-02", "runs": 120, "cost": 60.0},
+    ],
+}
 
 MOCK_TEAM_BREAKDOWN = [
     {"team_id": "team_platform", "runs": 500, "active_users": 15, "cost": 600.0, "success_rate": 90.0},
@@ -133,7 +136,7 @@ class TestOverviewEndpoint:
             mock_ch.query_team_breakdown.return_value = MOCK_TEAM_BREAKDOWN
             mock_pg.get_team_names = AsyncMock(return_value=MOCK_TEAM_NAMES)
 
-            resp = client.get("/api/metrics/overview?period=30d")
+            resp = client.get("/api/metrics/overview")
             assert resp.status_code == 200
             data = resp.json()
 
@@ -143,7 +146,6 @@ class TestOverviewEndpoint:
             kpi = data["kpi_cards"]
             assert kpi["total_runs"]["value"] == 5000
             assert kpi["total_runs"]["change_pct"] == 5.2
-            assert kpi["total_runs"]["period"] == "30d"
 
 
 # API-I03: GET /api/metrics/overview with team filter narrows results
@@ -157,7 +159,7 @@ class TestOverviewWithFilter:
             mock_ch.query_team_breakdown.return_value = MOCK_TEAM_BREAKDOWN
             mock_pg.get_team_names = AsyncMock(return_value=MOCK_TEAM_NAMES)
 
-            resp = client.get("/api/metrics/overview?period=30d&teams=platform,backend")
+            resp = client.get("/api/metrics/overview?teams=platform,backend")
             assert resp.status_code == 200
 
             # Verify the filters were passed with teams
@@ -175,9 +177,9 @@ class TestCostGroupBy:
         with _patch_redis_cache(), \
              patch("app.routers.cost.ch_service") as mock_ch, \
              patch("app.routers.cost.pg_service") as mock_pg:
-            mock_ch.query_cost_trend.return_value = [{"date": "2025-01-01", "cost": 50.0}]
+            mock_ch.query_cost_trend.return_value = {"granularity": "day", "data": [{"timestamp": "2025-01-01", "cost": 50.0}]}
             mock_ch.query_cost_breakdown.return_value = mock_cost_breakdown
-            mock_ch.query_cost_per_run_trend.return_value = [{"date": "2025-01-01", "avg_cost_per_run": 1.2}]
+            mock_ch.query_cost_per_run_trend.return_value = {"granularity": "day", "data": [{"timestamp": "2025-01-01", "avg_cost_per_run": 1.2}]}
             mock_ch.query_token_breakdown.return_value = {
                 "input_tokens": 1000000,
                 "output_tokens": 500000,
@@ -186,7 +188,7 @@ class TestCostGroupBy:
             mock_ch.query_current_month_spend.return_value = 5000.0
             mock_pg.get_org = AsyncMock(return_value=MOCK_ORG)
 
-            resp = client.get("/api/metrics/cost?period=30d&group_by=team")
+            resp = client.get("/api/metrics/cost?group_by=team")
             assert resp.status_code == 200
             data = resp.json()
             assert "cost_breakdown" in data
@@ -202,24 +204,29 @@ class TestCostGroupBy:
 class TestPerformanceLatency:
     def test_latency_invariant_p50_le_p95_le_p99(self, client):
         mock_latency = [
-            {"date": "2025-01-01", "p50": 500, "p95": 2000, "p99": 5000},
-            {"date": "2025-01-02", "p50": 450, "p95": 1800, "p99": 4500},
+            {"timestamp": "2025-01-01", "p50": 500, "p95": 2000, "p99": 5000},
+            {"timestamp": "2025-01-02", "p50": 450, "p95": 1800, "p99": 4500},
         ]
         with _patch_redis_cache(), \
              patch("app.routers.performance.ch_service") as mock_ch:
-            mock_ch.query_success_rate_trend.return_value = [
-                {"date": "2025-01-01", "success_rate": 90.0, "failure_rate": 10.0, "error_rate": 8.0}
-            ]
-            mock_ch.query_latency_trend.return_value = mock_latency
+            mock_ch.query_success_rate_trend.return_value = {
+                "granularity": "day",
+                "data": [{"timestamp": "2025-01-01", "success_rate": 90.0, "failure_rate": 10.0, "error_rate": 8.0}],
+            }
+            mock_ch.query_latency_trend.return_value = {
+                "granularity": "day",
+                "data": mock_latency,
+            }
             mock_ch.query_error_breakdown.return_value = [
                 {"error_category": "timeout", "count": 50, "percentage": 50.0}
             ]
-            mock_ch.query_availability.return_value = {"uptime_pct": 95.0, "period": "30d"}
-            mock_ch.query_queue_wait_trend.return_value = [
-                {"date": "2025-01-01", "avg_wait_ms": 100, "p95_wait_ms": 500}
-            ]
+            mock_ch.query_availability.return_value = {"uptime_pct": 95.0}
+            mock_ch.query_queue_wait_trend.return_value = {
+                "granularity": "day",
+                "data": [{"timestamp": "2025-01-01", "avg_wait_ms": 100, "p95_wait_ms": 500}],
+            }
 
-            resp = client.get("/api/metrics/performance?period=30d")
+            resp = client.get("/api/metrics/performance")
             assert resp.status_code == 200
             data = resp.json()
 
@@ -232,19 +239,20 @@ class TestCacheHit:
     def test_cache_hit_returns_cached_data(self, client):
         cached_data = {
             "kpi_cards": {
-                "total_runs": {"value": 999, "change_pct": 1.0, "period": "30d"},
-                "active_users": {"value": 10, "change_pct": None, "period": "30d"},
-                "total_cost": {"value": 100.0, "change_pct": None, "period": "30d"},
-                "success_rate": {"value": 90.0, "change_pct": None, "period": "30d"},
+                "total_runs": {"value": 999, "change_pct": 1.0},
+                "active_users": {"value": 10, "change_pct": None},
+                "total_cost": {"value": 100.0, "change_pct": None},
+                "success_rate": {"value": 90.0, "change_pct": None},
             },
             "usage_trend": [],
+            "usage_trend_granularity": "day",
             "team_breakdown": [],
         }
         with patch("app.routers.overview.redis_cache") as mock_cache:
             mock_cache.make_cache_key.return_value = "test_key"
             mock_cache.get_cached.return_value = cached_data
 
-            resp = client.get("/api/metrics/overview?period=30d")
+            resp = client.get("/api/metrics/overview")
             assert resp.status_code == 200
             data = resp.json()
             assert data["kpi_cards"]["total_runs"]["value"] == 999
@@ -292,7 +300,7 @@ class TestCrossOrgIsolation:
             mock_ch.query_team_breakdown.return_value = MOCK_TEAM_BREAKDOWN
             mock_pg.get_team_names = AsyncMock(return_value=MOCK_TEAM_NAMES)
 
-            resp = client.get("/api/metrics/overview?period=30d")
+            resp = client.get("/api/metrics/overview")
             assert resp.status_code == 200
 
             for call_name in ("query_overview_kpis", "query_usage_trend", "query_team_breakdown"):
@@ -311,7 +319,7 @@ class TestCrossOrgIsolation:
             mock_ch.query_team_breakdown.return_value = MOCK_TEAM_BREAKDOWN
             mock_pg.get_team_names = AsyncMock(return_value={})
 
-            resp = globex_client.get("/api/metrics/overview?period=30d")
+            resp = globex_client.get("/api/metrics/overview")
             assert resp.status_code == 200
 
             for call_name in ("query_overview_kpis", "query_usage_trend", "query_team_breakdown"):
@@ -325,16 +333,16 @@ class TestCrossOrgIsolation:
         with _patch_redis_cache(), \
              patch("app.routers.cost.ch_service") as mock_ch, \
              patch("app.routers.cost.pg_service") as mock_pg:
-            mock_ch.query_cost_trend.return_value = []
+            mock_ch.query_cost_trend.return_value = {"granularity": "day", "data": []}
             mock_ch.query_cost_breakdown.return_value = []
-            mock_ch.query_cost_per_run_trend.return_value = []
+            mock_ch.query_cost_per_run_trend.return_value = {"granularity": "day", "data": []}
             mock_ch.query_token_breakdown.return_value = {
                 "input_tokens": 0, "output_tokens": 0, "by_model": [],
             }
             mock_ch.query_current_month_spend.return_value = 0.0
             mock_pg.get_org = AsyncMock(return_value=MOCK_ORG)
 
-            resp = client.get("/api/metrics/cost?period=30d")
+            resp = client.get("/api/metrics/cost")
             assert resp.status_code == 200
 
             for call_name in ("query_cost_trend", "query_cost_breakdown",
@@ -348,13 +356,13 @@ class TestCrossOrgIsolation:
         """Acme context → all performance service calls receive 'org_acme'."""
         with _patch_redis_cache(), \
              patch("app.routers.performance.ch_service") as mock_ch:
-            mock_ch.query_success_rate_trend.return_value = []
-            mock_ch.query_latency_trend.return_value = []
+            mock_ch.query_success_rate_trend.return_value = {"granularity": "day", "data": []}
+            mock_ch.query_latency_trend.return_value = {"granularity": "day", "data": []}
             mock_ch.query_error_breakdown.return_value = []
-            mock_ch.query_availability.return_value = {"uptime_pct": 99.0, "period": "30d"}
-            mock_ch.query_queue_wait_trend.return_value = []
+            mock_ch.query_availability.return_value = {"uptime_pct": 99.0}
+            mock_ch.query_queue_wait_trend.return_value = {"granularity": "day", "data": []}
 
-            resp = client.get("/api/metrics/performance?period=30d")
+            resp = client.get("/api/metrics/performance")
             assert resp.status_code == 200
 
             for call_name in ("query_success_rate_trend", "query_latency_trend",
@@ -392,7 +400,7 @@ class TestCacheKeyIsolation:
     def test_same_endpoint_different_orgs_different_keys(self):
         from app.services.redis_cache import make_cache_key
 
-        filters = {"period": "30d"}
+        filters = {"start": "2026-02-09T00:00:00Z", "end": "2026-03-11T00:00:00Z"}
         acme_key = make_cache_key("org_acme", "overview", filters)
         globex_key = make_cache_key("org_globex", "overview", filters)
 
@@ -404,7 +412,7 @@ class TestCacheKeyIsolation:
         from app.services.redis_cache import make_cache_key
 
         for endpoint in ("overview", "usage", "cost", "performance", "org"):
-            key = make_cache_key("org_acme", endpoint, {"period": "30d"})
+            key = make_cache_key("org_acme", endpoint, {"start": "2026-02-09T00:00:00Z", "end": "2026-03-11T00:00:00Z"})
             assert key.startswith("metrics:org_acme:"), (
                 f"Cache key for {endpoint} missing org_id prefix: {key}"
             )
@@ -413,12 +421,13 @@ class TestCacheKeyIsolation:
         """Simulate: Acme request caches data, then Globex request must miss."""
         acme_cached = {
             "kpi_cards": {
-                "total_runs": {"value": 9999, "change_pct": 1.0, "period": "30d"},
-                "active_users": {"value": 10, "change_pct": None, "period": "30d"},
-                "total_cost": {"value": 100.0, "change_pct": None, "period": "30d"},
-                "success_rate": {"value": 90.0, "change_pct": None, "period": "30d"},
+                "total_runs": {"value": 9999, "change_pct": 1.0},
+                "active_users": {"value": 10, "change_pct": None},
+                "total_cost": {"value": 100.0, "change_pct": None},
+                "success_rate": {"value": 90.0, "change_pct": None},
             },
             "usage_trend": [],
+            "usage_trend_granularity": "day",
             "team_breakdown": [],
         }
 
@@ -426,7 +435,7 @@ class TestCacheKeyIsolation:
         with patch("app.routers.overview.redis_cache") as mock_cache:
             mock_cache.make_cache_key.return_value = "metrics:org_acme:overview:abc"
             mock_cache.get_cached.return_value = acme_cached
-            resp = client.get("/api/metrics/overview?period=30d")
+            resp = client.get("/api/metrics/overview")
             assert resp.status_code == 200
             assert resp.json()["kpi_cards"]["total_runs"]["value"] == 9999
 
@@ -439,7 +448,7 @@ class TestCacheKeyIsolation:
             mock_ch.query_team_breakdown.return_value = MOCK_TEAM_BREAKDOWN
             mock_pg.get_team_names = AsyncMock(return_value={})
 
-            resp = globex_client.get("/api/metrics/overview?period=30d")
+            resp = globex_client.get("/api/metrics/overview")
             assert resp.status_code == 200
             # Globex sees fresh query data (5000), not Acme's cached data (9999)
             assert resp.json()["kpi_cards"]["total_runs"]["value"] == 5000
@@ -491,10 +500,11 @@ class TestClickHouseOrgIdFiltering:
 MOCK_WIDGET_TIMESERIES = {
     "type": "timeseries",
     "metric": "run_count",
+    "granularity": "day",
     "summary": {"value": 5000.0, "change_pct": 5.2},
     "data": [
-        {"date": "2025-01-01", "value": 100.0, "is_partial": False},
-        {"date": "2025-01-02", "value": 120.0, "is_partial": True},
+        {"timestamp": "2025-01-01T00:00:00", "value": 100.0, "is_partial": False},
+        {"timestamp": "2025-01-02T00:00:00", "value": 120.0, "is_partial": True},
     ],
 }
 
@@ -521,7 +531,6 @@ class TestWidgetTimeseries:
 
             resp = client.post("/api/metrics/widget", json={
                 "metric": "run_count",
-                "period": "30d",
             })
             assert resp.status_code == 200
             data = resp.json()
@@ -532,16 +541,16 @@ class TestWidgetTimeseries:
             assert data["summary"]["value"] == 5000.0
             assert data["summary"]["change_pct"] == 5.2
             assert len(data["data"]) == 2
-            assert data["data"][0]["date"] == "2025-01-01"
+            assert data["data"][0]["timestamp"] == "2025-01-01T00:00:00"
 
             # Verify build_widget_query was called with correct args
-            mock_query.assert_called_once_with(
-                org_id="org_acme",
-                metric="run_count",
-                period="30d",
-                breakdown=None,
-                filters=None,
-            )
+            call_kwargs = mock_query.call_args[1]
+            assert call_kwargs["org_id"] == "org_acme"
+            assert call_kwargs["metric"] == "run_count"
+            assert call_kwargs["breakdown"] is None
+            assert call_kwargs["filters"] is None
+            assert "start" in call_kwargs
+            assert "end" in call_kwargs
 
 
 # API-I12: POST /api/metrics/widget with breakdown returns breakdown response
@@ -556,7 +565,6 @@ class TestWidgetBreakdown:
 
             resp = client.post("/api/metrics/widget", json={
                 "metric": "cost",
-                "period": "30d",
                 "breakdown": "team",
             })
             assert resp.status_code == 200
@@ -578,7 +586,6 @@ class TestWidgetBreakdown:
 
             resp = client.post("/api/metrics/widget", json={
                 "metric": "cost",
-                "period": "7d",
                 "filters": {
                     "teams": ["platform"],
                     "agent_types": ["coding"],
@@ -586,13 +593,13 @@ class TestWidgetBreakdown:
             })
             assert resp.status_code == 200
 
-            mock_query.assert_called_once_with(
-                org_id="org_acme",
-                metric="cost",
-                period="7d",
-                breakdown=None,
-                filters={"teams": ["platform"], "agent_types": ["coding"]},
-            )
+            call_kwargs = mock_query.call_args[1]
+            assert call_kwargs["org_id"] == "org_acme"
+            assert call_kwargs["metric"] == "cost"
+            assert call_kwargs["breakdown"] is None
+            assert call_kwargs["filters"] == {"teams": ["platform"], "agent_types": ["coding"]}
+            assert "start" in call_kwargs
+            assert "end" in call_kwargs
 
 
 # API-I13: POST /api/metrics/widget validates request body
@@ -600,29 +607,26 @@ class TestWidgetValidation:
     def test_invalid_metric_returns_422(self, client):
         resp = client.post("/api/metrics/widget", json={
             "metric": "nonexistent",
-            "period": "30d",
         })
         assert resp.status_code == 422
 
-    def test_invalid_period_returns_422(self, client):
+    def test_start_after_end_returns_422(self, client):
         resp = client.post("/api/metrics/widget", json={
             "metric": "run_count",
-            "period": "15d",
+            "start": "2026-03-10T00:00:00Z",
+            "end": "2026-03-05T00:00:00Z",
         })
         assert resp.status_code == 422
 
     def test_invalid_breakdown_returns_422(self, client):
         resp = client.post("/api/metrics/widget", json={
             "metric": "run_count",
-            "period": "30d",
             "breakdown": "nonexistent",
         })
         assert resp.status_code == 422
 
     def test_missing_metric_returns_422(self, client):
-        resp = client.post("/api/metrics/widget", json={
-            "period": "30d",
-        })
+        resp = client.post("/api/metrics/widget", json={})
         assert resp.status_code == 422
 
     def test_widget_cache_hit(self, client):
@@ -633,7 +637,6 @@ class TestWidgetValidation:
 
             resp = client.post("/api/metrics/widget", json={
                 "metric": "run_count",
-                "period": "30d",
             })
             assert resp.status_code == 200
             data = resp.json()
@@ -649,7 +652,6 @@ class TestWidgetValidation:
 
             resp = client.post("/api/metrics/widget", json={
                 "metric": "run_count",
-                "period": "30d",
             })
             assert resp.status_code == 503
 
@@ -668,7 +670,7 @@ class TestWidgetNanHandling:
             "type": "timeseries",
             "metric": "latency_p50",
             "summary": {"value": float("nan"), "change_pct": None},
-            "data": [{"date": "2025-01-15", "value": float("nan"), "is_partial": False}],
+            "data": [{"timestamp": "2025-01-15", "value": float("nan"), "is_partial": False}],
         }
         with patch("app.routers.widget.redis_cache") as mock_cache, \
              patch("app.routers.widget.build_widget_query") as mock_query:
@@ -679,7 +681,6 @@ class TestWidgetNanHandling:
 
             resp = client.post("/api/metrics/widget", json={
                 "metric": "latency_p50",
-                "period": "30d",
             })
             assert resp.status_code == 200
             data = resp.json()
@@ -706,7 +707,6 @@ class TestWidgetNanHandling:
 
             resp = client.post("/api/metrics/widget", json={
                 "metric": "queue_wait_avg",
-                "period": "30d",
                 "breakdown": "team",
             })
             assert resp.status_code == 200
@@ -734,7 +734,6 @@ class TestWidgetNanHandling:
 
                 resp = client.post("/api/metrics/widget", json={
                     "metric": metric,
-                    "period": "30d",
                 })
                 assert resp.status_code == 200, f"{metric} returned {resp.status_code}"
                 data = resp.json()
@@ -747,7 +746,7 @@ class TestWidgetNanHandling:
             "type": "timeseries",
             "metric": "latency_p50",
             "summary": {"value": 123.45, "change_pct": -2.3},
-            "data": [{"date": "2025-01-15", "value": 99.9, "is_partial": False}],
+            "data": [{"timestamp": "2025-01-15", "value": 99.9, "is_partial": False}],
         }
         with patch("app.routers.widget.redis_cache") as mock_cache, \
              patch("app.routers.widget.build_widget_query") as mock_query:
@@ -758,7 +757,6 @@ class TestWidgetNanHandling:
 
             resp = client.post("/api/metrics/widget", json={
                 "metric": "latency_p50",
-                "period": "30d",
             })
             assert resp.status_code == 200
             data = resp.json()

@@ -63,7 +63,8 @@ async def get_usage(
             licensed_users=licensed_users,
             active_users=active_users_count,
         ),
-        active_users_trend=[ActiveUsersTrendPoint(**pt) for pt in active_users_trend_data],
+        active_users_trend=[ActiveUsersTrendPoint(**pt) for pt in active_users_trend_data["data"]],
+        active_users_trend_granularity=active_users_trend_data["granularity"],
         agent_type_breakdown=[AgentTypeBreakdown(**at) for at in agent_type_data],
         top_users=[
             TopUser(
