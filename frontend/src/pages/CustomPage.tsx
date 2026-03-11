@@ -6,6 +6,7 @@ import { useDashboard } from "@/hooks/useDashboard";
 import { RowLayout } from "@/components/widgets/RowLayout";
 import { AddRowPicker } from "@/components/widgets/AddRowPicker";
 import { WidgetModal } from "@/components/widgets/WidgetModal";
+import { UndoToast } from "@/components/ui/UndoToast";
 import { getIcon, PAGE_ICON_OPTIONS } from "@/lib/icon-registry";
 import { PERIOD_OPTIONS } from "@/lib/constants";
 import type { Period } from "@/types/api";
@@ -48,11 +49,59 @@ export function CustomPage() {
     return () => clearTimeout(saveTimerRef.current);
   }, []);
 
-  const { rows, addRow, removeRow, addWidgetToSlot, removeWidgetFromSlot } =
-    useDashboard({
-      initialRows: page?.layout,
-      onChange: handleLayoutChange,
-    });
+  const {
+    rows,
+    addRow,
+    removeRow,
+    addWidgetToSlot,
+    removeWidgetFromSlot,
+    addColumn,
+    removeColumn,
+    restoreRows,
+  } = useDashboard({
+    initialRows: page?.layout,
+    onChange: handleLayoutChange,
+  });
+
+  // Undo state for destructive deletions
+  const undoKeyRef = useRef(0);
+  const [undoState, setUndoState] = useState<{
+    snapshot: DashboardRow[];
+    message: string;
+    key: number;
+  } | null>(null);
+
+  const handleRemoveRow = useCallback(
+    (rowId: string) => {
+      const row = rows.find((r) => r.id === rowId);
+      if (row && row.widgets.some((w) => w !== null)) {
+        undoKeyRef.current += 1;
+        setUndoState({ snapshot: rows, message: "Row deleted", key: undoKeyRef.current });
+      }
+      removeRow(rowId);
+    },
+    [rows, removeRow],
+  );
+
+  const handleRemoveWidget = useCallback(
+    (rowId: string, slotIndex: number) => {
+      undoKeyRef.current += 1;
+      setUndoState({ snapshot: rows, message: "Widget removed", key: undoKeyRef.current });
+      removeWidgetFromSlot(rowId, slotIndex);
+    },
+    [rows, removeWidgetFromSlot],
+  );
+
+  const handleUndo = useCallback(() => {
+    if (undoState) {
+      restoreRows(undoState.snapshot);
+      setUndoState(null);
+    }
+  }, [undoState, restoreRows]);
+
+  const dismissUndo = useCallback(() => {
+    setUndoState(null);
+  }, []);
 
   // Focus input when editing name
   useEffect(() => {
@@ -231,8 +280,10 @@ export function CustomPage() {
         onAddWidget={(rowId, slotIndex) =>
           setModalTarget({ rowId, slotIndex })
         }
-        onRemoveWidget={removeWidgetFromSlot}
-        onRemoveRow={removeRow}
+        onRemoveWidget={handleRemoveWidget}
+        onRemoveRow={handleRemoveRow}
+        onAddColumn={addColumn}
+        onRemoveColumn={removeColumn}
       />
 
       {/* Add row picker */}
@@ -244,6 +295,16 @@ export function CustomPage() {
         onClose={() => setModalTarget(null)}
         onAdd={handleAddWidget}
       />
+
+      {/* Undo toast for destructive deletions */}
+      {undoState && (
+        <UndoToast
+          key={undoState.key}
+          message={undoState.message}
+          onUndo={handleUndo}
+          onDismiss={dismissUndo}
+        />
+      )}
     </div>
   );
 }

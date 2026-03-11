@@ -90,5 +90,70 @@ export function useDashboard(options: UseDashboardOptions = {}) {
     [notifyChange],
   );
 
-  return { rows, addRow, removeRow, addWidgetToSlot, removeWidgetFromSlot };
+  /** Add an empty column to a row on the given side. Max 4 columns. */
+  const addColumn = useCallback(
+    (rowId: string, side: "left" | "right") => {
+      setRows((prev) => {
+        const next = prev.map((row) => {
+          if (row.id !== rowId || row.columns >= 4) return row;
+          const widgets =
+            side === "left"
+              ? [null, ...row.widgets]
+              : [...row.widgets, null];
+          return {
+            ...row,
+            columns: (row.columns + 1) as 1 | 2 | 3 | 4,
+            widgets,
+          };
+        });
+        notifyChange(next);
+        return next;
+      });
+    },
+    [notifyChange],
+  );
+
+  /** Remove an empty column at the given slot index. */
+  const removeColumn = useCallback(
+    (rowId: string, slotIndex: number) => {
+      setRows((prev) => {
+        const next = prev
+          .map((row) => {
+            if (row.id !== rowId) return row;
+            if (row.widgets[slotIndex] !== null) return row; // only remove empty slots
+            if (row.columns <= 1) return row; // keep at least 1 column
+            const widgets = row.widgets.filter((_, i) => i !== slotIndex);
+            return {
+              ...row,
+              columns: (row.columns - 1) as 1 | 2 | 3 | 4,
+              widgets,
+            };
+          })
+          .filter((row) => row.columns >= 1);
+        notifyChange(next);
+        return next;
+      });
+    },
+    [notifyChange],
+  );
+
+  /** Replace the entire rows state (used for undo). */
+  const restoreRows = useCallback(
+    (snapshot: DashboardRow[]) => {
+      setRows(snapshot);
+      notifyChange(snapshot);
+    },
+    [notifyChange],
+  );
+
+  return {
+    rows,
+    addRow,
+    removeRow,
+    addWidgetToSlot,
+    removeWidgetFromSlot,
+    addColumn,
+    removeColumn,
+    restoreRows,
+  };
 }
