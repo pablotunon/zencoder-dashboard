@@ -13,7 +13,8 @@ If you are blocked and need user clarification, mark the current step with `[!]`
 
 ## Workflow Steps
 
-### [ ] Step: Investigation and Planning
+### [x] Step: Investigation and Planning
+<!-- chat-id: a9234243-1299-4df0-aeaf-8b3a3433ca43 -->
 
 Analyze the bug report and design a solution.
 
