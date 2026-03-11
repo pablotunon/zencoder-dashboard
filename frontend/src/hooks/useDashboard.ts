@@ -137,6 +137,15 @@ export function useDashboard(options: UseDashboardOptions = {}) {
     [notifyChange],
   );
 
+  /** Replace the entire rows state (used for undo). */
+  const restoreRows = useCallback(
+    (snapshot: DashboardRow[]) => {
+      setRows(snapshot);
+      notifyChange(snapshot);
+    },
+    [notifyChange],
+  );
+
   return {
     rows,
     addRow,
@@ -145,5 +154,6 @@ export function useDashboard(options: UseDashboardOptions = {}) {
     removeWidgetFromSlot,
     addColumn,
     removeColumn,
+    restoreRows,
   };
 }
