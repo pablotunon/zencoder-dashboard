@@ -1,6 +1,7 @@
 import { useQuery, useQueries } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { postJson } from "@/api/client";
+import type { Granularity } from "@/types/api";
 import type {
   MetricKey,
   BreakdownDimension,
@@ -8,11 +9,11 @@ import type {
   WidgetTimeseriesResponse,
   WidgetBreakdownResponse,
 } from "@/types/widget";
-import type { Period } from "@/types/api";
 
 export interface WidgetQueryParams {
   metric: MetricKey;
-  period: Period;
+  start: string;
+  end: string;
   breakdown?: BreakdownDimension;
   filters?: {
     teams?: string[];
@@ -29,7 +30,8 @@ export async function postWidgetQuery(
 ): Promise<WidgetQueryResponse> {
   const body: Record<string, unknown> = {
     metric: params.metric,
-    period: params.period,
+    start: params.start,
+    end: params.end,
   };
   if (params.breakdown) {
     body.breakdown = params.breakdown;
@@ -49,7 +51,8 @@ export function useWidgetData(params: WidgetQueryParams) {
     queryKey: [
       "widget",
       params.metric,
-      params.period,
+      params.start,
+      params.end,
       params.breakdown ?? null,
       params.filters ?? null,
     ],
@@ -64,6 +67,7 @@ export function useWidgetData(params: WidgetQueryParams) {
 export interface MergedTimeseriesData {
   type: "merged_timeseries";
   metrics: MetricKey[];
+  granularity: Granularity;
   summaries: Record<MetricKey, { value: number; change_pct: number | null }>;
   data: Record<string, unknown>[];
 }
@@ -82,17 +86,17 @@ function mergeTimeSeries(
   metrics: MetricKey[],
   responses: WidgetTimeseriesResponse[],
 ): MergedTimeseriesData {
-  // Build date → { date, [metric]: value, is_partial } map
-  const dateMap = new Map<string, Record<string, unknown>>();
+  // Build timestamp → { timestamp, [metric]: value, is_partial } map
+  const tsMap = new Map<string, Record<string, unknown>>();
   for (let i = 0; i < responses.length; i++) {
     const metric = metrics[i];
     const resp = responses[i];
     if (!metric || !resp) continue;
     for (const pt of resp.data) {
-      let row = dateMap.get(pt.date);
+      let row = tsMap.get(pt.timestamp);
       if (!row) {
-        row = { date: pt.date, is_partial: pt.is_partial };
-        dateMap.set(pt.date, row);
+        row = { timestamp: pt.timestamp, is_partial: pt.is_partial };
+        tsMap.set(pt.timestamp, row);
       }
       row[metric] = pt.value;
       if (pt.is_partial) row.is_partial = true;
@@ -111,8 +115,9 @@ function mergeTimeSeries(
   return {
     type: "merged_timeseries",
     metrics,
+    granularity: responses[0]?.granularity ?? "day",
     summaries,
-    data: Array.from(dateMap.values()),
+    data: Array.from(tsMap.values()),
   };
 }
 
@@ -146,7 +151,8 @@ function mergeBreakdowns(
 
 interface MultiMetricParams {
   metrics: MetricKey[];
-  period: Period;
+  start: string;
+  end: string;
   breakdown?: BreakdownDimension;
   filters?: {
     teams?: string[];
@@ -165,14 +171,16 @@ export function useMultiMetricWidgetData(params: MultiMetricParams) {
       queryKey: [
         "widget",
         metric,
-        params.period,
+        params.start,
+        params.end,
         params.breakdown ?? null,
         params.filters ?? null,
       ],
       queryFn: () =>
         postWidgetQuery({
           metric,
-          period: params.period,
+          start: params.start,
+          end: params.end,
           breakdown: params.breakdown,
           filters: params.filters,
         }),

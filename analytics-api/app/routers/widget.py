@@ -39,7 +39,8 @@ async def query_widget(
         result = build_widget_query(
             org_id=ctx.org_id,
             metric=body.metric,
-            period=body.period,
+            start=body.start,
+            end=body.end,
             breakdown=body.breakdown,
             filters=filters_dict,
         )

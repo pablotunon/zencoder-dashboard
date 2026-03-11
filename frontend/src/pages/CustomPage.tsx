@@ -8,8 +8,9 @@ import { AddRowPicker } from "@/components/widgets/AddRowPicker";
 import { WidgetModal } from "@/components/widgets/WidgetModal";
 import { UndoToast } from "@/components/ui/UndoToast";
 import { getIcon, PAGE_ICON_OPTIONS } from "@/lib/icon-registry";
-import { PERIOD_OPTIONS } from "@/lib/constants";
-import type { Period } from "@/types/api";
+import { getDefaultDateRange } from "@/lib/constants";
+import { DateRangePicker } from "@/components/ui/DateRangePicker";
+import type { DateRange } from "@/types/api";
 import type { DashboardRow, WidgetConfig } from "@/types/widget";
 
 const AUTOSAVE_DELAY = 1000;
@@ -19,7 +20,7 @@ export function CustomPage() {
   const { data: page, isLoading, isError } = usePage(slug ?? "");
   const updatePage = useUpdatePage(slug ?? "");
 
-  const [globalPeriod, setGlobalPeriod] = useState<Period>("30d");
+  const [globalDateRange, setGlobalDateRange] = useState<DateRange>(getDefaultDateRange);
   const [modalTarget, setModalTarget] = useState<{
     rowId: string;
     slotIndex: number;
@@ -249,17 +250,10 @@ export function CustomPage() {
           {updatePage.isPending && (
             <span className="text-xs text-gray-400">Saving...</span>
           )}
-          <select
-            value={globalPeriod}
-            onChange={(e) => setGlobalPeriod(e.target.value as Period)}
-            className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-          >
-            {PERIOD_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
+          <DateRangePicker
+            value={globalDateRange}
+            onChange={setGlobalDateRange}
+          />
         </div>
       </div>
 
@@ -276,7 +270,7 @@ export function CustomPage() {
       {/* Row layout */}
       <RowLayout
         rows={rows}
-        globalPeriod={globalPeriod}
+        globalDateRange={globalDateRange}
         onAddWidget={(rowId, slotIndex) =>
           setModalTarget({ rowId, slotIndex })
         }

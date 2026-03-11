@@ -1,13 +1,14 @@
--- Cost trend
+-- Cost trend (bucketed)
+-- {bucket_fn} is resolved dynamically (toStartOfMinute, toStartOfHour, toDate, toStartOfWeek)
 SELECT
-    toDate(started_at) AS date,
+    {bucket_fn}(started_at) AS timestamp,
     sum(cost_usd) AS cost
 FROM agent_runs
 WHERE org_id = %(org_id)s
-  AND toDate(started_at) >= %(start)s
-  AND toDate(started_at) < %(end)s
-GROUP BY date
-ORDER BY date;
+  AND started_at >= %(start)s
+  AND started_at < %(end)s
+GROUP BY timestamp
+ORDER BY timestamp;
 
 -- Cost breakdown by dimension (team_id | project_id | agent_type)
 SELECT
@@ -17,21 +18,21 @@ SELECT
     sum(cost_usd) / greatest(count(), 1) AS cost_per_run
 FROM agent_runs
 WHERE org_id = %(org_id)s
-  AND toDate(started_at) >= %(start)s
-  AND toDate(started_at) < %(end)s
+  AND started_at >= %(start)s
+  AND started_at < %(end)s
 GROUP BY dimension_value
 ORDER BY cost DESC;
 
--- Cost per run trend
+-- Cost per run trend (bucketed)
 SELECT
-    toDate(started_at) AS date,
+    {bucket_fn}(started_at) AS timestamp,
     sum(cost_usd) / greatest(count(), 1) AS avg_cost_per_run
 FROM agent_runs
 WHERE org_id = %(org_id)s
-  AND toDate(started_at) >= %(start)s
-  AND toDate(started_at) < %(end)s
-GROUP BY date
-ORDER BY date;
+  AND started_at >= %(start)s
+  AND started_at < %(end)s
+GROUP BY timestamp
+ORDER BY timestamp;
 
 -- Token breakdown (totals)
 SELECT
@@ -39,8 +40,8 @@ SELECT
     sum(tokens_output) AS output_tokens
 FROM agent_runs
 WHERE org_id = %(org_id)s
-  AND toDate(started_at) >= %(start)s
-  AND toDate(started_at) < %(end)s;
+  AND started_at >= %(start)s
+  AND started_at < %(end)s;
 
 -- Token breakdown by model
 SELECT
@@ -49,8 +50,8 @@ SELECT
     sum(tokens_output) AS output_tokens
 FROM agent_runs
 WHERE org_id = %(org_id)s
-  AND toDate(started_at) >= %(start)s
-  AND toDate(started_at) < %(end)s
+  AND started_at >= %(start)s
+  AND started_at < %(end)s
 GROUP BY model
 ORDER BY input_tokens + output_tokens DESC;
 
