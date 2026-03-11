@@ -8,7 +8,7 @@ import {
   apiGetMe,
   apiLogout,
 } from "@/api/client";
-import { postWidgetQuery } from "@/api/widget";
+import { postWidgetQuery, postBatchWidgetQuery } from "@/api/widget";
 
 const TEST_TOKEN = "test-jwt-token-abc123";
 
@@ -88,6 +88,11 @@ function registerAuthAssertingHandlers() {
     http.post("*/api/metrics/widget", ({ request }) => {
       return assertAuth(request) ?? HttpResponse.json(STUB_WIDGET_TS);
     }),
+    http.post("*/api/metrics/widget/batch", ({ request }) => {
+      return assertAuth(request) ?? HttpResponse.json({
+        results: { run_count: STUB_WIDGET_TS, cost: STUB_WIDGET_TS },
+      });
+    }),
   );
 }
 
@@ -124,6 +129,12 @@ describe("API auth headers", () => {
       postWidgetQuery({ metric: "total_runs", start: "2025-01-01T00:00:00Z", end: "2025-01-31T00:00:00Z", breakdown: "team" }),
     ).resolves.toBeDefined();
   });
+
+  it("postBatchWidgetQuery sends Authorization header", async () => {
+    await expect(
+      postBatchWidgetQuery({ metrics: ["run_count", "cost"], start: "2025-01-01T00:00:00Z", end: "2025-01-08T00:00:00Z" }),
+    ).resolves.toBeDefined();
+  });
 });
 
 describe("API without token returns 401", () => {
@@ -135,6 +146,12 @@ describe("API without token returns 401", () => {
   it("postWidgetQuery rejects when no token is set", async () => {
     await expect(
       postWidgetQuery({ metric: "total_runs", start: "2025-01-01T00:00:00Z", end: "2025-01-08T00:00:00Z" }),
+    ).rejects.toThrow("Unauthorized");
+  });
+
+  it("postBatchWidgetQuery rejects when no token is set", async () => {
+    await expect(
+      postBatchWidgetQuery({ metrics: ["run_count", "cost"], start: "2025-01-01T00:00:00Z", end: "2025-01-08T00:00:00Z" }),
     ).rejects.toThrow("Unauthorized");
   });
 });

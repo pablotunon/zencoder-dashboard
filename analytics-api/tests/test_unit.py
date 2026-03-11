@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 import pytest
 
-from app.models.requests import MetricFilters, WidgetQueryRequest, get_metric_filters, parse_csv
+from app.models.requests import BatchWidgetQueryRequest, MetricFilters, WidgetQueryRequest, get_metric_filters, parse_csv
 from app.models.responses import (
     KpiCard,
     KpiCards,
@@ -439,3 +439,83 @@ class TestGetMetricFilters:
     def test_parses_group_by(self):
         f = get_metric_filters(start=None, end=None, teams=None, projects=None, agent_types=None, group_by="team")
         assert f.group_by == "team"
+
+
+# API-U11: BatchWidgetQueryRequest validation
+class TestBatchWidgetQueryRequest:
+    def test_valid_batch_request(self):
+        req = BatchWidgetQueryRequest(
+            metrics=["run_count", "cost"],
+            start=_utc(days=-7),
+            end=_utc(),
+        )
+        assert req.metrics == ["run_count", "cost"]
+        assert req.breakdown is None
+        assert req.filters is None
+
+    def test_valid_single_metric(self):
+        req = BatchWidgetQueryRequest(metrics=["run_count"])
+        assert len(req.metrics) == 1
+
+    def test_valid_with_breakdown(self):
+        req = BatchWidgetQueryRequest(
+            metrics=["run_count", "cost"],
+            start=_utc(days=-7),
+            end=_utc(),
+            breakdown="team",
+        )
+        assert req.breakdown == "team"
+
+    def test_defaults_applied_when_no_dates(self):
+        req = BatchWidgetQueryRequest(metrics=["run_count", "cost"])
+        now = datetime.now(timezone.utc)
+        assert abs((req.end - now).total_seconds()) < 5
+        assert 29 <= (req.end - req.start).days <= 30
+
+    def test_empty_metrics_rejected(self):
+        with pytest.raises(Exception):
+            BatchWidgetQueryRequest(metrics=[])
+
+    def test_more_than_10_metrics_rejected(self):
+        all_metrics = [
+            "run_count", "active_users", "cost", "cost_per_run",
+            "success_rate", "failure_rate", "error_rate",
+            "latency_p50", "latency_p95", "latency_p99",
+            "tokens_input",
+        ]
+        assert len(all_metrics) == 11
+        with pytest.raises(Exception):
+            BatchWidgetQueryRequest(metrics=all_metrics)
+
+    def test_exactly_10_metrics_accepted(self):
+        ten_metrics = [
+            "run_count", "active_users", "cost", "cost_per_run",
+            "success_rate", "failure_rate", "error_rate",
+            "latency_p50", "latency_p95", "latency_p99",
+        ]
+        req = BatchWidgetQueryRequest(metrics=ten_metrics)
+        assert len(req.metrics) == 10
+
+    def test_duplicate_metrics_rejected(self):
+        with pytest.raises(Exception):
+            BatchWidgetQueryRequest(metrics=["run_count", "cost", "run_count"])
+
+    def test_invalid_metric_rejected(self):
+        with pytest.raises(Exception):
+            BatchWidgetQueryRequest(metrics=["run_count", "invalid_metric"])
+
+    def test_start_after_end_rejected(self):
+        with pytest.raises(Exception):
+            BatchWidgetQueryRequest(
+                metrics=["run_count"],
+                start=_utc(days=-1),
+                end=_utc(days=-5),
+            )
+
+    def test_range_exceeding_one_year_rejected(self):
+        with pytest.raises(Exception):
+            BatchWidgetQueryRequest(
+                metrics=["run_count"],
+                start=_dt(2025, 1, 1),
+                end=_dt(2026, 3, 1),
+            )

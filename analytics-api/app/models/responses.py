@@ -1,3 +1,5 @@
+from typing import Any
+
 from pydantic import BaseModel
 
 
@@ -213,3 +215,10 @@ class OrgResponse(BaseModel):
     licensed_users: int = 0
     teams: list[TeamInfo]
     projects: list[ProjectInfo]
+
+
+# --- Widget Batch ---
+
+
+class BatchWidgetQueryResponse(BaseModel):
+    results: dict[str, Any]
