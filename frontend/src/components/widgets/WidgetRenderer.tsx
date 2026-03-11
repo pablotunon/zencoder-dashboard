@@ -63,7 +63,11 @@ function resolveEffectiveDateRange(
   globalDateRange: DateRange,
 ): DateRange {
   if (widget.timeRange.useGlobal) return globalDateRange;
-  return { start: widget.timeRange.start, end: widget.timeRange.end };
+  // Guard against legacy widgets stored with the old {useGlobal:false, period:"30d"}
+  // format that lack start/end fields — fall back to global range.
+  const tr = widget.timeRange as { start?: string; end?: string };
+  if (!tr.start || !tr.end) return globalDateRange;
+  return { start: tr.start, end: tr.end };
 }
 
 function primaryMetric(widget: WidgetConfig): MetricKey {
@@ -429,7 +433,8 @@ function StatWidgetLoader({
     denominator = orgData.monthly_budget;
   }
 
-  const pct = denominator ? (currentValue / denominator) * 100 : null;
+  const rawPct = denominator ? (currentValue / denominator) * 100 : null;
+  const pct = rawPct !== null ? Math.min(rawPct, 100) : null;
 
   return (
     <div>
