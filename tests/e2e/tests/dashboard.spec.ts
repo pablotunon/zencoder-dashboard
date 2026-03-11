@@ -11,7 +11,7 @@ browserTest.describe("E2E-03: Dashboard Accessibility", () => {
   browserTest("overview page loads with charts and KPI cards", async ({ authedPage }) => {
     await authedPage.goto("/p/overview");
     await expect(authedPage.getByRole("heading", { name: /overview/i })).toBeVisible({ timeout: 15_000 });
-    await expect(authedPage.getByText(/total runs/i)).toBeVisible({ timeout: 15_000 });
+    await expect(authedPage.getByRole("heading", { name: /total runs/i })).toBeVisible({ timeout: 15_000 });
   });
 
   browserTest("usage page loads with adoption data", async ({ authedPage }) => {
