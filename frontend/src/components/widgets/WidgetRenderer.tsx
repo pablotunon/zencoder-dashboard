@@ -63,11 +63,7 @@ function resolveEffectiveDateRange(
   globalDateRange: DateRange,
 ): DateRange {
   if (widget.timeRange.useGlobal) return globalDateRange;
-  // Guard against legacy widgets stored with the old {useGlobal:false, period:"30d"}
-  // format that lack start/end fields — fall back to global range.
-  const tr = widget.timeRange as { start?: string; end?: string };
-  if (!tr.start || !tr.end) return globalDateRange;
-  return { start: tr.start, end: tr.end };
+  return { start: widget.timeRange.start, end: widget.timeRange.end };
 }
 
 function primaryMetric(widget: WidgetConfig): MetricKey {

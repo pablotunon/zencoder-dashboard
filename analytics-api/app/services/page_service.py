@@ -40,35 +40,12 @@ async def _unique_slug(user_id: str, base_slug: str, exclude_page_id: str | None
         suffix += 1
 
 
-def _normalize_widget_time_ranges(layout: list) -> list:
-    """Migrate legacy widget timeRange formats to the current schema.
-
-    Old format: {"useGlobal": false, "period": "30d"}
-    New format: {"useGlobal": true}
-    """
-    for row in layout:
-        if not isinstance(row, dict):
-            continue
-        for i, widget in enumerate(row.get("widgets") or []):
-            if not isinstance(widget, dict):
-                continue
-            tr = widget.get("timeRange")
-            if not isinstance(tr, dict):
-                continue
-            # Convert old {useGlobal: false, period: "..."} to {useGlobal: true}
-            if not tr.get("useGlobal") and "period" in tr:
-                widget["timeRange"] = {"useGlobal": True}
-    return layout
-
-
 def _row_to_dict(row) -> dict[str, Any]:
     """Convert an asyncpg Record to a dict with layout parsed from JSON string if needed."""
     d = dict(row)
     # asyncpg returns JSONB as Python objects already, but handle string case
     if isinstance(d.get("layout"), str):
         d["layout"] = json.loads(d["layout"])
-    if isinstance(d.get("layout"), list):
-        d["layout"] = _normalize_widget_time_ranges(d["layout"])
     return d
 
 
