@@ -9,7 +9,7 @@ export interface OrgDefinition {
   teams: TeamDefinition[];
 }
 
-export interface TeamDefinition {
+interface TeamDefinition {
   id: string;
   name: string;
   slug: string;
@@ -36,7 +36,7 @@ export interface ProjectRecord {
   repository_url: string;
 }
 
-export interface ApiKeyRecord {
+interface ApiKeyRecord {
   api_key_id: string;
   org_id: string;
   key_hash: string;

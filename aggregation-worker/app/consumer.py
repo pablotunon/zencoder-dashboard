@@ -30,7 +30,6 @@ class AgentEvent:
     model: Optional[str] = None
     cost_usd: Optional[float] = None
     error_category: Optional[str] = None
-    tools_used: Optional[list[str]] = None
     queue_wait_ms: Optional[int] = None
 
 
@@ -58,7 +57,6 @@ def parse_event(raw_data: dict[str, str]) -> AgentEvent:
         model=data.get("model"),
         cost_usd=data.get("cost_usd"),
         error_category=data.get("error_category"),
-        tools_used=data.get("tools_used"),
         queue_wait_ms=data.get("queue_wait_ms"),
     )
 

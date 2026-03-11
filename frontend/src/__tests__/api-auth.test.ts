@@ -3,10 +3,7 @@ import { http, HttpResponse } from "msw";
 import { server } from "./msw-server";
 import {
   setAuthToken,
-  fetchOverview,
   fetchUsage,
-  fetchCost,
-  fetchPerformance,
   fetchOrg,
   apiGetMe,
   apiLogout,
@@ -100,20 +97,8 @@ describe("API auth headers", () => {
     registerAuthAssertingHandlers();
   });
 
-  it("fetchOverview sends Authorization header", async () => {
-    await expect(fetchOverview({ start: "2025-01-01T00:00:00Z", end: "2025-01-08T00:00:00Z" })).resolves.toBeDefined();
-  });
-
   it("fetchUsage sends Authorization header", async () => {
     await expect(fetchUsage({ start: "2025-01-01T00:00:00Z", end: "2025-01-08T00:00:00Z" })).resolves.toBeDefined();
-  });
-
-  it("fetchCost sends Authorization header", async () => {
-    await expect(fetchCost({ start: "2025-01-01T00:00:00Z", end: "2025-01-08T00:00:00Z" })).resolves.toBeDefined();
-  });
-
-  it("fetchPerformance sends Authorization header", async () => {
-    await expect(fetchPerformance({ start: "2025-01-01T00:00:00Z", end: "2025-01-08T00:00:00Z" })).resolves.toBeDefined();
   });
 
   it("fetchOrg sends Authorization header", async () => {
@@ -145,10 +130,6 @@ describe("API without token returns 401", () => {
   beforeEach(() => {
     setAuthToken(null);
     registerAuthAssertingHandlers();
-  });
-
-  it("fetchOverview rejects when no token is set", async () => {
-    await expect(fetchOverview({ start: "2025-01-01T00:00:00Z", end: "2025-01-08T00:00:00Z" })).rejects.toThrow("Unauthorized");
   });
 
   it("postWidgetQuery rejects when no token is set", async () => {

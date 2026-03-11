@@ -31,11 +31,6 @@ export interface PageUpdateRequest {
   layout?: DashboardRow[];
 }
 
-/** Body for PATCH /api/pages/reorder. */
-export interface PageReorderRequest {
-  page_ids: string[];
-}
-
 /** Template summary returned by GET /api/pages/templates. */
 export interface TemplateSummary {
   id: string;

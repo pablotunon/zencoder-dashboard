@@ -7,7 +7,6 @@ import {
   fetchJson,
   postJson,
   putJson,
-  patchJson,
   deleteJson,
 } from "@/api/client";
 import type {
@@ -15,7 +14,6 @@ import type {
   PageDetail,
   PageCreateRequest,
   PageUpdateRequest,
-  PageReorderRequest,
   TemplateSummary,
 } from "@/types/pages";
 
@@ -77,18 +75,6 @@ export function useUpdatePage(slug: string) {
       putJson<PageDetail>(`/api/pages/${slug}`, body),
     onSuccess: (updated) => {
       qc.setQueryData(pageDetailKey(slug), updated);
-      qc.invalidateQueries({ queryKey: PAGES_KEY });
-    },
-  });
-}
-
-/** PATCH /api/pages/reorder — set page order. */
-export function useReorderPages() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (body: PageReorderRequest) =>
-      patchJson("/api/pages/reorder", body),
-    onSuccess: () => {
       qc.invalidateQueries({ queryKey: PAGES_KEY });
     },
   });

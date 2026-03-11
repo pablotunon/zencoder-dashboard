@@ -1,6 +1,6 @@
 import logging
 from datetime import datetime
-from typing import Any, Literal
+from typing import Any
 
 from app.services.clickhouse import (
     _is_current_bucket,
@@ -10,25 +10,6 @@ from app.services.clickhouse import (
 )
 
 logger = logging.getLogger(__name__)
-
-MetricKey = Literal[
-    "run_count",
-    "active_users",
-    "cost",
-    "cost_per_run",
-    "success_rate",
-    "failure_rate",
-    "error_rate",
-    "latency_p50",
-    "latency_p95",
-    "latency_p99",
-    "tokens_input",
-    "tokens_output",
-    "queue_wait_avg",
-    "queue_wait_p95",
-]
-
-BreakdownDimension = Literal["team", "project", "agent_type", "error_category", "model"]
 
 METRIC_REGISTRY: dict[str, dict[str, str]] = {
     "run_count":      {"expr": "count()",                                                                               "label": "Run Count"},

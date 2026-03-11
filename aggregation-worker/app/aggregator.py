@@ -6,7 +6,7 @@ ReplacingMergeTree handles deduplication on (org_id, date, dimension).
 """
 
 import logging
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, timedelta
 
 from clickhouse_connect.driver.client import Client
 

@@ -163,11 +163,8 @@ export const METRIC_REGISTRY: Record<MetricKey, MetricMeta> = {
   },
 };
 
-/** All metrics as a flat array, useful for iteration. */
-export const METRIC_OPTIONS: MetricMeta[] = Object.values(METRIC_REGISTRY);
-
 /** Metrics grouped by category, for the modal grouped dropdown. */
-export const METRIC_BY_CATEGORY = METRIC_OPTIONS.reduce(
+export const METRIC_BY_CATEGORY = Object.values(METRIC_REGISTRY).reduce(
   (acc, m) => {
     (acc[m.category] ??= []).push(m);
     return acc;

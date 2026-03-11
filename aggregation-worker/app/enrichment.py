@@ -65,11 +65,3 @@ class EnrichmentCache:
             )
         except psycopg2.Error as e:
             logger.error("Failed to refresh enrichment cache: %s", e)
-
-    def get_team_for_user(self, user_id: str) -> str | None:
-        """Look up the team_id for a user."""
-        return self._user_team_map.get(user_id)
-
-    def get_team_for_project(self, project_id: str) -> str | None:
-        """Look up the team_id for a project."""
-        return self._project_team_map.get(project_id)

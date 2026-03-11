@@ -36,7 +36,7 @@ class TestParseEvent:
         raw = self._make_raw(self._base_event(
             duration_ms=45000, tokens_input=25000, tokens_output=5000,
             model="claude-sonnet-4-20250514", cost_usd=0.15,
-            error_category=None, tools_used=["file_read", "file_write"],
+            error_category=None,
             queue_wait_ms=500,
         ))
         event = parse_event(raw)
