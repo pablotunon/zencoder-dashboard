@@ -20,51 +20,42 @@ If you are blocked and need user clarification, mark the current step with `[!]`
 
 ## Workflow Steps
 
-### [ ] Step: Technical Specification
-<!-- chat-id: bbea9ecc-46f5-48b0-9fa1-cbdbd57ca32f -->
+### [x] Step: Technical Specification
 
-Assess the task's difficulty, as underestimating it leads to poor outcomes.
-- easy: Straightforward implementation, trivial bug fix or feature
-- medium: Moderate complexity, some edge cases or caveats to consider
-- hard: Complex logic, many caveats, architectural considerations, or high-risk changes
-
-Create a technical specification for the task that is appropriate for the complexity level:
-- Review the existing codebase architecture and identify reusable components.
-- Define the implementation approach based on established patterns in the project.
-- Identify all source code files that will be created or modified.
-- Define any necessary data model, API, or interface changes.
-- Describe verification steps using the project's test and lint commands.
-
-Save the output to `{@artifacts_path}/spec.md` with:
-- Technical context (language, dependencies)
-- Implementation approach
-- Source code structure changes
-- Data model / API / interface changes
-- Verification approach
-
-If the task is complex enough, create a detailed implementation plan based on `{@artifacts_path}/spec.md`:
-- Break down the work into concrete tasks (incrementable, testable milestones)
-- Each task should reference relevant contracts and include verification steps
-- Replace the Implementation step below with the planned tasks
-
-Rule of thumb for step size: each step should represent a coherent unit of work (e.g., implement a component, add an API endpoint, write tests for a module). Avoid steps that are too granular (single function).
-
-Important: unit tests must be part of each implementation task, not separate tasks. Each task should implement the code and its tests together, if relevant.
-
-Save to `{@artifacts_path}/plan.md`. If the feature is trivial and doesn't warrant this breakdown, keep the Implementation step below as is.
+Assessed difficulty as easy–medium. Created `spec.md` with full design:
+- Frontend-only change, zero backend modifications
+- Three files modified: `types/widget.ts`, `lib/widget-registry.ts`, `components/widgets/WidgetRenderer.tsx`
+- Enhancements: sparkline, description, previous period value, period high/low
+- All data already available in the existing API response
 
 ---
 
-### [ ] Step: Implementation
+### [ ] Step: Add description field to MetricMeta and registry
 
-Implement the task according to the technical specification and general engineering best practices.
+Extend the type system and populate descriptions for all 14 metrics:
+- Add `description: string` to `MetricMeta` interface in `frontend/src/types/widget.ts`
+- Add `description` value to each of the 14 entries in `frontend/src/lib/widget-registry.ts`
+- Run type-check to confirm all entries satisfy the updated interface
 
-1. Break the task into steps where possible.
-2. Implement the required changes in the codebase
-3. If relevant, write unit tests alongside each change.
-4. Run relevant tests and linters in the end of each step.
-5. Perform basic manual verification if applicable.
-6. After completion, write a report to `{@artifacts_path}/report.md` describing:
-   - What was implemented
-   - How the solution was tested
-   - The biggest issues or challenges encountered
+Verification: `docker compose exec frontend npm run type-check`
+
+---
+
+### [ ] Step: Rewrite KpiWidget with sparkline, insights, and tests
+
+Enhance the `KpiWidget` component in `frontend/src/components/widgets/WidgetRenderer.tsx`:
+- Add sparkline using recharts `AreaChart` (tiny, no axes, ~48px tall)
+- Show previous period value derived from `summary.value` and `summary.change_pct`
+- Display metric description from registry
+- Compute and display period high/low from timeseries data (excluding partial buckets)
+- Pass `MetricMeta` through from `SingleChartDispatch`
+- Handle edge cases: null change_pct, empty data, single data point
+- Write unit tests for the enhanced KpiWidget
+- Run all tests, lint, and type-check
+
+Verification:
+- `docker compose exec frontend npm run test`
+- `docker compose exec frontend npm run lint`
+- `docker compose exec frontend npm run type-check`
+- `./scripts/test.sh e2e`
+- Write report to `{@artifacts_path}/report.md`
