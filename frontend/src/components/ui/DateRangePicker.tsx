@@ -84,6 +84,28 @@ function normalizeTime(raw: string, fallback: string): string {
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 }
 
+/** Return first of previous month (for default calendar view). */
+function previousMonth(): Date {
+  const d = new Date();
+  d.setMonth(d.getMonth() - 1, 1);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+/** Generate array of dates between two dates (inclusive, date-only comparison). */
+function datesInRange(from: Date, to: Date): Date[] {
+  const dates: Date[] = [];
+  const cur = new Date(from);
+  cur.setHours(0, 0, 0, 0);
+  const end = new Date(to);
+  end.setHours(0, 0, 0, 0);
+  while (cur <= end) {
+    dates.push(new Date(cur));
+    cur.setDate(cur.getDate() + 1);
+  }
+  return dates;
+}
+
 /** Controlled 24h time input (HH:MM text field). */
 function TimeInput({
   id,
@@ -173,8 +195,11 @@ export function DateRangePicker({ value, onChange }: DateRangePickerProps) {
   const [toTime, setToTime] = useState("23:59");
   const [activePreset, setActivePreset] = useState(-1);
 
-  // Track which boundary was last changed by a calendar click: "from" | "to" | null
-  const [lastChanged, setLastChanged] = useState<"from" | "to" | null>(null);
+  // Controlled month for the calendar (show previous + current by default)
+  const [calendarMonth, setCalendarMonth] = useState(previousMonth);
+
+  // Hover state for range preview when picking the end date
+  const [hoveredDay, setHoveredDay] = useState<Date | undefined>();
 
   // Sync draft from value when popover opens
   useEffect(() => {
@@ -186,7 +211,8 @@ export function DateRangePicker({ value, onChange }: DateRangePickerProps) {
       setFromTime(toTimeString(start));
       setToTime(toTimeString(end));
       setActivePreset(findPresetIndex(value));
-      setLastChanged(null);
+      setCalendarMonth(previousMonth());
+      setHoveredDay(undefined);
     }
   }, [open, value]);
 
@@ -226,44 +252,52 @@ export function DateRangePicker({ value, onChange }: DateRangePickerProps) {
     setFromTime(toTimeString(start));
     setToTime(toTimeString(end));
     setActivePreset(index);
-    setLastChanged(null);
+    setHoveredDay(undefined);
   }, []);
 
-  const handleCalendarSelect = useCallback(
-    (range: { from?: Date; to?: Date } | undefined) => {
-      if (!range) return;
+  // Derive selection phase
+  const selectionPhase: "from" | "to" | "complete" =
+    !draftFrom ? "from" : !draftTo ? "to" : "complete";
+
+  // Two-click selection: click 1 = set start & clear end, click 2 = set end
+  const handleDayClick = useCallback(
+    (day: Date) => {
       setActivePreset(-1);
 
-      const newFrom = range.from ? applyTime(range.from, fromTime) : undefined;
-      const newTo = range.to ? applyTime(range.to, toTime) : undefined;
-
-      // Detect which boundary changed by comparing date portions
-      const fromDateChanged = !draftFrom || !newFrom ||
-        newFrom.toDateString() !== draftFrom.toDateString();
-      const toDateChanged = !draftTo || !newTo ||
-        (newTo ? newTo.toDateString() : "") !== (draftTo ? draftTo.toDateString() : "");
-
-      if (newFrom) setDraftFrom(newFrom);
-      if (newTo) {
-        setDraftTo(newTo);
-      } else {
+      if (selectionPhase === "complete" || selectionPhase === "from") {
+        // First click: set start, clear end (keep times)
+        setDraftFrom(applyTime(day, fromTime));
         setDraftTo(undefined);
-      }
-
-      // Determine what changed for the feedback indicator
-      if (!newTo) {
-        // Range was reset (single click) — start date picked
-        setLastChanged("from");
-      } else if (fromDateChanged && !toDateChanged) {
-        setLastChanged("from");
-      } else if (toDateChanged && !fromDateChanged) {
-        setLastChanged("to");
+        setHoveredDay(undefined);
       } else {
-        // Both changed (e.g. new range picked from scratch) — highlight end since start is implicit
-        setLastChanged("to");
+        // Second click (selectionPhase === "to"): set end
+        let from = draftFrom!;
+        let to = applyTime(day, toTime);
+
+        // If user clicked before the start, swap
+        if (to < from) {
+          const tmpDate = from;
+          from = applyTime(day, fromTime);
+          to = applyTime(tmpDate, toTime);
+          setDraftFrom(from);
+          setFromTime(toTimeString(from));
+          setToTime(toTimeString(to));
+        }
+
+        setDraftTo(to);
+        setHoveredDay(undefined);
       }
     },
-    [fromTime, toTime, draftFrom, draftTo],
+    [selectionPhase, draftFrom, fromTime, toTime],
+  );
+
+  const handleDayMouseEnter = useCallback(
+    (day: Date) => {
+      if (selectionPhase === "to") {
+        setHoveredDay(day);
+      }
+    },
+    [selectionPhase],
   );
 
   const handleFromTimeChange = useCallback(
@@ -288,11 +322,7 @@ export function DateRangePicker({ value, onChange }: DateRangePickerProps) {
     [draftTo],
   );
 
-  // Derive selection phase for UX indicator
-  const selectionPhase: "from" | "to" | "complete" =
-    !draftFrom ? "from" : !draftTo ? "to" : "complete";
-
-  /** Short date label for the feedback indicator. */
+  /** Short date label for the phase indicator. */
   const shortDate = (d: Date | undefined) => {
     if (!d) return "";
     return d.toLocaleString("en-US", { month: "short", day: "numeric" });
@@ -319,6 +349,30 @@ export function DateRangePicker({ value, onChange }: DateRangePickerProps) {
     const end = parseISO(value.end);
     return `${formatDisplay(start)} - ${formatDisplay(end)}`;
   }, [value]);
+
+  // Build modifiers for visual range highlighting
+  const modifiers = useMemo(() => {
+    const mods: Record<string, Date | Date[] | { from: Date; to: Date }> = {};
+
+    if (draftFrom) {
+      mods.range_start = draftFrom;
+    }
+
+    if (draftFrom && draftTo) {
+      // Complete range
+      mods.range_middle = datesInRange(draftFrom, draftTo);
+      mods.range_end = draftTo;
+    } else if (draftFrom && !draftTo && hoveredDay) {
+      // Hover preview range
+      const previewStart = hoveredDay < draftFrom ? hoveredDay : draftFrom;
+      const previewEnd = hoveredDay < draftFrom ? draftFrom : hoveredDay;
+      mods.range_start = previewStart;
+      mods.range_middle = datesInRange(previewStart, previewEnd);
+      mods.range_end = previewEnd;
+    }
+
+    return mods;
+  }, [draftFrom, draftTo, hoveredDay]);
 
   const defaultClassNames = getDefaultClassNames();
 
@@ -367,19 +421,25 @@ export function DateRangePicker({ value, onChange }: DateRangePickerProps) {
             {/* Calendar */}
             <div className="p-3">
               <DayPicker
-                mode="range"
+                mode="single"
                 numberOfMonths={2}
-                selected={
-                  draftFrom
-                    ? { from: draftFrom, to: draftTo }
-                    : undefined
-                }
-                onSelect={handleCalendarSelect}
+                month={calendarMonth}
+                onMonthChange={setCalendarMonth}
+                selected={draftFrom && draftTo ? undefined : draftFrom}
+                onDayClick={handleDayClick}
+                onDayMouseEnter={handleDayMouseEnter}
+                onDayMouseLeave={() => setHoveredDay(undefined)}
                 disabled={{ after: new Date() }}
+                modifiers={modifiers}
+                modifiersClassNames={{
+                  range_start: "rdp-range_start",
+                  range_middle: "rdp-range_middle",
+                  range_end: "rdp-range_end",
+                }}
                 classNames={{
                   root: `${defaultClassNames.root} text-sm`,
                   today: "font-bold text-indigo-600",
-                  selected: "bg-indigo-600 text-white",
+                  selected: "bg-indigo-600 text-white rounded-full",
                   range_start: "bg-indigo-600 text-white rounded-l-full",
                   range_end: "bg-indigo-600 text-white rounded-r-full",
                   range_middle: "bg-indigo-50 text-indigo-900",
@@ -395,24 +455,13 @@ export function DateRangePicker({ value, onChange }: DateRangePickerProps) {
               )}
               {selectionPhase === "to" && (
                 <span className="text-indigo-600">
-                  Start: {shortDate(draftFrom)} &mdash; now select end date
+                  &#9654; Start: {shortDate(draftFrom)} &mdash; now select end date
                 </span>
               )}
               {selectionPhase === "complete" && draftFrom && draftTo && (
-                lastChanged ? (
-                  <span className="text-indigo-600">
-                    {lastChanged === "from"
-                      ? `Start changed \u2192 ${shortDate(draftFrom)}`
-                      : `End changed \u2192 ${shortDate(draftTo)}`}
-                    <span className="ml-2 text-gray-400">
-                      ({formatDisplay(draftFrom)} &mdash; {formatDisplay(draftTo)})
-                    </span>
-                  </span>
-                ) : (
-                  <span className="text-gray-500">
-                    {formatDisplay(draftFrom)} &mdash; {formatDisplay(draftTo)}
-                  </span>
-                )
+                <span className="text-gray-500">
+                  {formatDisplay(draftFrom)} &mdash; {formatDisplay(draftTo)}
+                </span>
               )}
             </div>
 
@@ -423,7 +472,7 @@ export function DateRangePicker({ value, onChange }: DateRangePickerProps) {
                 label="From"
                 value={fromTime}
                 onChange={handleFromTimeChange}
-                highlighted={lastChanged === "from" || selectionPhase === "from"}
+                highlighted={selectionPhase === "to"}
               />
               <span className="text-gray-300">&mdash;</span>
               <TimeInput
@@ -431,7 +480,7 @@ export function DateRangePicker({ value, onChange }: DateRangePickerProps) {
                 label="To"
                 value={toTime}
                 onChange={handleToTimeChange}
-                highlighted={lastChanged === "to" || selectionPhase === "to"}
+                highlighted={selectionPhase === "complete"}
               />
             </div>
 
