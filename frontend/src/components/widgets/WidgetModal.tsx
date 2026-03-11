@@ -425,7 +425,7 @@ export function WidgetModal({ open, onClose, onAdd }: WidgetModalProps) {
                     size={Math.min(teams.length || 1, 4)}
                   >
                     {teams.map((t) => (
-                      <option key={t.team_id} value={t.slug}>
+                      <option key={t.team_id} value={t.team_id}>
                         {t.name}
                       </option>
                     ))}
@@ -456,7 +456,7 @@ export function WidgetModal({ open, onClose, onAdd }: WidgetModalProps) {
                     size={Math.min(projects.length || 1, 4)}
                   >
                     {projects.map((p) => (
-                      <option key={p.project_id} value={p.name}>
+                      <option key={p.project_id} value={p.project_id}>
                         {p.name}
                       </option>
                     ))}

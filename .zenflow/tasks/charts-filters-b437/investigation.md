@@ -52,3 +52,28 @@ This is a two-line frontend fix. No backend changes needed. Agent type filter al
 - Add/update an integration or e2e test that creates a widget with team/project filters and verifies non-empty data is returned
 - Verify existing `test_widget_with_filters` in `analytics-api/tests/test_integration.py` covers the backend path (it does, but it mocks ClickHouse)
 - Manual verification: create a widget with a team filter, confirm chart shows data
+
+## Implementation Notes
+
+### Fix Applied
+Two-line change in `frontend/src/components/widgets/WidgetModal.tsx`:
+
+1. **Line 428**: `value={t.slug}` → `value={t.team_id}`
+2. **Line 459**: `value={p.name}` → `value={p.project_id}`
+
+### Dependency Added
+- Added `@testing-library/dom` (^10.4.0) to `frontend/package.json` devDependencies — required peer dependency of `@testing-library/react` that was missing, needed for component rendering tests.
+
+### Regression Tests Added
+New test file: `frontend/src/__tests__/widget-filters.test.tsx` (4 tests):
+
+1. **team filter options use team_id as value, not slug** — verifies `<option>` elements render with `team_id` values
+2. **project filter options use project_id as value, not name** — verifies `<option>` elements render with `project_id` values
+3. **submitted config.filters.teams contains team_id values** — end-to-end: select team → submit → verify `onAdd` receives `team_id`
+4. **submitted config.filters.projects contains project_id values** — end-to-end: select project → submit → verify `onAdd` receives `project_id`
+
+### Test Results
+All 19 frontend tests pass (3 test files):
+- `constants.test.ts` — 4 tests
+- `api-auth.test.ts` — 11 tests
+- `widget-filters.test.tsx` — 4 tests
