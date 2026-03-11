@@ -1,4 +1,5 @@
 import logging
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
@@ -11,29 +12,46 @@ from app.services.clickhouse import (
 
 logger = logging.getLogger(__name__)
 
-METRIC_REGISTRY: dict[str, dict[str, str]] = {
-    "run_count":      {"expr": "count()",                                                                               "label": "Run Count"},
-    "active_users":   {"expr": "uniq(user_id)",                                                                         "label": "Active Users"},
-    "cost":           {"expr": "sum(cost_usd)",                                                                         "label": "Cost (USD)"},
-    "cost_per_run":   {"expr": "sum(cost_usd) / greatest(count(), 1)",                                                  "label": "Cost Per Run"},
-    "success_rate":   {"expr": "countIf(status = 'completed') * 100.0 / greatest(count(), 1)",                          "label": "Success Rate"},
-    "failure_rate":   {"expr": "countIf(status = 'failed') * 100.0 / greatest(count(), 1)",                             "label": "Failure Rate"},
-    "error_rate":     {"expr": "countIf(status = 'failed' AND error_category IS NOT NULL) * 100.0 / greatest(count(), 1)", "label": "Error Rate"},
-    "latency_p50":    {"expr": "quantile(0.5)(duration_ms)",                                                            "label": "Latency P50"},
-    "latency_p95":    {"expr": "quantile(0.95)(duration_ms)",                                                           "label": "Latency P95"},
-    "latency_p99":    {"expr": "quantile(0.99)(duration_ms)",                                                           "label": "Latency P99"},
-    "tokens_input":   {"expr": "sum(tokens_input)",                                                                     "label": "Input Tokens"},
-    "tokens_output":  {"expr": "sum(tokens_output)",                                                                    "label": "Output Tokens"},
-    "queue_wait_avg": {"expr": "avg(queue_wait_ms)",                                                                    "label": "Avg Queue Wait"},
-    "queue_wait_p95": {"expr": "quantile(0.95)(queue_wait_ms)",                                                         "label": "Queue Wait P95"},
+
+@dataclass(frozen=True, slots=True)
+class MetricDef:
+    """A ClickHouse metric: SQL aggregation expression + display label."""
+
+    expr: str
+    label: str
+
+
+@dataclass(frozen=True, slots=True)
+class DimensionDef:
+    """A ClickHouse dimension: column name for GROUP BY + display label."""
+
+    column: str
+    label: str
+
+
+METRIC_REGISTRY: dict[str, MetricDef] = {
+    "run_count":      MetricDef("count()",                                                                               "Run Count"),
+    "active_users":   MetricDef("uniq(user_id)",                                                                         "Active Users"),
+    "cost":           MetricDef("sum(cost_usd)",                                                                         "Cost (USD)"),
+    "cost_per_run":   MetricDef("sum(cost_usd) / greatest(count(), 1)",                                                  "Cost Per Run"),
+    "success_rate":   MetricDef("countIf(status = 'completed') * 100.0 / greatest(count(), 1)",                          "Success Rate"),
+    "failure_rate":   MetricDef("countIf(status = 'failed') * 100.0 / greatest(count(), 1)",                             "Failure Rate"),
+    "error_rate":     MetricDef("countIf(status = 'failed' AND error_category IS NOT NULL) * 100.0 / greatest(count(), 1)", "Error Rate"),
+    "latency_p50":    MetricDef("quantile(0.5)(duration_ms)",                                                            "Latency P50"),
+    "latency_p95":    MetricDef("quantile(0.95)(duration_ms)",                                                           "Latency P95"),
+    "latency_p99":    MetricDef("quantile(0.99)(duration_ms)",                                                           "Latency P99"),
+    "tokens_input":   MetricDef("sum(tokens_input)",                                                                     "Input Tokens"),
+    "tokens_output":  MetricDef("sum(tokens_output)",                                                                    "Output Tokens"),
+    "queue_wait_avg": MetricDef("avg(queue_wait_ms)",                                                                    "Avg Queue Wait"),
+    "queue_wait_p95": MetricDef("quantile(0.95)(queue_wait_ms)",                                                         "Queue Wait P95"),
 }
 
-DIMENSION_REGISTRY: dict[str, dict[str, str]] = {
-    "team":           {"column": "team_id",        "label": "Team"},
-    "project":        {"column": "project_id",     "label": "Project"},
-    "agent_type":     {"column": "agent_type",     "label": "Agent Type"},
-    "error_category": {"column": "error_category", "label": "Error Category"},
-    "model":          {"column": "model",          "label": "Model"},
+DIMENSION_REGISTRY: dict[str, DimensionDef] = {
+    "team":           DimensionDef("team_id",        "Team"),
+    "project":        DimensionDef("project_id",     "Project"),
+    "agent_type":     DimensionDef("agent_type",     "Agent Type"),
+    "error_category": DimensionDef("error_category", "Error Category"),
+    "model":          DimensionDef("model",          "Model"),
 }
 
 
@@ -101,14 +119,14 @@ def build_widget_query(
     Timeseries responses include a summary with the aggregate value and change %.
     """
     metric_entry = METRIC_REGISTRY[metric]
-    metric_expr = metric_entry["expr"]
+    metric_expr = metric_entry.expr
 
     extra_where, extra_params = _build_filter_clause(filters)
 
     client = get_client()
 
     if breakdown:
-        dimension_col = DIMENSION_REGISTRY[breakdown]["column"]
+        dimension_col = DIMENSION_REGISTRY[breakdown].column
         sql = f"""
             SELECT
                 {dimension_col} AS label,
