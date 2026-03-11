@@ -763,3 +763,207 @@ class TestWidgetNanHandling:
             assert data["summary"]["value"] == 123.45
             assert data["summary"]["change_pct"] == -2.3
             assert data["data"][0]["value"] == 99.9
+
+
+# Mock data for batch widget tests
+MOCK_WIDGET_COST_TIMESERIES = {
+    "type": "timeseries",
+    "metric": "cost",
+    "granularity": "day",
+    "summary": {"value": 1847.50, "change_pct": -3.2},
+    "data": [
+        {"timestamp": "2025-01-01T00:00:00", "value": 62.30, "is_partial": False},
+    ],
+}
+
+
+# API-I15: POST /api/metrics/widget/batch returns batch timeseries response
+class TestWidgetBatchTimeseries:
+    def test_batch_returns_results_for_each_metric(self, client):
+        def mock_build(org_id, metric, start, end, breakdown, filters):
+            if metric == "run_count":
+                return MOCK_WIDGET_TIMESERIES
+            return MOCK_WIDGET_COST_TIMESERIES
+
+        with patch("app.routers.widget.redis_cache") as mock_cache, \
+             patch("app.routers.widget.build_widget_query") as mock_query:
+            mock_cache.make_cache_key.return_value = "test_key"
+            mock_cache.get_cached.return_value = None
+            mock_cache.set_cached = MagicMock()
+            mock_query.side_effect = mock_build
+
+            resp = client.post("/api/metrics/widget/batch", json={
+                "metrics": ["run_count", "cost"],
+            })
+            assert resp.status_code == 200
+            data = resp.json()
+
+            assert "results" in data
+            assert "run_count" in data["results"]
+            assert "cost" in data["results"]
+            assert data["results"]["run_count"]["type"] == "timeseries"
+            assert data["results"]["run_count"]["metric"] == "run_count"
+            assert data["results"]["cost"]["type"] == "timeseries"
+            assert data["results"]["cost"]["metric"] == "cost"
+            assert mock_query.call_count == 2
+
+
+# API-I16: POST /api/metrics/widget/batch with breakdown returns breakdown response
+class TestWidgetBatchBreakdown:
+    def test_batch_breakdown_response(self, client):
+        mock_breakdown_cost = {
+            "type": "breakdown",
+            "metric": "cost",
+            "dimension": "team",
+            "data": [{"label": "platform", "value": 850.0}],
+        }
+        mock_breakdown_runs = {
+            "type": "breakdown",
+            "metric": "run_count",
+            "dimension": "team",
+            "data": [{"label": "platform", "value": 5000}],
+        }
+
+        def mock_build(org_id, metric, start, end, breakdown, filters):
+            if metric == "run_count":
+                return mock_breakdown_runs
+            return mock_breakdown_cost
+
+        with patch("app.routers.widget.redis_cache") as mock_cache, \
+             patch("app.routers.widget.build_widget_query") as mock_query:
+            mock_cache.make_cache_key.return_value = "test_key"
+            mock_cache.get_cached.return_value = None
+            mock_cache.set_cached = MagicMock()
+            mock_query.side_effect = mock_build
+
+            resp = client.post("/api/metrics/widget/batch", json={
+                "metrics": ["run_count", "cost"],
+                "breakdown": "team",
+            })
+            assert resp.status_code == 200
+            data = resp.json()
+
+            assert data["results"]["run_count"]["type"] == "breakdown"
+            assert data["results"]["run_count"]["dimension"] == "team"
+            assert data["results"]["cost"]["type"] == "breakdown"
+
+
+# API-I17: POST /api/metrics/widget/batch validation errors
+class TestWidgetBatchValidation:
+    def test_empty_metrics_returns_422(self, client):
+        resp = client.post("/api/metrics/widget/batch", json={
+            "metrics": [],
+        })
+        assert resp.status_code == 422
+
+    def test_invalid_metric_in_batch_returns_422(self, client):
+        resp = client.post("/api/metrics/widget/batch", json={
+            "metrics": ["run_count", "nonexistent"],
+        })
+        assert resp.status_code == 422
+
+    def test_duplicate_metrics_returns_422(self, client):
+        resp = client.post("/api/metrics/widget/batch", json={
+            "metrics": ["run_count", "cost", "run_count"],
+        })
+        assert resp.status_code == 422
+
+    def test_more_than_10_metrics_returns_422(self, client):
+        resp = client.post("/api/metrics/widget/batch", json={
+            "metrics": [
+                "run_count", "active_users", "cost", "cost_per_run",
+                "success_rate", "failure_rate", "error_rate",
+                "latency_p50", "latency_p95", "latency_p99",
+                "tokens_input",
+            ],
+        })
+        assert resp.status_code == 422
+
+    def test_missing_metrics_returns_422(self, client):
+        resp = client.post("/api/metrics/widget/batch", json={})
+        assert resp.status_code == 422
+
+
+# API-I18: POST /api/metrics/widget/batch per-metric caching
+class TestWidgetBatchCache:
+    def test_cache_hit_avoids_query(self, client):
+        """When all metrics are cached, build_widget_query is never called."""
+        cached_run_count = MOCK_WIDGET_TIMESERIES
+        cached_cost = MOCK_WIDGET_COST_TIMESERIES
+
+        call_count = 0
+
+        def mock_get_cached(key):
+            if "run_count" in key:
+                return cached_run_count
+            if "cost" in key:
+                return cached_cost
+            return None
+
+        with patch("app.routers.widget.redis_cache") as mock_cache, \
+             patch("app.routers.widget.build_widget_query") as mock_query:
+            # Use real-ish cache key generation to differentiate metrics
+            mock_cache.make_cache_key.side_effect = lambda org, ep, params: f"key:{params.get('metric', 'unknown')}"
+            mock_cache.get_cached.side_effect = mock_get_cached
+            mock_cache.set_cached = MagicMock()
+
+            resp = client.post("/api/metrics/widget/batch", json={
+                "metrics": ["run_count", "cost"],
+            })
+            assert resp.status_code == 200
+            data = resp.json()
+
+            assert data["results"]["run_count"]["metric"] == "run_count"
+            assert data["results"]["cost"]["metric"] == "cost"
+            mock_query.assert_not_called()
+
+    def test_partial_cache_hit(self, client):
+        """When some metrics are cached and others aren't, only uncached are queried."""
+        def mock_get_cached(key):
+            if "run_count" in key:
+                return MOCK_WIDGET_TIMESERIES
+            return None
+
+        with patch("app.routers.widget.redis_cache") as mock_cache, \
+             patch("app.routers.widget.build_widget_query") as mock_query:
+            mock_cache.make_cache_key.side_effect = lambda org, ep, params: f"key:{params.get('metric', 'unknown')}"
+            mock_cache.get_cached.side_effect = mock_get_cached
+            mock_cache.set_cached = MagicMock()
+            mock_query.return_value = MOCK_WIDGET_COST_TIMESERIES
+
+            resp = client.post("/api/metrics/widget/batch", json={
+                "metrics": ["run_count", "cost"],
+            })
+            assert resp.status_code == 200
+
+            # Only cost should have been queried
+            assert mock_query.call_count == 1
+            call_kwargs = mock_query.call_args[1]
+            assert call_kwargs["metric"] == "cost"
+
+
+# API-I19: POST /api/metrics/widget/batch requires auth
+class TestWidgetBatchAuth:
+    def test_batch_requires_auth(self):
+        """Without auth override, batch endpoint returns 401."""
+        app.dependency_overrides.clear()
+        unauthenticated_client = TestClient(app, raise_server_exceptions=False)
+        resp = unauthenticated_client.post("/api/metrics/widget/batch", json={
+            "metrics": ["run_count", "cost"],
+        })
+        assert resp.status_code == 401
+
+
+# API-I20: POST /api/metrics/widget/batch query failure returns 503
+class TestWidgetBatchFailure:
+    def test_query_failure_returns_503(self, client):
+        with patch("app.routers.widget.redis_cache") as mock_cache, \
+             patch("app.routers.widget.build_widget_query") as mock_query:
+            mock_cache.make_cache_key.return_value = "test_key"
+            mock_cache.get_cached.return_value = None
+            mock_query.side_effect = Exception("ClickHouse down")
+
+            resp = client.post("/api/metrics/widget/batch", json={
+                "metrics": ["run_count"],
+            })
+            assert resp.status_code == 503

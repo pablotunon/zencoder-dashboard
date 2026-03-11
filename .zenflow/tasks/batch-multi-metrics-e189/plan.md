@@ -55,7 +55,8 @@ Save to `{@artifacts_path}/plan.md`. If the feature is trivial and doesn't warra
 
 ---
 
-### [ ] Step: Backend batch endpoint with tests
+### [x] Step: Backend batch endpoint with tests
+<!-- chat-id: 8ed840d5-f5e1-4183-a5c4-86078950684e -->
 
 Implement the backend batch endpoint and its tests. See `spec.md` for full contract.
 
