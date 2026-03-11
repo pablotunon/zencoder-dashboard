@@ -55,7 +55,12 @@ async def get_usage(
     user_map = {u["user_id"]: u for u in user_info}
 
     active_users_count = kpis["active_users"]
-    adoption = min(active_users_count / licensed_users * 100, 100.0) if licensed_users > 0 else 0
+    # Cap active users at licensed count — ClickHouse may include user_ids
+    # not present in the PostgreSQL users table (e.g. from test data or
+    # eventual-consistency lag).
+    if licensed_users > 0:
+        active_users_count = min(active_users_count, licensed_users)
+    adoption = active_users_count / licensed_users * 100 if licensed_users > 0 else 0
 
     response = UsageResponse(
         adoption_rate=AdoptionRate(
