@@ -1,6 +1,7 @@
 import { useQuery, useQueries } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { postJson } from "@/api/client";
+import type { Granularity } from "@/types/api";
 import type {
   MetricKey,
   BreakdownDimension,
@@ -66,6 +67,7 @@ export function useWidgetData(params: WidgetQueryParams) {
 export interface MergedTimeseriesData {
   type: "merged_timeseries";
   metrics: MetricKey[];
+  granularity: Granularity;
   summaries: Record<MetricKey, { value: number; change_pct: number | null }>;
   data: Record<string, unknown>[];
 }
@@ -113,6 +115,7 @@ function mergeTimeSeries(
   return {
     type: "merged_timeseries",
     metrics,
+    granularity: responses[0]?.granularity ?? "day",
     summaries,
     data: Array.from(tsMap.values()),
   };

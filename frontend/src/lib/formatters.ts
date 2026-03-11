@@ -37,6 +37,32 @@ export function formatDate(dateStr: string): string {
   return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
+/**
+ * Format an ISO timestamp for chart x-axis ticks based on granularity.
+ *   minute → "HH:mm"
+ *   hour   → "Mar 5 14:00"
+ *   day    → "Mar 5"
+ *   week   → "Mar 5"
+ */
+export function formatTimestamp(iso: string, granularity: "minute" | "hour" | "day" | "week"): string {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return String(iso);
+
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const monthDay = `${d.toLocaleString("en-US", { month: "short" })} ${d.getDate()}`;
+
+  switch (granularity) {
+    case "minute":
+      return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    case "hour":
+      return `${monthDay} ${pad(d.getHours())}:00`;
+    case "day":
+    case "week":
+    default:
+      return monthDay;
+  }
+}
+
 export function formatChangePct(value: number | null): string {
   if (value === null) return "N/A";
   const sign = value >= 0 ? "+" : "";

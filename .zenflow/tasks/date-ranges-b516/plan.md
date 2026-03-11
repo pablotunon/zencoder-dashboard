@@ -134,7 +134,8 @@ Wire the DateRangePicker into the dashboard pages and widget system.
   - Update state and output config format
 - Run `./scripts/test.sh frontend` and `docker compose exec frontend npm run lint`
 
-### [ ] Step 7: Chart x-axis formatting
+### [x] Step 7: Chart x-axis formatting
+<!-- chat-id: 81de6c31-2fcb-4b1c-b5dc-8c6ad499e0e0 -->
 
 Update timeseries charts to format timestamps based on granularity.
 

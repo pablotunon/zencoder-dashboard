@@ -24,8 +24,9 @@ import {
   formatPercent,
   formatDuration,
   formatChangePct,
+  formatTimestamp,
 } from "@/lib/formatters";
-import type { DateRange } from "@/types/api";
+import type { DateRange, Granularity } from "@/types/api";
 import type {
   WidgetConfig,
   ValueFormat,
@@ -248,6 +249,7 @@ function MultiTimeSeriesWidget({
       config={config}
       yFormatter={formatter}
       valueFormatter={formatter}
+      granularity={data.granularity}
     />
   );
 }
@@ -611,6 +613,7 @@ function SingleChartDispatch({
           color={color}
           metricKey={metric}
           metricLabel={METRIC_REGISTRY[metric]?.label ?? metric}
+          granularity={data.granularity}
         />
       ) : null;
 
@@ -628,6 +631,7 @@ function SingleChartDispatch({
           color={color}
           metricKey={metric}
           metricLabel={METRIC_REGISTRY[metric]?.label ?? metric}
+          granularity={(data as WidgetTimeseriesResponse).granularity}
         />
       );
 
@@ -686,6 +690,7 @@ function TimeSeriesWidget({
   color,
   metricKey,
   metricLabel,
+  granularity,
 }: {
   data: WidgetTimeseriesResponse;
   variant: "line" | "area" | "bar";
@@ -693,6 +698,7 @@ function TimeSeriesWidget({
   color: string;
   metricKey: string;
   metricLabel: string;
+  granularity?: Granularity;
 }) {
   const chartData = useMemo(
     () =>
@@ -714,7 +720,12 @@ function TimeSeriesWidget({
       <ChartContainer config={config} className="h-64 w-full">
         <BarChart data={chartData} accessibilityLayer>
           <CartesianGrid vertical={false} strokeDasharray="3 3" />
-          <XAxis dataKey="timestamp" tickLine={false} axisLine={false} />
+          <XAxis
+            dataKey="timestamp"
+            tickLine={false}
+            axisLine={false}
+            tickFormatter={granularity ? (v: string) => formatTimestamp(v, granularity) : undefined}
+          />
           <YAxis tickLine={false} axisLine={false} tickFormatter={formatter} />
           <Tooltip
             content={({ active, payload, label }) => {
@@ -753,6 +764,7 @@ function TimeSeriesWidget({
       config={config}
       yFormatter={formatter}
       valueFormatter={formatter}
+      granularity={granularity}
     />
   );
 }
