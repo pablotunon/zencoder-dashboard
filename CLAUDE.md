@@ -44,8 +44,16 @@ All linting and formatting MUST be executed within Docker containers.
 - **Ingestion (Rust)**: `docker compose exec ingestion cargo fmt` and `docker compose exec ingestion cargo clippy`
 - **Python**: `docker compose exec aggregation-worker pytest` (for validation)
 
+## Managing npm Dependencies
+Use `./scripts/npm.sh` to add, remove, or update npm packages without leaving Docker:
+- **Add a package**: `./scripts/npm.sh frontend install --save-dev <package>`
+- **Remove a package**: `./scripts/npm.sh frontend uninstall <package>`
+- **Update lockfile**: `./scripts/npm.sh frontend install`
+
+This updates `package.json` and `package-lock.json` on the host. After changing dependencies, rebuild the service: `docker compose up --build -d frontend`
+
 ## Development Constraints
-- **NO LOCAL INSTALLS**: Never run `npm install`, `pip install`, or `cargo build` on the host machine. All dependencies and builds must stay within Docker.
+- **NO LOCAL INSTALLS**: Never run `npm install`, `pip install`, or `cargo build` on the host machine. Use `./scripts/npm.sh` for npm operations. All dependencies and builds must stay within Docker.
 - **DOCKERIZED WORKFLOW**: Use `docker compose exec` for all development tasks (tests, linting, etc.).
 - **ENVIRONMENT**: Only use `docker compose` to manage the running and testing environments.
 

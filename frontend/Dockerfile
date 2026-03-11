@@ -3,13 +3,13 @@ FROM node:24-alpine AS builder
 WORKDIR /app
 
 # Copy dependency manifests first for optimal layer caching
-COPY package.json package-lock.json* .npmrc ./
+COPY package.json package-lock.json* ./
 
 # Use npm ci when lockfile exists (faster, deterministic), fall back to npm install
 RUN if [ -f package-lock.json ]; then \
-      npm ci --legacy-peer-deps; \
+      npm ci; \
     else \
-      npm install --legacy-peer-deps; \
+      npm install; \
     fi
 
 # Copy source files (respects .dockerignore)
