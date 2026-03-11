@@ -479,7 +479,7 @@ class TestClickHouseOrgIdFiltering:
 
     def test_all_query_functions_contain_org_id_where_clause(self):
         """Every query_* function must contain 'org_id' in a WHERE clause
-        within its SQL string."""
+        within its SQL string, either directly or via a helper that does."""
         from app.services import clickhouse as ch
 
         query_funcs = [
@@ -488,11 +488,23 @@ class TestClickHouseOrgIdFiltering:
         ]
 
         org_id_pattern = re.compile(r"WHERE\b.*org_id", re.IGNORECASE | re.DOTALL)
+        # Functions that delegate to helpers which enforce org_id filtering
+        delegates_pattern = re.compile(r"_query_timeseries\(|_query_breakdown\(")
 
         for name in query_funcs:
             source = inspect.getsource(getattr(ch, name))
-            assert org_id_pattern.search(source), (
+            has_direct_where = org_id_pattern.search(source)
+            has_delegate = delegates_pattern.search(source)
+            assert has_direct_where or has_delegate, (
                 f"{name}() does not contain org_id in a WHERE clause"
+            )
+
+        # Verify the helper functions themselves enforce org_id filtering
+        for helper_name in ("_query_timeseries", "_query_breakdown"):
+            helper = getattr(ch, helper_name)
+            source = inspect.getsource(helper)
+            assert org_id_pattern.search(source), (
+                f"{helper_name}() must contain org_id in a WHERE clause"
             )
 
 

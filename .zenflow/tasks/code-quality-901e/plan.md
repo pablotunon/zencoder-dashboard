@@ -52,7 +52,7 @@ Save to `{@artifacts_path}/plan.md`. If the feature is trivial and doesn't warra
 
 ---
 
-### [ ] Step: Analytics API - ClickHouse query deduplication
+### [x] Step: Analytics API - ClickHouse query deduplication
 
 Refactor `analytics-api/app/services/clickhouse.py` to eliminate repeated query patterns:
 
@@ -63,7 +63,7 @@ Refactor `analytics-api/app/services/clickhouse.py` to eliminate repeated query 
 - Remove dead `_is_today()` function
 - Run `./scripts/test.sh analytics-api` to verify no regressions
 
-### [ ] Step: Analytics API - Router boilerplate extraction
+### [x] Step: Analytics API - Router boilerplate extraction
 
 Reduce repetitive boilerplate across all metric routers:
 
@@ -74,7 +74,7 @@ Reduce repetitive boilerplate across all metric routers:
 - Refactor `overview.py`, `usage.py`, `cost.py`, `performance.py`, and `org.py` to use helpers
 - Run `./scripts/test.sh analytics-api` to verify no regressions
 
-### [ ] Step: Frontend - Split WidgetRenderer and deduplicate API client
+### [x] Step: Frontend - Split WidgetRenderer and deduplicate API client
 
 Split the 1113-line `WidgetRenderer.tsx` into focused widget components and clean up the API client:
 
@@ -84,7 +84,7 @@ Split the 1113-line `WidgetRenderer.tsx` into focused widget components and clea
 - Extract `useOutsideClick` hook from `DateRangePicker.tsx` and `MultiSelect.tsx`
 - Run `./scripts/test.sh frontend` to verify no regressions
 
-### [ ] Step: Aggregation worker and simulator cleanup
+### [x] Step: Aggregation worker and simulator cleanup
 
 Small deduplication and dead code removal:
 
@@ -94,7 +94,7 @@ Small deduplication and dead code removal:
 - Simulator: extract magic numbers in `events.ts` to named constants
 - Run `./scripts/test.sh aggregation-worker` and `./scripts/test.sh simulator`
 
-### [ ] Step: Ingestion tests and infrastructure
+### [x] Step: Ingestion tests and infrastructure
 
 Test helper extraction and infra improvements:
 

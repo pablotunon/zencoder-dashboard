@@ -102,6 +102,28 @@ const TOOLS = [
   "database_query",
 ];
 
+// ── Event generation ranges ─────────────────────────────────────────────
+
+const DURATION_MIN_MS = 5_000;
+const DURATION_MAX_MS = 300_000;
+const CI_DURATION_MIN_MS = 30_000;
+const CI_DURATION_MAX_MS = 300_000;
+
+const QUEUE_WAIT_MIN_MS = 100;
+const QUEUE_WAIT_MAX_MS = 10_000;
+
+const TOKENS_INPUT_MIN = 500;
+const TOKENS_INPUT_MAX = 50_000;
+const TOKENS_OUTPUT_MIN = 100;
+const TOKENS_OUTPUT_MAX = 10_000;
+
+const COST_PER_INPUT_TOKEN = 0.000003;
+const COST_PER_OUTPUT_TOKEN = 0.000015;
+
+const RATING_PROBABILITY = 0.15;
+const POSITIVE_RATING_IF_SUCCEEDED = 0.8;
+const POSITIVE_RATING_IF_FAILED = 0.3;
+
 /**
  * Pick a random item from a weighted distribution.
  */
@@ -149,10 +171,9 @@ function pickModel(): string {
  * positive (~80% thumbs-up) while failed runs skew negative (~70% thumbs-down).
  */
 function pickUserRating(succeeded: boolean): UserRating | undefined {
-  // ~15% of completed runs get a rating
-  if (Math.random() > 0.15) return undefined;
+  if (Math.random() > RATING_PROBABILITY) return undefined;
 
-  const positiveChance = succeeded ? 0.8 : 0.3;
+  const positiveChance = succeeded ? POSITIVE_RATING_IF_SUCCEEDED : POSITIVE_RATING_IF_FAILED;
   return Math.random() < positiveChance ? "positive" : "negative";
 }
 
@@ -224,24 +245,24 @@ export function generateRunEvents(
   const profile = getOrgEventProfile(ctx.org.id);
   const succeeded = Math.random() < profile.successRate;
 
-  // Duration: 5s to 5min for most, up to 15min for CI
+  // Duration: 5s-5min for most, 30s-5min for CI
   const baseDuration =
     agentType === "ci"
-      ? 30000 + Math.random() * 270000
-      : 5000 + Math.random() * 295000;
+      ? CI_DURATION_MIN_MS + Math.random() * (CI_DURATION_MAX_MS - CI_DURATION_MIN_MS)
+      : DURATION_MIN_MS + Math.random() * (DURATION_MAX_MS - DURATION_MIN_MS);
   const durationMs = Math.round(baseDuration);
 
-  // Queue wait: 100ms to 10s
-  const queueWaitMs = Math.round(100 + Math.random() * 9900);
+  // Queue wait
+  const queueWaitMs = Math.round(QUEUE_WAIT_MIN_MS + Math.random() * (QUEUE_WAIT_MAX_MS - QUEUE_WAIT_MIN_MS));
 
   // Tokens
-  const tokensInput = Math.round(500 + Math.random() * 49500); // 500-50000
-  const tokensOutput = Math.round(100 + Math.random() * 9900); // 100-10000
+  const tokensInput = Math.round(TOKENS_INPUT_MIN + Math.random() * (TOKENS_INPUT_MAX - TOKENS_INPUT_MIN));
+  const tokensOutput = Math.round(TOKENS_OUTPUT_MIN + Math.random() * (TOKENS_OUTPUT_MAX - TOKENS_OUTPUT_MIN));
 
   // Cost: rough approximation based on tokens
   const costUsd =
     Math.round(
-      (tokensInput * 0.000003 + tokensOutput * 0.000015) * 100,
+      (tokensInput * COST_PER_INPUT_TOKEN + tokensOutput * COST_PER_OUTPUT_TOKEN) * 100,
     ) / 100;
 
   const tools = pickTools();

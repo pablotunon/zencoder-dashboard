@@ -1,6 +1,4 @@
-import logging
-
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 
 from app.auth.dependencies import get_org_context
 from app.config import settings
@@ -13,11 +11,10 @@ from app.models.responses import (
     TeamBreakdown,
     TimeSeriesPoint,
 )
+from app.routers._helpers import get_cached_or_none, query_clickhouse, safe_pg_query, set_cache
 from app.services import clickhouse as ch_service
 from app.services import postgres as pg_service
-from app.services import redis_cache
 
-logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
@@ -26,24 +23,25 @@ async def get_overview(
     filters: MetricFilters = Depends(get_metric_filters),
     ctx: OrgContext = Depends(get_org_context),
 ):
-    cache_key = redis_cache.make_cache_key(ctx.org_id, "overview", filters.model_dump(exclude_none=True))
-    cached = redis_cache.get_cached(cache_key)
+    filters_dict = filters.model_dump(exclude_none=True)
+    cached = get_cached_or_none(ctx.org_id, "overview", filters_dict)
     if cached:
         return cached
 
-    try:
-        kpis = ch_service.query_overview_kpis(ctx.org_id, filters)
-        usage_trend_data = ch_service.query_usage_trend(ctx.org_id, filters)
-        team_data = ch_service.query_team_breakdown(ctx.org_id, filters)
-    except Exception:
-        logger.exception("ClickHouse query failed for overview metrics")
-        raise HTTPException(status_code=503, detail="Analytics data temporarily unavailable")
+    kpis, usage_trend_data, team_data = query_clickhouse(
+        lambda: (
+            ch_service.query_overview_kpis(ctx.org_id, filters),
+            ch_service.query_usage_trend(ctx.org_id, filters),
+            ch_service.query_team_breakdown(ctx.org_id, filters),
+        ),
+        context="overview metrics",
+    )
 
-    try:
-        team_names = await pg_service.get_team_names(ctx.org_id)
-    except Exception:
-        logger.exception("PostgreSQL query failed for team names")
-        team_names = {}
+    team_names = await safe_pg_query(
+        lambda: pg_service.get_team_names(ctx.org_id),
+        default={},
+        context="team names",
+    )
 
     response = OverviewResponse(
         kpi_cards=KpiCards(
@@ -67,5 +65,5 @@ async def get_overview(
         ],
     )
 
-    redis_cache.set_cached(cache_key, response.model_dump(), settings.cache_ttl_overview)
+    set_cache(ctx.org_id, "overview", response.model_dump(), settings.cache_ttl_overview, filters_dict)
     return response

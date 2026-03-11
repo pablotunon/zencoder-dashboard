@@ -1,6 +1,4 @@
-import logging
-
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 
 from app.auth.dependencies import get_org_context
 from app.config import settings
@@ -14,10 +12,9 @@ from app.models.responses import (
     QueueWaitTrendPoint,
     SuccessRateTrendPoint,
 )
+from app.routers._helpers import get_cached_or_none, query_clickhouse, set_cache
 from app.services import clickhouse as ch_service
-from app.services import redis_cache
 
-logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
@@ -26,20 +23,21 @@ async def get_performance(
     filters: MetricFilters = Depends(get_metric_filters),
     ctx: OrgContext = Depends(get_org_context),
 ):
-    cache_key = redis_cache.make_cache_key(ctx.org_id, "performance", filters.model_dump(exclude_none=True))
-    cached = redis_cache.get_cached(cache_key)
+    filters_dict = filters.model_dump(exclude_none=True)
+    cached = get_cached_or_none(ctx.org_id, "performance", filters_dict)
     if cached:
         return cached
 
-    try:
-        success_data = ch_service.query_success_rate_trend(ctx.org_id, filters)
-        latency_data = ch_service.query_latency_trend(ctx.org_id, filters)
-        error_data = ch_service.query_error_breakdown(ctx.org_id, filters)
-        availability_data = ch_service.query_availability(ctx.org_id, filters)
-        queue_wait_data = ch_service.query_queue_wait_trend(ctx.org_id, filters)
-    except Exception:
-        logger.exception("ClickHouse query failed for performance metrics")
-        raise HTTPException(status_code=503, detail="Analytics data temporarily unavailable")
+    success_data, latency_data, error_data, availability_data, queue_wait_data = query_clickhouse(
+        lambda: (
+            ch_service.query_success_rate_trend(ctx.org_id, filters),
+            ch_service.query_latency_trend(ctx.org_id, filters),
+            ch_service.query_error_breakdown(ctx.org_id, filters),
+            ch_service.query_availability(ctx.org_id, filters),
+            ch_service.query_queue_wait_trend(ctx.org_id, filters),
+        ),
+        context="performance metrics",
+    )
 
     response = PerformanceResponse(
         success_rate_trend=[SuccessRateTrendPoint(**pt) for pt in success_data["data"]],
@@ -52,5 +50,5 @@ async def get_performance(
         queue_wait_trend_granularity=queue_wait_data["granularity"],
     )
 
-    redis_cache.set_cached(cache_key, response.model_dump(), settings.cache_ttl_metrics)
+    set_cache(ctx.org_id, "performance", response.model_dump(), settings.cache_ttl_metrics, filters_dict)
     return response
