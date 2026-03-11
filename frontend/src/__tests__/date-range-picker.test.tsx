@@ -193,4 +193,46 @@ describe("DateRangePicker", () => {
     fireEvent.keyDown(document, { key: "Escape" });
     expect(screen.queryByText("Presets")).not.toBeInTheDocument();
   });
+
+  it("does not throw when time input receives an empty string", () => {
+    const range = makeRange(THIRTY_DAYS_MS);
+    render(<DateRangePicker value={range} onChange={onChange} />);
+
+    fireEvent.click(screen.getByRole("button"));
+
+    const fromInput = screen.getByLabelText("From") as HTMLInputElement;
+    const toInput = screen.getByLabelText("To") as HTMLInputElement;
+
+    // Simulating browser behavior: clicking on hour segment can send empty value
+    expect(() => {
+      fireEvent.change(fromInput, { target: { value: "" } });
+      fireEvent.change(toInput, { target: { value: "" } });
+    }).not.toThrow();
+  });
+
+  it("displays time in 24h format without AM/PM in trigger button", () => {
+    // 14:30 UTC — local time depends on timezone, but should never show AM/PM
+    const value = {
+      start: "2026-03-01T14:30:00.000Z",
+      end: "2026-03-08T18:45:00.000Z",
+    };
+    render(<DateRangePicker value={value} onChange={onChange} />);
+
+    const button = screen.getByRole("button");
+    expect(button.textContent).not.toContain("AM");
+    expect(button.textContent).not.toContain("PM");
+  });
+
+  it("shows selection phase indicator when popover is open", () => {
+    const range = makeRange(THIRTY_DAYS_MS);
+    render(<DateRangePicker value={range} onChange={onChange} />);
+
+    fireEvent.click(screen.getByRole("button"));
+
+    // With a preset loaded, both from and to are set → "complete" phase shows range summary
+    const phaseEl = screen.getByTestId("selection-phase");
+    expect(phaseEl).toBeInTheDocument();
+    // It should have text content (either the phase label or the range summary)
+    expect(phaseEl.textContent!.length).toBeGreaterThan(0);
+  });
 });

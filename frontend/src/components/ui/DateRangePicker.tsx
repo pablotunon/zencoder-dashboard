@@ -1,7 +1,7 @@
-import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo, type ChangeEvent } from "react";
 import { DayPicker, getDefaultClassNames } from "react-day-picker";
 import "react-day-picker/style.css";
-import { CalendarIcon, XMarkIcon } from "@heroicons/react/24/outline";
+import { CalendarIcon, ClockIcon, XMarkIcon } from "@heroicons/react/24/outline";
 import { DATE_RANGE_PRESETS } from "@/lib/constants";
 import type { DateRange } from "@/types/api";
 
@@ -17,9 +17,11 @@ function toTimeString(d: Date): string {
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
-/** Apply HH:MM time string to a Date, returning a new Date. */
+/** Apply HH:MM time string to a Date, returning a new Date. Returns original date if time is invalid. */
 function applyTime(date: Date, time: string): Date {
+  if (!time || !time.includes(":")) return date;
   const [h, m] = time.split(":").map(Number);
+  if (isNaN(h) || isNaN(m)) return date;
   const result = new Date(date);
   result.setHours(h, m, 0, 0);
   return result;
@@ -38,10 +40,9 @@ function formatDisplay(d: Date): string {
 
   // Only show time if it's not exactly midnight
   if (hours !== 0 || minutes !== 0) {
-    const period = hours >= 12 ? "PM" : "AM";
-    const h12 = hours % 12 || 12;
+    const hh = String(hours).padStart(2, "0");
     const mm = String(minutes).padStart(2, "0");
-    str += `, ${h12}:${mm} ${period}`;
+    str += `, ${hh}:${mm}`;
   }
 
   return str;
@@ -73,6 +74,102 @@ function findPresetIndex(range: DateRange): number {
   return -1;
 }
 
+/** Validate and normalize an HH:MM string. Returns the valid time or the fallback. */
+function normalizeTime(raw: string, fallback: string): string {
+  const match = raw.match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return fallback;
+  const h = parseInt(match[1], 10);
+  const m = parseInt(match[2], 10);
+  if (h < 0 || h > 23 || m < 0 || m > 59) return fallback;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
+
+/** Return first of previous month (for default calendar view). */
+function previousMonth(): Date {
+  const d = new Date();
+  d.setMonth(d.getMonth() - 1, 1);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+/** Generate array of dates between two dates (inclusive, date-only comparison). */
+function datesInRange(from: Date, to: Date): Date[] {
+  const dates: Date[] = [];
+  const cur = new Date(from);
+  cur.setHours(0, 0, 0, 0);
+  const end = new Date(to);
+  end.setHours(0, 0, 0, 0);
+  while (cur <= end) {
+    dates.push(new Date(cur));
+    cur.setDate(cur.getDate() + 1);
+  }
+  return dates;
+}
+
+/** Controlled 24h time input (HH:MM text field). */
+function TimeInput({
+  id,
+  label,
+  value,
+  onChange,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (time: string) => void;
+}) {
+  const [draft, setDraft] = useState(value);
+  // Keep draft in sync when value changes externally (e.g. preset click)
+  useEffect(() => { setDraft(value); }, [value]);
+
+  const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
+    // Allow typing freely — only digits and colon
+    const v = e.target.value.replace(/[^\d:]/g, "");
+    setDraft(v);
+  };
+
+  const handleBlur = () => {
+    const normalized = normalizeTime(draft, value);
+    setDraft(normalized);
+    if (normalized !== value) {
+      onChange(normalized);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      const normalized = normalizeTime(draft, value);
+      setDraft(normalized);
+      if (normalized !== value) {
+        onChange(normalized);
+      }
+    }
+  };
+
+  return (
+    <div className="flex items-center gap-2 rounded-md px-2 py-1">
+      <label htmlFor={id} className="text-xs font-medium text-gray-500">
+        {label}
+      </label>
+      <div className="relative">
+        <input
+          id={id}
+          type="text"
+          inputMode="numeric"
+          placeholder="HH:MM"
+          maxLength={5}
+          value={draft}
+          onChange={handleChange}
+          onBlur={handleBlur}
+          onKeyDown={handleKeyDown}
+          className="w-[4.5rem] rounded-md border border-gray-300 py-1 pl-2 pr-7 text-sm tabular-nums text-gray-700 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+        />
+        <ClockIcon className="pointer-events-none absolute right-1.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+      </div>
+    </div>
+  );
+}
+
 // ── Props ────────────────────────────────────────────────────────────────────
 
 interface DateRangePickerProps {
@@ -94,6 +191,12 @@ export function DateRangePicker({ value, onChange }: DateRangePickerProps) {
   const [toTime, setToTime] = useState("23:59");
   const [activePreset, setActivePreset] = useState(-1);
 
+  // Controlled month for the calendar (show previous + current by default)
+  const [calendarMonth, setCalendarMonth] = useState(previousMonth);
+
+  // Hover state for range preview when picking the end date
+  const [hoveredDay, setHoveredDay] = useState<Date | undefined>();
+
   // Sync draft from value when popover opens
   useEffect(() => {
     if (open) {
@@ -104,6 +207,8 @@ export function DateRangePicker({ value, onChange }: DateRangePickerProps) {
       setFromTime(toTimeString(start));
       setToTime(toTimeString(end));
       setActivePreset(findPresetIndex(value));
+      setCalendarMonth(previousMonth());
+      setHoveredDay(undefined);
     }
   }, [open, value]);
 
@@ -143,31 +248,59 @@ export function DateRangePicker({ value, onChange }: DateRangePickerProps) {
     setFromTime(toTimeString(start));
     setToTime(toTimeString(end));
     setActivePreset(index);
+    setHoveredDay(undefined);
   }, []);
 
-  const handleCalendarSelect = useCallback(
-    (range: { from?: Date; to?: Date } | undefined) => {
-      if (!range) return;
+  // Derive selection phase
+  const selectionPhase: "from" | "to" | "complete" =
+    !draftFrom ? "from" : !draftTo ? "to" : "complete";
+
+  // Two-click selection: click 1 = set start & clear end, click 2 = set end
+  const handleDayClick = useCallback(
+    (day: Date) => {
       setActivePreset(-1);
 
-      if (range.from) {
-        setDraftFrom(applyTime(range.from, fromTime));
-      }
-      if (range.to) {
-        setDraftTo(applyTime(range.to, toTime));
-      } else {
-        // Single day click — clear "to"
+      if (selectionPhase === "complete" || selectionPhase === "from") {
+        // First click: set start, clear end (keep times)
+        setDraftFrom(applyTime(day, fromTime));
         setDraftTo(undefined);
+        setHoveredDay(undefined);
+      } else {
+        // Second click (selectionPhase === "to"): set end
+        let from = draftFrom!;
+        let to = applyTime(day, toTime);
+
+        // If user clicked before the start, swap
+        if (to < from) {
+          const tmpDate = from;
+          from = applyTime(day, fromTime);
+          to = applyTime(tmpDate, toTime);
+          setDraftFrom(from);
+          setFromTime(toTimeString(from));
+          setToTime(toTimeString(to));
+        }
+
+        setDraftTo(to);
+        setHoveredDay(undefined);
       }
     },
-    [fromTime, toTime],
+    [selectionPhase, draftFrom, fromTime, toTime],
+  );
+
+  const handleDayMouseEnter = useCallback(
+    (day: Date) => {
+      if (selectionPhase === "to") {
+        setHoveredDay(day);
+      }
+    },
+    [selectionPhase],
   );
 
   const handleFromTimeChange = useCallback(
     (timeStr: string) => {
       setFromTime(timeStr);
       setActivePreset(-1);
-      if (draftFrom) {
+      if (draftFrom && timeStr && timeStr.includes(":")) {
         setDraftFrom(applyTime(draftFrom, timeStr));
       }
     },
@@ -178,12 +311,18 @@ export function DateRangePicker({ value, onChange }: DateRangePickerProps) {
     (timeStr: string) => {
       setToTime(timeStr);
       setActivePreset(-1);
-      if (draftTo) {
+      if (draftTo && timeStr && timeStr.includes(":")) {
         setDraftTo(applyTime(draftTo, timeStr));
       }
     },
     [draftTo],
   );
+
+  /** Short date label for the phase indicator. */
+  const shortDate = (d: Date | undefined) => {
+    if (!d) return "";
+    return d.toLocaleString("en-US", { month: "short", day: "numeric" });
+  };
 
   const canApply = draftFrom && draftTo && draftFrom < draftTo;
 
@@ -206,6 +345,30 @@ export function DateRangePicker({ value, onChange }: DateRangePickerProps) {
     const end = parseISO(value.end);
     return `${formatDisplay(start)} - ${formatDisplay(end)}`;
   }, [value]);
+
+  // Build modifiers for visual range highlighting
+  const modifiers = useMemo(() => {
+    const mods: Record<string, Date | Date[] | { from: Date; to: Date }> = {};
+
+    if (draftFrom) {
+      mods.range_start = draftFrom;
+    }
+
+    if (draftFrom && draftTo) {
+      // Complete range
+      mods.range_middle = datesInRange(draftFrom, draftTo);
+      mods.range_end = draftTo;
+    } else if (draftFrom && !draftTo && hoveredDay) {
+      // Hover preview range
+      const previewStart = hoveredDay < draftFrom ? hoveredDay : draftFrom;
+      const previewEnd = hoveredDay < draftFrom ? draftFrom : hoveredDay;
+      mods.range_start = previewStart;
+      mods.range_middle = datesInRange(previewStart, previewEnd);
+      mods.range_end = previewEnd;
+    }
+
+    return mods;
+  }, [draftFrom, draftTo, hoveredDay]);
 
   const defaultClassNames = getDefaultClassNames();
 
@@ -254,62 +417,62 @@ export function DateRangePicker({ value, onChange }: DateRangePickerProps) {
             {/* Calendar */}
             <div className="p-3">
               <DayPicker
-                mode="range"
+                mode="single"
                 numberOfMonths={2}
-                selected={
-                  draftFrom
-                    ? { from: draftFrom, to: draftTo }
-                    : undefined
-                }
-                onSelect={handleCalendarSelect}
+                month={calendarMonth}
+                onMonthChange={setCalendarMonth}
+                selected={draftFrom && draftTo ? undefined : draftFrom}
+                onDayClick={handleDayClick}
+                onDayMouseEnter={handleDayMouseEnter}
+                onDayMouseLeave={() => setHoveredDay(undefined)}
                 disabled={{ after: new Date() }}
+                modifiers={modifiers}
+                modifiersClassNames={{
+                  range_start: "!bg-indigo-600 !text-white !rounded-l-full !rounded-r-none",
+                  range_middle: "!bg-indigo-50 !text-indigo-900 !rounded-none",
+                  range_end: "!bg-indigo-600 !text-white !rounded-r-full !rounded-l-none",
+                }}
                 classNames={{
                   root: `${defaultClassNames.root} text-sm`,
                   today: "font-bold text-indigo-600",
-                  selected: "bg-indigo-600 text-white",
-                  range_start: "bg-indigo-600 text-white rounded-l-full",
-                  range_end: "bg-indigo-600 text-white rounded-r-full",
-                  range_middle: "bg-indigo-50 text-indigo-900",
+                  selected: "bg-indigo-600 text-white rounded-full",
                   chevron: `${defaultClassNames.chevron} fill-indigo-500`,
                 }}
               />
             </div>
 
+            {/* Selection phase indicator */}
+            <div className="border-t border-gray-200 px-4 py-2 text-xs font-medium" data-testid="selection-phase">
+              {selectionPhase === "from" && (
+                <span className="text-indigo-600">&#9654; Select start date</span>
+              )}
+              {selectionPhase === "to" && (
+                <span className="text-indigo-600">
+                  &#9654; Start: {shortDate(draftFrom)} &mdash; select end date
+                </span>
+              )}
+              {selectionPhase === "complete" && draftFrom && draftTo && (
+                <span className="text-gray-500">
+                  {formatDisplay(draftFrom)} &mdash; {formatDisplay(draftTo)}
+                </span>
+              )}
+            </div>
+
             {/* Time inputs */}
             <div className="flex items-center gap-4 border-t border-gray-200 px-4 py-3">
-              <div className="flex items-center gap-2">
-                <label
-                  htmlFor="drp-from-time"
-                  className="text-xs font-medium text-gray-500"
-                >
-                  From
-                </label>
-                <input
-                  id="drp-from-time"
-                  type="time"
-                  step="60"
-                  value={fromTime}
-                  onChange={(e) => handleFromTimeChange(e.target.value)}
-                  className="rounded-md border border-gray-300 px-2 py-1 text-sm text-gray-700 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                />
-              </div>
+              <TimeInput
+                id="drp-from-time"
+                label="From"
+                value={fromTime}
+                onChange={handleFromTimeChange}
+              />
               <span className="text-gray-300">&mdash;</span>
-              <div className="flex items-center gap-2">
-                <label
-                  htmlFor="drp-to-time"
-                  className="text-xs font-medium text-gray-500"
-                >
-                  To
-                </label>
-                <input
-                  id="drp-to-time"
-                  type="time"
-                  step="60"
-                  value={toTime}
-                  onChange={(e) => handleToTimeChange(e.target.value)}
-                  className="rounded-md border border-gray-300 px-2 py-1 text-sm text-gray-700 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                />
-              </div>
+              <TimeInput
+                id="drp-to-time"
+                label="To"
+                value={toTime}
+                onChange={handleToTimeChange}
+              />
             </div>
 
             {/* Footer: validation + actions */}
