@@ -38,7 +38,7 @@ function authHeaders(): Record<string, string> {
   return {};
 }
 
-async function fetchJson<T>(url: string): Promise<T> {
+export async function fetchJson<T>(url: string): Promise<T> {
   const res = await fetch(url, { headers: authHeaders() });
   if (res.status === 401) {
     _onUnauthorized?.();
@@ -64,6 +64,51 @@ export async function postJson<T>(url: string, body: unknown): Promise<T> {
     throw new Error(`API error ${res.status}: ${res.statusText}`);
   }
   return res.json() as Promise<T>;
+}
+
+export async function putJson<T>(url: string, body: unknown): Promise<T> {
+  const res = await fetch(url, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(body),
+  });
+  if (res.status === 401) {
+    _onUnauthorized?.();
+    throw new Error("Unauthorized");
+  }
+  if (!res.ok) {
+    throw new Error(`API error ${res.status}: ${res.statusText}`);
+  }
+  return res.json() as Promise<T>;
+}
+
+export async function patchJson(url: string, body: unknown): Promise<void> {
+  const res = await fetch(url, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(body),
+  });
+  if (res.status === 401) {
+    _onUnauthorized?.();
+    throw new Error("Unauthorized");
+  }
+  if (!res.ok) {
+    throw new Error(`API error ${res.status}: ${res.statusText}`);
+  }
+}
+
+export async function deleteJson(url: string): Promise<void> {
+  const res = await fetch(url, {
+    method: "DELETE",
+    headers: authHeaders(),
+  });
+  if (res.status === 401) {
+    _onUnauthorized?.();
+    throw new Error("Unauthorized");
+  }
+  if (!res.ok) {
+    throw new Error(`API error ${res.status}: ${res.statusText}`);
+  }
 }
 
 // --- Auth API ---

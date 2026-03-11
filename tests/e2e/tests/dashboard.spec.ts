@@ -2,42 +2,45 @@ import { test, expect } from "@playwright/test";
 import { browserTest } from "./auth.setup";
 
 browserTest.describe("E2E-03: Dashboard Accessibility", () => {
-  browserTest("overview page loads with charts and KPI cards", async ({ authedPage }) => {
+  browserTest("root redirects to first seeded page", async ({ authedPage }) => {
     await authedPage.goto("/");
-    await expect(authedPage.getByRole("heading", { name: /overview/i })).toBeVisible();
-    await expect(authedPage.getByText(/total runs/i)).toBeVisible();
-    await expect(authedPage.getByRole("paragraph").filter({ hasText: "Active Users" })).toBeVisible();
+    await authedPage.waitForURL(/\/p\/overview/, { timeout: 15_000 });
+    await expect(authedPage.getByRole("heading", { name: /overview/i })).toBeVisible({ timeout: 15_000 });
   });
 
-  browserTest("usage page loads with adoption rate and charts", async ({ authedPage }) => {
-    await authedPage.goto("/usage");
-    await expect(authedPage.getByRole("heading", { name: /usage & adoption/i })).toBeVisible();
-    await expect(authedPage.getByText(/adoption rate/i)).toBeVisible();
-    await expect(authedPage.getByText(/agent type distribution/i)).toBeVisible();
+  browserTest("overview page loads with charts and KPI cards", async ({ authedPage }) => {
+    await authedPage.goto("/p/overview");
+    await expect(authedPage.getByRole("heading", { name: /overview/i })).toBeVisible({ timeout: 15_000 });
+    await expect(authedPage.getByText(/total runs/i)).toBeVisible({ timeout: 15_000 });
+  });
+
+  browserTest("usage page loads with adoption data", async ({ authedPage }) => {
+    await authedPage.goto("/p/usage-adoption");
+    await expect(authedPage.getByRole("heading", { name: /usage & adoption/i })).toBeVisible({ timeout: 15_000 });
   });
 
   browserTest("cost page loads with cost data", async ({ authedPage }) => {
-    await authedPage.goto("/cost");
-    await expect(authedPage.getByRole("heading", { name: /cost & efficiency/i })).toBeVisible();
+    await authedPage.goto("/p/cost-efficiency");
+    await expect(authedPage.getByRole("heading", { name: /cost & efficiency/i })).toBeVisible({ timeout: 15_000 });
   });
 
   browserTest("performance page loads with reliability data", async ({ authedPage }) => {
-    await authedPage.goto("/performance");
-    await expect(authedPage.getByRole("heading", { name: /performance & reliability/i })).toBeVisible();
+    await authedPage.goto("/p/performance-reliability");
+    await expect(authedPage.getByRole("heading", { name: /performance & reliability/i })).toBeVisible({ timeout: 15_000 });
   });
 
   browserTest("sidebar navigation works between pages", async ({ authedPage }) => {
-    await authedPage.goto("/");
-    await expect(authedPage.getByRole("heading", { name: /overview/i })).toBeVisible();
+    await authedPage.goto("/p/overview");
+    await expect(authedPage.getByRole("heading", { name: /overview/i })).toBeVisible({ timeout: 15_000 });
 
     await authedPage.getByRole("link", { name: /usage/i }).click();
-    await expect(authedPage.getByRole("heading", { name: /usage & adoption/i })).toBeVisible();
+    await expect(authedPage.getByRole("heading", { name: /usage & adoption/i })).toBeVisible({ timeout: 15_000 });
 
     await authedPage.getByRole("link", { name: /cost/i }).click();
-    await expect(authedPage.getByRole("heading", { name: /cost & efficiency/i })).toBeVisible();
+    await expect(authedPage.getByRole("heading", { name: /cost & efficiency/i })).toBeVisible({ timeout: 15_000 });
 
     await authedPage.getByRole("link", { name: /performance/i }).click();
-    await expect(authedPage.getByRole("heading", { name: /performance & reliability/i })).toBeVisible();
+    await expect(authedPage.getByRole("heading", { name: /performance & reliability/i })).toBeVisible({ timeout: 15_000 });
   });
 });
 

@@ -40,7 +40,7 @@ run_tests() {
 
 run_e2e() {
   echo "=== Running E2E tests (Playwright) ==="
-  docker compose --profile testing run --rm e2e
+  docker compose --profile testing run --rm --build e2e
   echo ""
 }
 
