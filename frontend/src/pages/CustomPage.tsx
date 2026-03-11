@@ -48,11 +48,18 @@ export function CustomPage() {
     return () => clearTimeout(saveTimerRef.current);
   }, []);
 
-  const { rows, addRow, removeRow, addWidgetToSlot, removeWidgetFromSlot } =
-    useDashboard({
-      initialRows: page?.layout,
-      onChange: handleLayoutChange,
-    });
+  const {
+    rows,
+    addRow,
+    removeRow,
+    addWidgetToSlot,
+    removeWidgetFromSlot,
+    addColumn,
+    removeColumn,
+  } = useDashboard({
+    initialRows: page?.layout,
+    onChange: handleLayoutChange,
+  });
 
   // Focus input when editing name
   useEffect(() => {
@@ -233,6 +240,8 @@ export function CustomPage() {
         }
         onRemoveWidget={removeWidgetFromSlot}
         onRemoveRow={removeRow}
+        onAddColumn={addColumn}
+        onRemoveColumn={removeColumn}
       />
 
       {/* Add row picker */}

@@ -1,4 +1,8 @@
-import { PlusIcon, TrashIcon } from "@heroicons/react/24/outline";
+import {
+  PlusIcon,
+  TrashIcon,
+  XMarkIcon,
+} from "@heroicons/react/24/outline";
 import { WidgetRenderer } from "./WidgetRenderer";
 import type { Period } from "@/types/api";
 import type { DashboardRow } from "@/types/widget";
@@ -20,6 +24,10 @@ interface RowLayoutProps {
   onRemoveWidget?: (rowId: string, slotIndex: number) => void;
   /** When provided, each row shows a delete row button. */
   onRemoveRow?: (rowId: string) => void;
+  /** When provided, rows show add-column buttons on the sides. */
+  onAddColumn?: (rowId: string, side: "left" | "right") => void;
+  /** When provided, empty slots show a remove-column button. */
+  onRemoveColumn?: (rowId: string, slotIndex: number) => void;
 }
 
 export function RowLayout({
@@ -28,6 +36,8 @@ export function RowLayout({
   onAddWidget,
   onRemoveWidget,
   onRemoveRow,
+  onAddColumn,
+  onRemoveColumn,
 }: RowLayoutProps) {
   if (rows.length === 0) return null;
 
@@ -46,29 +56,52 @@ export function RowLayout({
             </button>
           )}
 
-          <div className={`grid gap-6 ${GRID_COLS[row.columns]}`}>
-            {row.widgets.map((widget, slotIndex) =>
-              widget ? (
-                <WidgetRenderer
-                  key={widget.id}
-                  widget={widget}
-                  globalPeriod={globalPeriod}
-                  onRemove={
-                    onRemoveWidget
-                      ? () => onRemoveWidget(row.id, slotIndex)
-                      : undefined
-                  }
-                />
-              ) : (
-                <EmptySlot
-                  key={`${row.id}-empty-${slotIndex}`}
-                  onClick={
-                    onAddWidget
-                      ? () => onAddWidget(row.id, slotIndex)
-                      : undefined
-                  }
-                />
-              ),
+          <div className="flex items-stretch gap-1">
+            {/* Add column left */}
+            {onAddColumn && row.columns < 4 && (
+              <AddColumnButton
+                side="left"
+                onClick={() => onAddColumn(row.id, "left")}
+              />
+            )}
+
+            <div className={`grid flex-1 gap-6 ${GRID_COLS[row.columns]}`}>
+              {row.widgets.map((widget, slotIndex) =>
+                widget ? (
+                  <WidgetRenderer
+                    key={widget.id}
+                    widget={widget}
+                    globalPeriod={globalPeriod}
+                    onRemove={
+                      onRemoveWidget
+                        ? () => onRemoveWidget(row.id, slotIndex)
+                        : undefined
+                    }
+                  />
+                ) : (
+                  <EmptySlot
+                    key={`${row.id}-empty-${slotIndex}`}
+                    onClick={
+                      onAddWidget
+                        ? () => onAddWidget(row.id, slotIndex)
+                        : undefined
+                    }
+                    onRemove={
+                      onRemoveColumn && row.columns > 1
+                        ? () => onRemoveColumn(row.id, slotIndex)
+                        : undefined
+                    }
+                  />
+                ),
+              )}
+            </div>
+
+            {/* Add column right */}
+            {onAddColumn && row.columns < 4 && (
+              <AddColumnButton
+                side="right"
+                onClick={() => onAddColumn(row.id, "right")}
+              />
             )}
           </div>
         </div>
@@ -77,8 +110,35 @@ export function RowLayout({
   );
 }
 
+/** Subtle side button to add a column. */
+function AddColumnButton({
+  side,
+  onClick,
+}: {
+  side: "left" | "right";
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex w-6 shrink-0 items-center justify-center rounded opacity-0 transition-opacity group-hover/row:opacity-100 hover:!opacity-100 hover:bg-indigo-50 ${
+        side === "left" ? "rounded-r-none" : "rounded-l-none"
+      }`}
+      title={`Add column ${side}`}
+    >
+      <PlusIcon className="h-3.5 w-3.5 text-gray-400" />
+    </button>
+  );
+}
+
 /** Grayed-out placeholder for an empty slot. */
-function EmptySlot({ onClick }: { onClick?: () => void }) {
+function EmptySlot({
+  onClick,
+  onRemove,
+}: {
+  onClick?: () => void;
+  onRemove?: () => void;
+}) {
   if (!onClick) {
     return (
       <div className="flex min-h-[200px] items-center justify-center rounded-lg border-2 border-dashed border-gray-200 bg-gray-50/50" />
@@ -86,11 +146,24 @@ function EmptySlot({ onClick }: { onClick?: () => void }) {
   }
 
   return (
-    <button
-      onClick={onClick}
-      className="flex min-h-[200px] items-center justify-center rounded-lg border-2 border-dashed border-gray-300 bg-gray-50/50 transition-colors hover:border-indigo-400 hover:bg-indigo-50/50"
-    >
-      <PlusIcon className="h-8 w-8 text-gray-400" />
-    </button>
+    <div className="group/slot relative flex min-h-[200px] items-center justify-center rounded-lg border-2 border-dashed border-gray-300 bg-gray-50/50 transition-colors hover:border-indigo-400 hover:bg-indigo-50/50">
+      <button
+        onClick={onClick}
+        className="flex items-center justify-center"
+        title="Add widget"
+      >
+        <PlusIcon className="h-8 w-8 text-gray-400" />
+      </button>
+
+      {onRemove && (
+        <button
+          onClick={onRemove}
+          className="absolute right-1.5 top-1.5 hidden rounded-full bg-gray-100 p-0.5 text-gray-400 hover:bg-red-100 hover:text-red-600 group-hover/slot:block"
+          title="Remove column"
+        >
+          <XMarkIcon className="h-3.5 w-3.5" />
+        </button>
+      )}
+    </div>
   );
 }
