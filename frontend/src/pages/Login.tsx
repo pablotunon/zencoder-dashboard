@@ -99,9 +99,18 @@ export function LoginPage() {
             </button>
           </form>
 
-          <p className="mt-6 text-center text-xs text-gray-400">
-            Demo: user@acmecorp.com / pass
-          </p>
+          {import.meta.env.DEV && (
+            <button
+              type="button"
+              onClick={() => {
+                setEmail("user@acmecorp.com");
+                setPassword("pass");
+              }}
+              className="mt-6 w-full rounded-md border border-dashed border-gray-300 px-3 py-2 text-xs text-gray-500 hover:border-indigo-400 hover:text-indigo-600"
+            >
+              Fill demo credentials
+            </button>
+          )}
         </div>
       </div>
     </div>
