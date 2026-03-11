@@ -57,13 +57,16 @@ export function RowLayout({
           )}
 
           <div className="flex items-stretch gap-1">
-            {/* Add column left */}
-            {onAddColumn && row.columns < 4 && (
-              <AddColumnButton
-                side="left"
-                onClick={() => onAddColumn(row.id, "left")}
-              />
-            )}
+            {/* Left gutter: interactive when < 4 cols, inert spacer when full */}
+            {onAddColumn &&
+              (row.columns < 4 ? (
+                <AddColumnButton
+                  side="left"
+                  onClick={() => onAddColumn(row.id, "left")}
+                />
+              ) : (
+                <div className="w-6 shrink-0" />
+              ))}
 
             <div className={`grid flex-1 gap-6 ${GRID_COLS[row.columns]}`}>
               {row.widgets.map((widget, slotIndex) =>
@@ -96,13 +99,16 @@ export function RowLayout({
               )}
             </div>
 
-            {/* Add column right */}
-            {onAddColumn && row.columns < 4 && (
-              <AddColumnButton
-                side="right"
-                onClick={() => onAddColumn(row.id, "right")}
-              />
-            )}
+            {/* Right gutter: interactive when < 4 cols, inert spacer when full */}
+            {onAddColumn &&
+              (row.columns < 4 ? (
+                <AddColumnButton
+                  side="right"
+                  onClick={() => onAddColumn(row.id, "right")}
+                />
+              ) : (
+                <div className="w-6 shrink-0" />
+              ))}
           </div>
         </div>
       ))}
