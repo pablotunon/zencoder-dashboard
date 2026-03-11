@@ -26,6 +26,3 @@ class Config:
     CONSUMER_NAME: str = os.environ.get("CONSUMER_NAME", "worker-1")
     BATCH_SIZE: int = int(os.environ.get("BATCH_SIZE", "100"))
     BLOCK_MS: int = 5000  # Block for 5 seconds on XREADGROUP
-
-    # Aggregation
-    ROLLUP_INTERVAL_SECONDS: int = int(os.environ.get("ROLLUP_INTERVAL_SECONDS", "300"))  # 5 minutes
