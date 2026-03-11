@@ -10,8 +10,10 @@ import {
   breakdownModeForChartType,
   requiresOrgMetric,
 } from "@/lib/widget-registry";
-import { DATE_RANGE_PRESETS, AGENT_TYPE_LABELS } from "@/lib/constants";
+import { AGENT_TYPE_LABELS, getDefaultDateRange } from "@/lib/constants";
+import { DateRangePicker } from "@/components/ui/DateRangePicker";
 import { useOrg } from "@/api/hooks";
+import type { DateRange } from "@/types/api";
 import type {
   ChartType,
   MetricKey,
@@ -47,7 +49,7 @@ export function WidgetModal({ open, onClose, onAdd }: WidgetModalProps) {
   const [orgMetric, setOrgMetric] = useState<OrgMetricKey | "">("monthly_budget");
   const [breakdown, setBreakdown] = useState<BreakdownDimension | "">("");
   const [useGlobal, setUseGlobal] = useState(true);
-  const [dateRangePresetIndex, setDateRangePresetIndex] = useState(3); // "Last 30 days"
+  const [dateRange, setDateRange] = useState<DateRange>(getDefaultDateRange);
   const [title, setTitle] = useState("");
   const [titleTouched, setTitleTouched] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
@@ -113,7 +115,7 @@ export function WidgetModal({ open, onClose, onAdd }: WidgetModalProps) {
       setOrgMetric("monthly_budget");
       setBreakdown("");
       setUseGlobal(true);
-      setDateRangePresetIndex(3);
+      setDateRange(getDefaultDateRange());
       setTitle("");
       setTitleTouched(false);
       setShowFilters(false);
@@ -143,7 +145,7 @@ export function WidgetModal({ open, onClose, onAdd }: WidgetModalProps) {
       metrics: activeMetrics,
       timeRange: useGlobal
         ? { useGlobal: true }
-        : { useGlobal: false, ...DATE_RANGE_PRESETS[dateRangePresetIndex]!.getRange() },
+        : { useGlobal: false, start: dateRange.start, end: dateRange.end },
     };
 
     if (needsOrgMetric && orgMetric) {
@@ -178,7 +180,7 @@ export function WidgetModal({ open, onClose, onAdd }: WidgetModalProps) {
     needsOrgMetric,
     breakdown,
     useGlobal,
-    dateRangePresetIndex,
+    dateRange,
     filterTeams,
     filterProjects,
     filterAgentTypes,
@@ -376,17 +378,10 @@ export function WidgetModal({ open, onClose, onAdd }: WidgetModalProps) {
               </label>
             </div>
             {!useGlobal && (
-              <select
-                value={dateRangePresetIndex}
-                onChange={(e) => setDateRangePresetIndex(Number(e.target.value))}
-                className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-              >
-                {DATE_RANGE_PRESETS.map((preset, i) => (
-                  <option key={preset.label} value={i}>
-                    {preset.label}
-                  </option>
-                ))}
-              </select>
+              <DateRangePicker
+                value={dateRange}
+                onChange={setDateRange}
+              />
             )}
           </div>
 

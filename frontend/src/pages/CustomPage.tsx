@@ -8,7 +8,8 @@ import { AddRowPicker } from "@/components/widgets/AddRowPicker";
 import { WidgetModal } from "@/components/widgets/WidgetModal";
 import { UndoToast } from "@/components/ui/UndoToast";
 import { getIcon, PAGE_ICON_OPTIONS } from "@/lib/icon-registry";
-import { DATE_RANGE_PRESETS, getDefaultDateRange } from "@/lib/constants";
+import { getDefaultDateRange } from "@/lib/constants";
+import { DateRangePicker } from "@/components/ui/DateRangePicker";
 import type { DateRange } from "@/types/api";
 import type { DashboardRow, WidgetConfig } from "@/types/widget";
 
@@ -20,7 +21,6 @@ export function CustomPage() {
   const updatePage = useUpdatePage(slug ?? "");
 
   const [globalDateRange, setGlobalDateRange] = useState<DateRange>(getDefaultDateRange);
-  const [globalPresetIndex, setGlobalPresetIndex] = useState(3); // "Last 30 days"
   const [modalTarget, setModalTarget] = useState<{
     rowId: string;
     slotIndex: number;
@@ -250,22 +250,10 @@ export function CustomPage() {
           {updatePage.isPending && (
             <span className="text-xs text-gray-400">Saving...</span>
           )}
-          <select
-            value={globalPresetIndex}
-            onChange={(e) => {
-              const idx = Number(e.target.value);
-              setGlobalPresetIndex(idx);
-              const preset = DATE_RANGE_PRESETS[idx];
-              if (preset) setGlobalDateRange(preset.getRange());
-            }}
-            className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-          >
-            {DATE_RANGE_PRESETS.map((preset, i) => (
-              <option key={preset.label} value={i}>
-                {preset.label}
-              </option>
-            ))}
-          </select>
+          <DateRangePicker
+            value={globalDateRange}
+            onChange={setGlobalDateRange}
+          />
         </div>
       </div>
 

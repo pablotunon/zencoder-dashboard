@@ -115,7 +115,8 @@ Build the new date/time range picker UI component.
 - Write unit tests for DateRangePicker
 - Run `./scripts/test.sh frontend`
 
-### [ ] Step 6: Dashboard integration (global and per-widget date ranges)
+### [x] Step 6: Dashboard integration (global and per-widget date ranges)
+<!-- chat-id: 7788a360-bcd7-4858-9375-395e3a24efe7 -->
 
 Wire the DateRangePicker into the dashboard pages and widget system.
 
