@@ -8,14 +8,10 @@ export function AddRowPicker({ onAddRow }: AddRowPickerProps) {
   return (
     <button
       onClick={() => onAddRow(1)}
-      className="group/add flex w-full items-center gap-3 py-2"
+      className="flex w-full items-center justify-center gap-1 rounded-md py-2 text-xs text-gray-400 transition-colors hover:bg-indigo-50 hover:text-indigo-600"
     >
-      <div className="h-px flex-1 bg-gray-200 transition-colors group-hover/add:bg-indigo-300" />
-      <span className="flex items-center gap-1 text-xs text-gray-400 opacity-0 transition-opacity group-hover/add:opacity-100">
-        <PlusIcon className="h-3.5 w-3.5" />
-        Add row
-      </span>
-      <div className="h-px flex-1 bg-gray-200 transition-colors group-hover/add:bg-indigo-300" />
+      <PlusIcon className="h-3.5 w-3.5" />
+      Add row
     </button>
   );
 }
