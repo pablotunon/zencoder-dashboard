@@ -308,23 +308,12 @@ included file.
 
 ---
 
-## Questions for the User
+## Decisions
 
-### 1. WAU/MAU Calculation Strategy
+1. **WAU/MAU Calculation:** Include in scope. Move computation from Python nested loops to
+   ClickHouse SQL for both code simplification and performance improvement.
 
-`clickhouse.py:280-376` computes WAU and MAU in Python using nested loops over raw user-activity
-data fetched from ClickHouse. This is O(rows x 30) and pulls individual user_ids into Python memory.
-Moving this to a ClickHouse SQL window function or materialized view would be significantly more
-efficient but changes the computation slightly (ClickHouse's `uniqExact` vs Python `set`). This is
-more of a performance improvement than a pure code quality change. Should I include this in the
-scope, or keep it out?
-
-### 2. Frontend Formatter Dedup
-
-`formatNumber`, `formatCurrency`, and `formatDuration` in `formatters.ts` share the same
-if/else scaling pattern (>=1M, >=1K, else). They could share a private `_scaleValue()` helper.
-However, the current code is only 33 lines total and each function is readable on its own. The
-deduplication would save ~10 lines but add indirection. Is this worth doing, or too minor?
+2. **Frontend Formatter Dedup:** Out of scope. Too minor (33 lines total, ~10 lines saved).
 
 ---
 

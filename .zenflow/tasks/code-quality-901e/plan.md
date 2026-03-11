@@ -58,6 +58,7 @@ Refactor `analytics-api/app/services/clickhouse.py` to eliminate repeated query 
 
 - Extract `_query_timeseries(org_id, filters, select_exprs, row_mapper)` helper for the 6 time-series functions
 - Extract `_query_breakdown(org_id, filters, group_col, select_exprs, row_mapper)` helper for the 5 breakdown functions
+- Move WAU/MAU computation from Python nested loops (`query_active_users_trend` lines 306-376) to ClickHouse SQL for both simplification and performance
 - Consolidate duplicate filter builder: remove `_build_filter_clause()` from `widget_query.py` and import `build_team_filter()` from `clickhouse.py`
 - Remove dead `_is_today()` function
 - Run `./scripts/test.sh analytics-api` to verify no regressions
