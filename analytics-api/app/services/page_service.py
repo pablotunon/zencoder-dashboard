@@ -8,7 +8,7 @@ import uuid
 from typing import Any
 
 from app.services import postgres as pg_service
-from app.services.page_templates import TEMPLATES
+from app.services.page_templates import TEMPLATE_LIST
 
 logger = logging.getLogger(__name__)
 
@@ -189,13 +189,13 @@ async def seed_default_pages(user_id: str, org_id: str) -> list[dict[str, Any]]:
         return []
 
     pages = []
-    for idx, template in enumerate(TEMPLATES):
+    for template in TEMPLATE_LIST:
         page = await create_page(
             user_id=user_id,
             org_id=org_id,
-            name=template["name"],
-            icon=template["icon"],
-            layout=template["layout"],
+            name=template.name,
+            icon=template.icon,
+            layout=template.layout,
         )
         pages.append(page)
     return pages

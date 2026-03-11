@@ -14,17 +14,10 @@ from app.models.pages import (
     TemplateSummary,
 )
 from app.services import page_service
-from app.services.page_templates import TEMPLATES
+from app.services.page_templates import TEMPLATES, TEMPLATE_LIST
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
-
-TEMPLATE_DESCRIPTIONS = {
-    "Overview": "High-level KPIs, usage trends, and team breakdown",
-    "Usage & Adoption": "User adoption rates, agent distribution, and top users",
-    "Cost & Efficiency": "Budget tracking, cost trends, and token usage",
-    "Performance & Reliability": "Success rates, latency percentiles, and error analysis",
-}
 
 
 @router.get("/api/pages", response_model=list[PageSummary])
@@ -37,13 +30,8 @@ async def list_pages(ctx: OrgContext = Depends(get_org_context)):
 async def list_templates(ctx: OrgContext = Depends(get_org_context)):
     """List available page templates."""
     return [
-        TemplateSummary(
-            id=t["name"].lower().replace(" & ", "-").replace(" ", "-"),
-            name=t["name"],
-            icon=t["icon"],
-            description=TEMPLATE_DESCRIPTIONS.get(t["name"], ""),
-        )
-        for t in TEMPLATES
+        TemplateSummary(id=t.id, name=t.name, icon=t.icon, description=t.description)
+        for t in TEMPLATE_LIST
     ]
 
 
@@ -55,13 +43,9 @@ async def create_page(
     """Create a new page (blank or from a template)."""
     layout: list = []
     if body.template:
-        # Find matching template by ID
-        template_id = body.template
-        for t in TEMPLATES:
-            tid = t["name"].lower().replace(" & ", "-").replace(" ", "-")
-            if tid == template_id:
-                layout = t["layout"]
-                break
+        t = TEMPLATES.get(body.template)
+        if t is not None:
+            layout = t.layout
 
     page = await page_service.create_page(
         user_id=ctx.user_id,
