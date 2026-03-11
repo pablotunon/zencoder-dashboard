@@ -112,13 +112,11 @@ function TimeInput({
   label,
   value,
   onChange,
-  highlighted,
 }: {
   id: string;
   label: string;
   value: string;
   onChange: (time: string) => void;
-  highlighted?: boolean;
 }) {
   const [draft, setDraft] = useState(value);
   // Keep draft in sync when value changes externally (e.g. preset click)
@@ -149,9 +147,7 @@ function TimeInput({
   };
 
   return (
-    <div className={`flex items-center gap-2 rounded-md px-2 py-1 ${
-      highlighted ? "bg-indigo-50 ring-1 ring-indigo-200" : ""
-    }`}>
+    <div className="flex items-center gap-2 rounded-md px-2 py-1">
       <label htmlFor={id} className="text-xs font-medium text-gray-500">
         {label}
       </label>
@@ -432,17 +428,14 @@ export function DateRangePicker({ value, onChange }: DateRangePickerProps) {
                 disabled={{ after: new Date() }}
                 modifiers={modifiers}
                 modifiersClassNames={{
-                  range_start: "rdp-range_start",
-                  range_middle: "rdp-range_middle",
-                  range_end: "rdp-range_end",
+                  range_start: "!bg-indigo-600 !text-white !rounded-l-full !rounded-r-none",
+                  range_middle: "!bg-indigo-50 !text-indigo-900 !rounded-none",
+                  range_end: "!bg-indigo-600 !text-white !rounded-r-full !rounded-l-none",
                 }}
                 classNames={{
                   root: `${defaultClassNames.root} text-sm`,
                   today: "font-bold text-indigo-600",
                   selected: "bg-indigo-600 text-white rounded-full",
-                  range_start: "bg-indigo-600 text-white rounded-l-full",
-                  range_end: "bg-indigo-600 text-white rounded-r-full",
-                  range_middle: "bg-indigo-50 text-indigo-900",
                   chevron: `${defaultClassNames.chevron} fill-indigo-500`,
                 }}
               />
@@ -455,7 +448,7 @@ export function DateRangePicker({ value, onChange }: DateRangePickerProps) {
               )}
               {selectionPhase === "to" && (
                 <span className="text-indigo-600">
-                  &#9654; Start: {shortDate(draftFrom)} &mdash; now select end date
+                  &#9654; Start: {shortDate(draftFrom)} &mdash; select end date
                 </span>
               )}
               {selectionPhase === "complete" && draftFrom && draftTo && (
@@ -472,7 +465,6 @@ export function DateRangePicker({ value, onChange }: DateRangePickerProps) {
                 label="From"
                 value={fromTime}
                 onChange={handleFromTimeChange}
-                highlighted={selectionPhase === "to"}
               />
               <span className="text-gray-300">&mdash;</span>
               <TimeInput
@@ -480,7 +472,6 @@ export function DateRangePicker({ value, onChange }: DateRangePickerProps) {
                 label="To"
                 value={toTime}
                 onChange={handleToTimeChange}
-                highlighted={selectionPhase === "complete"}
               />
             </div>
 
