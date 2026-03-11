@@ -47,12 +47,13 @@ async def get_overview(
 
     response = OverviewResponse(
         kpi_cards=KpiCards(
-            total_runs=KpiCard(value=kpis["total_runs"], change_pct=kpis["total_runs_change"], period=filters.period),
-            active_users=KpiCard(value=kpis["active_users"], change_pct=kpis["active_users_change"], period=filters.period),
-            total_cost=KpiCard(value=kpis["total_cost"], change_pct=kpis["total_cost_change"], period=filters.period),
-            success_rate=KpiCard(value=kpis["success_rate"], change_pct=kpis["success_rate_change"], period=filters.period),
+            total_runs=KpiCard(value=kpis["total_runs"], change_pct=kpis["total_runs_change"]),
+            active_users=KpiCard(value=kpis["active_users"], change_pct=kpis["active_users_change"]),
+            total_cost=KpiCard(value=kpis["total_cost"], change_pct=kpis["total_cost_change"]),
+            success_rate=KpiCard(value=kpis["success_rate"], change_pct=kpis["success_rate_change"]),
         ),
-        usage_trend=[TimeSeriesPoint(**pt) for pt in usage_trend_data],
+        usage_trend=[TimeSeriesPoint(**pt) for pt in usage_trend_data["data"]],
+        usage_trend_granularity=usage_trend_data["granularity"],
         team_breakdown=[
             TeamBreakdown(
                 team_id=t["team_id"],

@@ -1,13 +1,20 @@
 import { test, expect } from "@playwright/test";
 import { test as authTest } from "./auth.setup";
 
+/** Build ISO date-range query string for the last N days. */
+function dateRangeQS(days: number): string {
+  const end = new Date();
+  const start = new Date(end.getTime() - days * 24 * 60 * 60 * 1000);
+  return `start=${start.toISOString()}&end=${end.toISOString()}`;
+}
+
 const TEST_EVENTS = {
   events: [
     {
       run_id: "a2e00001-0000-4000-8000-000000e2e001",
       org_id: "org_acme",
       team_id: "team_platform",
-      user_id: "user_001",
+      user_id: "user",
       project_id: "proj_001",
       agent_type: "coding",
       event_type: "run_started",
@@ -17,7 +24,7 @@ const TEST_EVENTS = {
       run_id: "a2e00001-0000-4000-8000-000000e2e001",
       org_id: "org_acme",
       team_id: "team_platform",
-      user_id: "user_001",
+      user_id: "user",
       project_id: "proj_001",
       agent_type: "coding",
       event_type: "run_completed",
@@ -46,7 +53,7 @@ test.describe("E2E-02: Write → Aggregate → Read Pipeline", () => {
 
   // Read endpoints require auth
   authTest("overview endpoint returns data with KPIs", async ({ authRequest }) => {
-    const resp = await authRequest.get("/api/metrics/overview?period=90d");
+    const resp = await authRequest.get(`/api/metrics/overview?${dateRangeQS(90)}`);
     expect(resp.ok()).toBeTruthy();
 
     const body = await resp.json();
@@ -57,7 +64,7 @@ test.describe("E2E-02: Write → Aggregate → Read Pipeline", () => {
   });
 
   authTest("overview with team filter returns data", async ({ authRequest }) => {
-    const resp = await authRequest.get("/api/metrics/overview?period=90d&teams=platform");
+    const resp = await authRequest.get(`/api/metrics/overview?${dateRangeQS(90)}&teams=platform`);
     expect(resp.ok()).toBeTruthy();
 
     const body = await resp.json();
@@ -66,7 +73,7 @@ test.describe("E2E-02: Write → Aggregate → Read Pipeline", () => {
 
   for (const endpoint of ["usage", "cost", "performance"]) {
     authTest(`GET /api/metrics/${endpoint}`, async ({ authRequest }) => {
-      const resp = await authRequest.get(`/api/metrics/${endpoint}?period=90d`);
+      const resp = await authRequest.get(`/api/metrics/${endpoint}?${dateRangeQS(90)}`);
       expect(resp.ok()).toBeTruthy();
       const body = await resp.json();
       expect(Object.keys(body).length).toBeGreaterThan(0);

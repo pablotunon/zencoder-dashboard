@@ -11,27 +11,42 @@ import { test as authTest, browserTest } from "./auth.setup";
  * 4. Browser-level login seeds the session so all charts load.
  */
 
+/** Build ISO date-range query string for the last N days. */
+function dateRangeQS(days: number): string {
+  const end = new Date();
+  const start = new Date(end.getTime() - days * 24 * 60 * 60 * 1000);
+  return `start=${start.toISOString()}&end=${end.toISOString()}`;
+}
+
+/** Build ISO start/end body fields for the last N days. */
+function dateRangeBody(days: number): { start: string; end: string } {
+  const end = new Date();
+  const start = new Date(end.getTime() - days * 24 * 60 * 60 * 1000);
+  return { start: start.toISOString(), end: end.toISOString() };
+}
+
 /* ── API-level: unauthenticated requests get 401 ── */
 
 base.describe("E2E-04a: Unauthenticated requests are rejected", () => {
   const protectedEndpoints = [
-    { method: "GET" as const, path: "/api/metrics/overview?period=7d" },
-    { method: "GET" as const, path: "/api/metrics/usage?period=7d" },
-    { method: "GET" as const, path: "/api/metrics/cost?period=7d" },
-    { method: "GET" as const, path: "/api/metrics/performance?period=7d" },
-    { method: "GET" as const, path: "/api/orgs/current" },
-    { method: "GET" as const, path: "/api/auth/me" },
-    { method: "POST" as const, path: "/api/metrics/widget" },
+    { method: "GET" as const, path: "/api/metrics/overview", withDateRange: true },
+    { method: "GET" as const, path: "/api/metrics/usage", withDateRange: true },
+    { method: "GET" as const, path: "/api/metrics/cost", withDateRange: true },
+    { method: "GET" as const, path: "/api/metrics/performance", withDateRange: true },
+    { method: "GET" as const, path: "/api/orgs/current", withDateRange: false },
+    { method: "GET" as const, path: "/api/auth/me", withDateRange: false },
+    { method: "POST" as const, path: "/api/metrics/widget", withDateRange: false },
   ];
 
-  for (const { method, path } of protectedEndpoints) {
+  for (const { method, path, withDateRange } of protectedEndpoints) {
     base(`${method} ${path} returns 401 without token`, async ({ request }) => {
+      const url = withDateRange ? `${path}?${dateRangeQS(7)}` : path;
       const resp =
         method === "POST"
-          ? await request.post(path, {
-              data: { metric: "run_count", period: "7d" },
+          ? await request.post(url, {
+              data: { metric: "run_count", ...dateRangeBody(7) },
             })
-          : await request.get(path);
+          : await request.get(url);
       expect(resp.status()).toBe(401);
     });
   }
@@ -43,18 +58,18 @@ authTest.describe("E2E-04b: Authenticated API requests succeed", () => {
   authTest(
     "GET /api/metrics/overview returns 200",
     async ({ authRequest }) => {
-      const resp = await authRequest.get("/api/metrics/overview?period=7d");
+      const resp = await authRequest.get(`/api/metrics/overview?${dateRangeQS(7)}`);
       expect(resp.ok()).toBeTruthy();
     },
   );
 
   authTest("GET /api/metrics/usage returns 200", async ({ authRequest }) => {
-    const resp = await authRequest.get("/api/metrics/usage?period=7d");
+    const resp = await authRequest.get(`/api/metrics/usage?${dateRangeQS(7)}`);
     expect(resp.ok()).toBeTruthy();
   });
 
   authTest("GET /api/metrics/cost returns 200", async ({ authRequest }) => {
-    const resp = await authRequest.get("/api/metrics/cost?period=7d");
+    const resp = await authRequest.get(`/api/metrics/cost?${dateRangeQS(7)}`);
     expect(resp.ok()).toBeTruthy();
   });
 
@@ -62,7 +77,7 @@ authTest.describe("E2E-04b: Authenticated API requests succeed", () => {
     "GET /api/metrics/performance returns 200",
     async ({ authRequest }) => {
       const resp = await authRequest.get(
-        "/api/metrics/performance?period=7d",
+        `/api/metrics/performance?${dateRangeQS(7)}`,
       );
       expect(resp.ok()).toBeTruthy();
     },
@@ -82,7 +97,7 @@ authTest.describe("E2E-04b: Authenticated API requests succeed", () => {
     "POST /api/metrics/widget returns 200",
     async ({ authRequest }) => {
       const resp = await authRequest.post("/api/metrics/widget", {
-        data: { metric: "run_count", period: "7d" },
+        data: { metric: "run_count", ...dateRangeBody(7) },
       });
       expect(resp.ok()).toBeTruthy();
       const body = await resp.json();
@@ -94,7 +109,7 @@ authTest.describe("E2E-04b: Authenticated API requests succeed", () => {
     "POST /api/metrics/widget with breakdown returns 200",
     async ({ authRequest }) => {
       const resp = await authRequest.post("/api/metrics/widget", {
-        data: { metric: "run_count", period: "7d", breakdown: "team" },
+        data: { metric: "run_count", ...dateRangeBody(7), breakdown: "team" },
       });
       expect(resp.ok()).toBeTruthy();
       const body = await resp.json();

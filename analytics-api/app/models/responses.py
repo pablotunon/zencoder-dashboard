@@ -7,11 +7,10 @@ from pydantic import BaseModel
 class KpiCard(BaseModel):
     value: float
     change_pct: float | None = None
-    period: str
 
 
 class TimeSeriesPoint(BaseModel):
-    date: str
+    timestamp: str
     runs: int = 0
     cost: float = 0.0
     is_partial: bool = False
@@ -39,6 +38,7 @@ class TeamBreakdown(BaseModel):
 class OverviewResponse(BaseModel):
     kpi_cards: KpiCards
     usage_trend: list[TimeSeriesPoint]
+    usage_trend_granularity: str = "day"
     team_breakdown: list[TeamBreakdown]
 
 
@@ -52,7 +52,7 @@ class AdoptionRate(BaseModel):
 
 
 class ActiveUsersTrendPoint(BaseModel):
-    date: str
+    timestamp: str
     dau: int = 0
     wau: int = 0
     mau: int = 0
@@ -85,6 +85,7 @@ class ProjectBreakdown(BaseModel):
 class UsageResponse(BaseModel):
     adoption_rate: AdoptionRate
     active_users_trend: list[ActiveUsersTrendPoint]
+    active_users_trend_granularity: str = "day"
     agent_type_breakdown: list[AgentTypeBreakdown]
     top_users: list[TopUser]
     project_breakdown: list[ProjectBreakdown]
@@ -94,7 +95,7 @@ class UsageResponse(BaseModel):
 
 
 class CostTrendPoint(BaseModel):
-    date: str
+    timestamp: str
     cost: float
     is_partial: bool = False
 
@@ -107,7 +108,7 @@ class CostBreakdownItem(BaseModel):
 
 
 class CostPerRunTrendPoint(BaseModel):
-    date: str
+    timestamp: str
     avg_cost_per_run: float
     is_partial: bool = False
 
@@ -133,8 +134,10 @@ class Budget(BaseModel):
 
 class CostResponse(BaseModel):
     cost_trend: list[CostTrendPoint]
+    cost_trend_granularity: str = "day"
     cost_breakdown: list[CostBreakdownItem]
     cost_per_run_trend: list[CostPerRunTrendPoint]
+    cost_per_run_trend_granularity: str = "day"
     token_breakdown: TokenBreakdown
     budget: Budget
 
@@ -143,7 +146,7 @@ class CostResponse(BaseModel):
 
 
 class SuccessRateTrendPoint(BaseModel):
-    date: str
+    timestamp: str
     success_rate: float
     failure_rate: float
     error_rate: float
@@ -151,7 +154,7 @@ class SuccessRateTrendPoint(BaseModel):
 
 
 class LatencyTrendPoint(BaseModel):
-    date: str
+    timestamp: str
     p50: float
     p95: float
     p99: float
@@ -165,7 +168,7 @@ class ErrorBreakdownItem(BaseModel):
 
 
 class QueueWaitTrendPoint(BaseModel):
-    date: str
+    timestamp: str
     avg_wait_ms: float
     p95_wait_ms: float
     is_partial: bool = False
@@ -173,15 +176,17 @@ class QueueWaitTrendPoint(BaseModel):
 
 class Availability(BaseModel):
     uptime_pct: float
-    period: str
 
 
 class PerformanceResponse(BaseModel):
     success_rate_trend: list[SuccessRateTrendPoint]
+    success_rate_trend_granularity: str = "day"
     latency_trend: list[LatencyTrendPoint]
+    latency_trend_granularity: str = "day"
     error_breakdown: list[ErrorBreakdownItem]
     availability: Availability
     queue_wait_trend: list[QueueWaitTrendPoint]
+    queue_wait_trend_granularity: str = "day"
 
 
 # --- Org ---

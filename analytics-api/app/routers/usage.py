@@ -55,6 +55,11 @@ async def get_usage(
     user_map = {u["user_id"]: u for u in user_info}
 
     active_users_count = kpis["active_users"]
+    # Cap active users at licensed count — ClickHouse may include user_ids
+    # not present in the PostgreSQL users table (e.g. from test data or
+    # eventual-consistency lag).
+    if licensed_users > 0:
+        active_users_count = min(active_users_count, licensed_users)
     adoption = active_users_count / licensed_users * 100 if licensed_users > 0 else 0
 
     response = UsageResponse(
@@ -63,7 +68,8 @@ async def get_usage(
             licensed_users=licensed_users,
             active_users=active_users_count,
         ),
-        active_users_trend=[ActiveUsersTrendPoint(**pt) for pt in active_users_trend_data],
+        active_users_trend=[ActiveUsersTrendPoint(**pt) for pt in active_users_trend_data["data"]],
+        active_users_trend_granularity=active_users_trend_data["granularity"],
         agent_type_breakdown=[AgentTypeBreakdown(**at) for at in agent_type_data],
         top_users=[
             TopUser(

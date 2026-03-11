@@ -1,12 +1,12 @@
 import logging
-from datetime import date
+from datetime import datetime
 from typing import Any
 
 from app.services.clickhouse import (
-    _is_today,
+    _is_current_bucket,
     get_client,
-    period_to_dates,
-    previous_period_dates,
+    previous_range,
+    resolve_granularity,
 )
 
 logger = logging.getLogger(__name__)
@@ -65,8 +65,8 @@ def _build_filter_clause(
 def _query_aggregate(
     org_id: str,
     metric_expr: str,
-    start: date,
-    end: date,
+    start: datetime,
+    end: datetime,
     extra_where: str,
     extra_params: dict[str, Any],
 ) -> float:
@@ -76,8 +76,8 @@ def _query_aggregate(
         SELECT {metric_expr} AS value
         FROM agent_runs
         WHERE org_id = %(org_id)s
-          AND toDate(started_at) >= %(start)s
-          AND toDate(started_at) < %(end)s
+          AND started_at >= %(start)s
+          AND started_at < %(end)s
           {extra_where}
     """
     result = client.query(
@@ -90,7 +90,8 @@ def _query_aggregate(
 def build_widget_query(
     org_id: str,
     metric: str,
-    period: str,
+    start: datetime,
+    end: datetime,
     breakdown: str | None = None,
     filters: dict[str, list[str] | None] | None = None,
 ) -> dict[str, Any]:
@@ -102,7 +103,6 @@ def build_widget_query(
     metric_entry = METRIC_REGISTRY[metric]
     metric_expr = metric_entry["expr"]
 
-    start, end = period_to_dates(period)
     extra_where, extra_params = _build_filter_clause(filters)
 
     client = get_client()
@@ -115,8 +115,8 @@ def build_widget_query(
                 {metric_expr} AS value
             FROM agent_runs
             WHERE org_id = %(org_id)s
-              AND toDate(started_at) >= %(start)s
-              AND toDate(started_at) < %(end)s
+              AND started_at >= %(start)s
+              AND started_at < %(end)s
               {extra_where}
             GROUP BY label
             ORDER BY value DESC
@@ -136,18 +136,19 @@ def build_widget_query(
             "data": data,
         }
 
-    # Time-series query (no breakdown)
+    # Time-series query (no breakdown) with dynamic bucketing
+    bucket_fn, granularity = resolve_granularity(start, end)
     sql = f"""
         SELECT
-            toDate(started_at) AS date,
+            {bucket_fn} AS timestamp,
             {metric_expr} AS value
         FROM agent_runs
         WHERE org_id = %(org_id)s
-          AND toDate(started_at) >= %(start)s
-          AND toDate(started_at) < %(end)s
+          AND started_at >= %(start)s
+          AND started_at < %(end)s
           {extra_where}
-        GROUP BY date
-        ORDER BY date
+        GROUP BY timestamp
+        ORDER BY timestamp
     """
     result = client.query(
         sql,
@@ -155,9 +156,9 @@ def build_widget_query(
     )
     data = [
         {
-            "date": str(row[0]),
+            "timestamp": str(row[0]),
             "value": round(float(row[1]), 2),
-            "is_partial": _is_today(row[0]),
+            "is_partial": _is_current_bucket(row[0], granularity),
         }
         for row in result.result_rows
     ]
@@ -166,7 +167,7 @@ def build_widget_query(
     current_value = _query_aggregate(org_id, metric_expr, start, end, extra_where, extra_params)
 
     # Change %: compare against the previous period
-    prev_start, prev_end = previous_period_dates(period)
+    prev_start, prev_end = previous_range(start, end)
     prev_value = _query_aggregate(org_id, metric_expr, prev_start, prev_end, extra_where, extra_params)
 
     change_pct = None
@@ -176,6 +177,7 @@ def build_widget_query(
     return {
         "type": "timeseries",
         "metric": metric,
+        "granularity": granularity,
         "summary": {"value": round(current_value, 2), "change_pct": change_pct},
         "data": data,
     }

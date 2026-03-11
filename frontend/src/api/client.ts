@@ -16,7 +16,8 @@ export function setOnUnauthorized(callback: (() => void) | null): void {
 
 function buildQueryString(filters: MetricFilters): string {
   const params = new URLSearchParams();
-  if (filters.period) params.set("period", filters.period);
+  if (filters.start) params.set("start", filters.start);
+  if (filters.end) params.set("end", filters.end);
   if (filters.teams?.length) params.set("teams", filters.teams.join(","));
   if (filters.projects?.length)
     params.set("projects", filters.projects.join(","));

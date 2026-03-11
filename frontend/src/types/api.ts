@@ -1,5 +1,11 @@
-// Shared enum types
-export type Period = "7d" | "30d" | "90d";
+// Shared types
+export interface DateRange {
+  start: string; // ISO 8601 timestamp
+  end: string; // ISO 8601 timestamp
+}
+
+export type Granularity = "minute" | "hour" | "day" | "week";
+
 export type AgentType =
   | "coding"
   | "review"
@@ -11,7 +17,8 @@ export type UserRole = "admin" | "team_lead" | "viewer";
 
 // Filter parameters shared across metric endpoints
 export interface MetricFilters {
-  period?: Period;
+  start?: string;
+  end?: string;
   teams?: string[];
   projects?: string[];
   agent_types?: AgentType[];
@@ -27,7 +34,7 @@ export interface AdoptionRate {
 }
 
 export interface ActiveUsersTrendPoint {
-  date: string;
+  timestamp: string;
   dau: number;
   wau: number;
   mau: number;
