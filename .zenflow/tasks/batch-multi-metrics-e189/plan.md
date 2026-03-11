@@ -67,7 +67,8 @@ Implement the backend batch endpoint and its tests. See `spec.md` for full contr
 - Add integration tests to `analytics-api/tests/test_integration.py` for batch endpoint (timeseries response, breakdown response, invalid metric returns 400, cache behavior, auth required)
 - Run: `docker compose exec analytics-api pytest`
 
-### [ ] Step: Frontend batch integration with tests
+### [x] Step: Frontend batch integration with tests
+<!-- chat-id: c6128d12-964e-4f95-a862-2c2894e964de -->
 
 Update the frontend to use the batch endpoint. See `spec.md` for full contract.
 

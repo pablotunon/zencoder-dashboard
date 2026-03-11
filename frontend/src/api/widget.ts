@@ -1,4 +1,4 @@
-import { useQuery, useQueries } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { postJson } from "@/api/client";
 import type { Granularity } from "@/types/api";
@@ -41,6 +41,45 @@ export async function postWidgetQuery(
   }
 
   return postJson<WidgetQueryResponse>("/api/metrics/widget", body);
+}
+
+// ── Batch multi-metric support ──────────────────────────────────────────
+
+export interface BatchWidgetQueryParams {
+  metrics: MetricKey[];
+  start: string;
+  end: string;
+  breakdown?: BreakdownDimension;
+  filters?: {
+    teams?: string[];
+    projects?: string[];
+    agent_types?: string[];
+  };
+}
+
+export interface BatchWidgetQueryResponse {
+  results: Record<string, WidgetQueryResponse>;
+}
+
+/**
+ * POST /api/metrics/widget/batch — fetch multiple metrics in a single request.
+ */
+export async function postBatchWidgetQuery(
+  params: BatchWidgetQueryParams,
+): Promise<BatchWidgetQueryResponse> {
+  const body: Record<string, unknown> = {
+    metrics: params.metrics,
+    start: params.start,
+    end: params.end,
+  };
+  if (params.breakdown) {
+    body.breakdown = params.breakdown;
+  }
+  if (params.filters) {
+    body.filters = params.filters;
+  }
+
+  return postJson<BatchWidgetQueryResponse>("/api/metrics/widget/batch", body);
 }
 
 /**
@@ -163,38 +202,33 @@ interface MultiMetricParams {
 
 /**
  * React Query hook for multi-metric widget data.
- * Fires parallel queries for each metric and merges results.
+ * Uses the batch endpoint to fetch all metrics in a single request,
+ * then merges results client-side.
  */
 export function useMultiMetricWidgetData(params: MultiMetricParams) {
-  const queries = useQueries({
-    queries: params.metrics.map((metric) => ({
-      queryKey: [
-        "widget",
-        metric,
-        params.start,
-        params.end,
-        params.breakdown ?? null,
-        params.filters ?? null,
-      ],
-      queryFn: () =>
-        postWidgetQuery({
-          metric,
-          start: params.start,
-          end: params.end,
-          breakdown: params.breakdown,
-          filters: params.filters,
-        }),
-      staleTime: 30_000,
-    })),
+  const query = useQuery({
+    queryKey: [
+      "widget-batch",
+      params.metrics,
+      params.start,
+      params.end,
+      params.breakdown ?? null,
+      params.filters ?? null,
+    ],
+    queryFn: () =>
+      postBatchWidgetQuery({
+        metrics: params.metrics,
+        start: params.start,
+        end: params.end,
+        breakdown: params.breakdown,
+        filters: params.filters,
+      }),
+    staleTime: 30_000,
   });
 
-  const isLoading = queries.some((q) => q.isLoading);
-  const error = queries.find((q) => q.error)?.error ?? null;
-  const allReady = queries.every((q) => q.data);
-
   const data = useMemo<MergedWidgetData | undefined>(() => {
-    if (!allReady) return undefined;
-    const responses = queries.map((q) => q.data!);
+    if (!query.data) return undefined;
+    const responses = params.metrics.map((m) => query.data!.results[m]);
 
     // Determine data type from first response
     if (responses[0]?.type === "timeseries") {
@@ -210,10 +244,12 @@ export function useMultiMetricWidgetData(params: MultiMetricParams) {
       );
     }
     return undefined;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allReady, ...queries.map((q) => q.data)]);
+  }, [query.data, params.metrics]);
 
-  const refetch = () => queries.forEach((q) => q.refetch());
-
-  return { data, isLoading, error, refetch };
+  return {
+    data,
+    isLoading: query.isLoading,
+    error: query.error,
+    refetch: query.refetch,
+  };
 }
