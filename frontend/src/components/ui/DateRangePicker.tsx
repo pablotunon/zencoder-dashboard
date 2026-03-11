@@ -17,9 +17,11 @@ function toTimeString(d: Date): string {
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
-/** Apply HH:MM time string to a Date, returning a new Date. */
+/** Apply HH:MM time string to a Date, returning a new Date. Returns original date if time is invalid. */
 function applyTime(date: Date, time: string): Date {
+  if (!time || !time.includes(":")) return date;
   const [h, m] = time.split(":").map(Number);
+  if (isNaN(h) || isNaN(m)) return date;
   const result = new Date(date);
   result.setHours(h, m, 0, 0);
   return result;
@@ -38,10 +40,9 @@ function formatDisplay(d: Date): string {
 
   // Only show time if it's not exactly midnight
   if (hours !== 0 || minutes !== 0) {
-    const period = hours >= 12 ? "PM" : "AM";
-    const h12 = hours % 12 || 12;
+    const hh = String(hours).padStart(2, "0");
     const mm = String(minutes).padStart(2, "0");
-    str += `, ${h12}:${mm} ${period}`;
+    str += `, ${hh}:${mm}`;
   }
 
   return str;
@@ -167,7 +168,7 @@ export function DateRangePicker({ value, onChange }: DateRangePickerProps) {
     (timeStr: string) => {
       setFromTime(timeStr);
       setActivePreset(-1);
-      if (draftFrom) {
+      if (draftFrom && timeStr && timeStr.includes(":")) {
         setDraftFrom(applyTime(draftFrom, timeStr));
       }
     },
@@ -178,12 +179,16 @@ export function DateRangePicker({ value, onChange }: DateRangePickerProps) {
     (timeStr: string) => {
       setToTime(timeStr);
       setActivePreset(-1);
-      if (draftTo) {
+      if (draftTo && timeStr && timeStr.includes(":")) {
         setDraftTo(applyTime(draftTo, timeStr));
       }
     },
     [draftTo],
   );
+
+  // Derive selection phase for UX indicator
+  const selectionPhase: "from" | "to" | "complete" =
+    !draftFrom ? "from" : !draftTo ? "to" : "complete";
 
   const canApply = draftFrom && draftTo && draftFrom < draftTo;
 
@@ -275,9 +280,26 @@ export function DateRangePicker({ value, onChange }: DateRangePickerProps) {
               />
             </div>
 
+            {/* Selection phase indicator */}
+            <div className="border-t border-gray-200 px-4 py-2 text-xs font-medium" data-testid="selection-phase">
+              {selectionPhase === "from" && (
+                <span className="text-indigo-600">&#9654; Select start date</span>
+              )}
+              {selectionPhase === "to" && (
+                <span className="text-indigo-600">&#9654; Select end date</span>
+              )}
+              {selectionPhase === "complete" && draftFrom && draftTo && (
+                <span className="text-gray-500">
+                  {formatDisplay(draftFrom)} &mdash; {formatDisplay(draftTo)}
+                </span>
+              )}
+            </div>
+
             {/* Time inputs */}
             <div className="flex items-center gap-4 border-t border-gray-200 px-4 py-3">
-              <div className="flex items-center gap-2">
+              <div className={`flex items-center gap-2 rounded-md px-2 py-1 ${
+                selectionPhase === "from" ? "bg-indigo-50 ring-1 ring-indigo-200" : ""
+              }`}>
                 <label
                   htmlFor="drp-from-time"
                   className="text-xs font-medium text-gray-500"
@@ -294,7 +316,9 @@ export function DateRangePicker({ value, onChange }: DateRangePickerProps) {
                 />
               </div>
               <span className="text-gray-300">&mdash;</span>
-              <div className="flex items-center gap-2">
+              <div className={`flex items-center gap-2 rounded-md px-2 py-1 ${
+                selectionPhase === "to" ? "bg-indigo-50 ring-1 ring-indigo-200" : ""
+              }`}>
                 <label
                   htmlFor="drp-to-time"
                   className="text-xs font-medium text-gray-500"

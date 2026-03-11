@@ -185,3 +185,29 @@ And add visual emphasis to the active time input:
 - **Empty time on popover open:** When the popover opens and syncs from `value`, times are always valid ISO strings, so `toTimeString()` always produces valid "HH:MM". The issue only arises during user interaction with the native time input.
 - **Single day selection:** When user clicks the same date for from and to, the times determine validity. This already works correctly with the `draftFrom < draftTo` check — same day is valid if from-time < to-time.
 - **Preset selection:** Presets bypass the calendar entirely and set both from/to immediately, so the phase indicator should show "complete" after preset click. This works naturally since presets set both `draftFrom` and `draftTo`.
+
+---
+
+## Implementation Notes
+
+All three fixes were implemented in `frontend/src/components/ui/DateRangePicker.tsx`:
+
+### Fix 1: Invalid time string guard
+- `applyTime()` now returns the original date unchanged if the time string is empty, missing `:`, or contains `NaN` values after parsing.
+- `handleFromTimeChange` and `handleToTimeChange` now check `timeStr && timeStr.includes(":")` before calling `applyTime`, preventing invalid dates from entering state.
+
+### Fix 2: 24h time format
+- `formatDisplay()` now uses `padStart(2, "0")` for hours instead of 12-hour conversion. Removed the `period` (AM/PM) variable entirely.
+
+### Fix 3: Selection phase indicator
+- Added a `selectionPhase` derived state: `"from"` | `"to"` | `"complete"` based on `draftFrom` and `draftTo`.
+- Added a status banner (`data-testid="selection-phase"`) between the calendar and time inputs showing "▶ Select start date", "▶ Select end date", or the range summary.
+- The active time input (From or To) gets a highlighted background (`bg-indigo-50 ring-1 ring-indigo-200`) matching the selection phase.
+
+### Test Results
+- 3 new tests added to `frontend/src/__tests__/date-range-picker.test.tsx`:
+  1. "does not throw when time input receives an empty string" — verifies no errors on empty time input
+  2. "displays time in 24h format without AM/PM in trigger button" — verifies no AM/PM in display
+  3. "shows selection phase indicator when popover is open" — verifies the phase indicator renders
+- All 26 tests pass (15 in date-range-picker, 7 in api-auth, 4 in widget-filters)
+- 0 lint errors introduced
