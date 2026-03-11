@@ -1,7 +1,6 @@
 """Aggregation Worker — main entry point.
 
-Consumes events from Redis Streams, inserts raw data into ClickHouse,
-and periodically computes daily rollup aggregates.
+Consumes events from Redis Streams and inserts raw data into ClickHouse.
 """
 
 import logging
@@ -11,7 +10,6 @@ import time
 
 import redis as redis_lib
 
-from app.aggregator import compute_rollups
 from app.config import Config
 from app.consumer import ack_events, ensure_consumer_group, read_events
 from app.enrichment import EnrichmentCache
@@ -30,7 +28,6 @@ class Worker:
     def __init__(self, config: Config):
         self.config = config
         self._running = True
-        self._last_rollup: float = 0
 
     def stop(self, signum=None, frame=None):
         logger.info("Shutdown signal received, stopping...")
@@ -105,15 +102,6 @@ class Worker:
                             "Failed to process batch of %d events",
                             len(events),
                         )
-
-                # Periodic rollup computation
-                now = time.time()
-                if now - self._last_rollup >= config.ROLLUP_INTERVAL_SECONDS:
-                    try:
-                        compute_rollups(ch_client)
-                        self._last_rollup = now
-                    except Exception:
-                        logger.exception("Failed to compute rollups")
 
             except redis_lib.ConnectionError:
                 logger.error("Redis connection lost, reconnecting in 5s...")
