@@ -13,7 +13,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { XMarkIcon } from "@heroicons/react/24/outline";
+import { XMarkIcon, InformationCircleIcon } from "@heroicons/react/24/outline";
 import { METRIC_REGISTRY } from "@/lib/widget-registry";
 import { useWidgetData, useMultiMetricWidgetData } from "@/api/widget";
 import { useUsageMetrics, useOrg } from "@/api/hooks";
@@ -161,7 +161,12 @@ function SingleMetricWidget({
   });
 
   return (
-    <WidgetCard title={widget.title} onRemove={onRemove}>
+    <WidgetCard
+      title={widget.title}
+      subtitle={meta?.description}
+      tooltip={meta?.tooltip}
+      onRemove={onRemove}
+    >
       {isLoading ? (
         <WidgetSkeleton chartType={widget.chartType} />
       ) : error ? (
@@ -538,17 +543,36 @@ function TopUsersWidget({ dateRange }: { dateRange: DateRange }) {
 
 function WidgetCard({
   title,
+  subtitle,
+  tooltip,
   onRemove,
   children,
 }: {
   title: string;
+  subtitle?: string;
+  tooltip?: string;
   onRemove?: () => void;
   children: React.ReactNode;
 }) {
   return (
     <div className="rounded-lg border border-gray-200 bg-white p-6">
       <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-base font-medium text-gray-900">{title}</h2>
+        <div className="min-w-0">
+          <div className="flex items-center gap-1.5">
+            <h2 className="text-base font-medium text-gray-900">{title}</h2>
+            {tooltip && (
+              <div className="group relative">
+                <InformationCircleIcon className="h-4 w-4 shrink-0 text-gray-400 hover:text-gray-600" />
+                <div className="pointer-events-none absolute left-1/2 top-full z-50 mt-1.5 hidden w-64 -translate-x-1/2 rounded-md border border-gray-200 bg-white p-3 text-xs leading-relaxed text-gray-600 shadow-lg group-hover:block">
+                  {tooltip}
+                </div>
+              </div>
+            )}
+          </div>
+          {subtitle && (
+            <p className="mt-0.5 text-sm text-gray-500">{subtitle}</p>
+          )}
+        </div>
         {onRemove && (
           <button
             onClick={onRemove}
@@ -750,13 +774,6 @@ function KpiWidget({
           </div>
         )}
       </div>
-
-      {/* Description */}
-      {metricMeta?.description && (
-        <p className="mt-3 text-xs leading-relaxed text-gray-400">
-          {metricMeta.description}
-        </p>
-      )}
 
       {/* Period high/low */}
       {low !== null && high !== null && (

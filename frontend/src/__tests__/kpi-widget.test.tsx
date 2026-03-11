@@ -116,12 +116,22 @@ describe("KpiWidget", () => {
     expect(screen.getByText(/was \$11\.4K/)).toBeInTheDocument();
   });
 
-  it("shows metric description", () => {
+  it("shows metric description as card subtitle", () => {
     mockWidgetData.data = makeTimeseriesResponse();
     renderWidget(makeKpiWidget());
 
     expect(
       screen.getByText("Total spend across all agent runs"),
+    ).toBeInTheDocument();
+  });
+
+  it("renders info icon with tooltip text", () => {
+    mockWidgetData.data = makeTimeseriesResponse();
+    renderWidget(makeKpiWidget());
+
+    // The tooltip text from the registry should be present (hidden until hover)
+    expect(
+      screen.getByText(/Sum of all LLM API charges/),
     ).toBeInTheDocument();
   });
 
