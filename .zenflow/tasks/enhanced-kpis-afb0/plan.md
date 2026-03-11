@@ -30,7 +30,8 @@ Assessed difficulty as easy–medium. Created `spec.md` with full design:
 
 ---
 
-### [ ] Step: Add description field to MetricMeta and registry
+### [x] Step: Add description field to MetricMeta and registry
+<!-- chat-id: b64e8b9f-cbac-45cd-aa3a-6876509a51aa -->
 
 Extend the type system and populate descriptions for all 14 metrics:
 - Add `description: string` to `MetricMeta` interface in `frontend/src/types/widget.ts`

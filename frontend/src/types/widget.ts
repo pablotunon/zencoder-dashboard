@@ -74,6 +74,7 @@ export interface DashboardRow {
 export interface MetricMeta {
   key: MetricKey;
   label: string;
+  description: string;
   category: MetricCategory;
   defaultChartType: ChartType;
   compatibleChartTypes: ChartType[];
