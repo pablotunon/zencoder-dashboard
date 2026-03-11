@@ -13,8 +13,9 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { XMarkIcon, InformationCircleIcon } from "@heroicons/react/24/outline";
+import { XMarkIcon, InformationCircleIcon, FunnelIcon } from "@heroicons/react/24/outline";
 import { METRIC_REGISTRY } from "@/lib/widget-registry";
+import { AGENT_TYPE_LABELS } from "@/lib/constants";
 import { useWidgetData, useMultiMetricWidgetData } from "@/api/widget";
 import { useUsageMetrics, useOrg } from "@/api/hooks";
 import { TimeSeriesChart } from "@/components/charts/TimeSeriesChart";
@@ -108,14 +109,14 @@ export function WidgetRenderer({
   // Gauge and stat — need org data + single metric
   if (widget.chartType === "gauge") {
     return (
-      <WidgetCard title={widget.title} onRemove={onRemove}>
+      <WidgetCard title={widget.title} filters={widget.filters} onRemove={onRemove}>
         <GaugeWidgetLoader widget={widget} dateRange={dateRange} />
       </WidgetCard>
     );
   }
   if (widget.chartType === "stat") {
     return (
-      <WidgetCard title={widget.title} onRemove={onRemove}>
+      <WidgetCard title={widget.title} filters={widget.filters} onRemove={onRemove}>
         <StatWidgetLoader widget={widget} dateRange={dateRange} />
       </WidgetCard>
     );
@@ -124,7 +125,7 @@ export function WidgetRenderer({
   // Multi-metric path
   if (widget.metrics.length > 1) {
     return (
-      <WidgetCard title={widget.title} onRemove={onRemove}>
+      <WidgetCard title={widget.title} filters={widget.filters} onRemove={onRemove}>
         <MultiMetricLoader widget={widget} dateRange={dateRange} />
       </WidgetCard>
     );
@@ -165,6 +166,7 @@ function SingleMetricWidget({
       title={widget.title}
       subtitle={meta?.description}
       tooltip={meta?.tooltip}
+      filters={widget.filters}
       onRemove={onRemove}
     >
       {isLoading ? (
@@ -545,12 +547,14 @@ function WidgetCard({
   title,
   subtitle,
   tooltip,
+  filters,
   onRemove,
   children,
 }: {
   title: string;
   subtitle?: string;
   tooltip?: string;
+  filters?: WidgetConfig["filters"];
   onRemove?: () => void;
   children: React.ReactNode;
 }) {
@@ -568,6 +572,7 @@ function WidgetCard({
                 </div>
               </div>
             )}
+            <FilterIndicator filters={filters} />
           </div>
           {subtitle && (
             <p className="mt-0.5 text-sm text-gray-500">{subtitle}</p>
@@ -584,6 +589,65 @@ function WidgetCard({
         )}
       </div>
       {children}
+    </div>
+  );
+}
+
+// ── Filter indicator (funnel icon + hover tooltip) ───────────────────────
+
+function FilterIndicator({
+  filters,
+}: {
+  filters?: WidgetConfig["filters"];
+}) {
+  const { data: org } = useOrg();
+
+  const hasFilters =
+    filters &&
+    ((filters.teams?.length ?? 0) > 0 ||
+      (filters.projects?.length ?? 0) > 0 ||
+      (filters.agent_types?.length ?? 0) > 0);
+
+  if (!hasFilters) return null;
+
+  const teamNames = (filters.teams ?? []).map((id) => {
+    const team = org?.teams?.find((t) => t.team_id === id);
+    return team?.name ?? id;
+  });
+
+  const projectNames = (filters.projects ?? []).map((id) => {
+    const project = org?.projects?.find((p) => p.project_id === id);
+    return project?.name ?? id;
+  });
+
+  const agentTypeNames = (filters.agent_types ?? []).map(
+    (key) => AGENT_TYPE_LABELS[key] ?? key,
+  );
+
+  return (
+    <div className="group relative">
+      <FunnelIcon className="h-4 w-4 shrink-0 text-indigo-400 hover:text-indigo-600" />
+      <div className="pointer-events-none absolute left-1/2 top-full z-50 mt-1.5 hidden w-56 -translate-x-1/2 rounded-md border border-gray-200 bg-white p-3 text-xs leading-relaxed text-gray-600 shadow-lg group-hover:block">
+        <p className="mb-1.5 font-medium text-gray-900">Active Filters</p>
+        {teamNames.length > 0 && (
+          <p>
+            <span className="font-medium text-gray-700">Teams:</span>{" "}
+            {teamNames.join(", ")}
+          </p>
+        )}
+        {projectNames.length > 0 && (
+          <p>
+            <span className="font-medium text-gray-700">Projects:</span>{" "}
+            {projectNames.join(", ")}
+          </p>
+        )}
+        {agentTypeNames.length > 0 && (
+          <p>
+            <span className="font-medium text-gray-700">Agent Types:</span>{" "}
+            {agentTypeNames.join(", ")}
+          </p>
+        )}
+      </div>
     </div>
   );
 }
