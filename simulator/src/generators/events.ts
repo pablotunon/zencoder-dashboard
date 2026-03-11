@@ -8,7 +8,7 @@ export type AgentType =
   | "ci"
   | "debugging"
   | "general";
-export type EventType = "run_started" | "run_completed" | "run_failed";
+type EventType = "run_started" | "run_completed" | "run_failed";
 export type ErrorCategory =
   | "timeout"
   | "rate_limit"

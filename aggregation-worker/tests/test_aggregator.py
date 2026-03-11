@@ -6,8 +6,6 @@ AGG-U04: Daily rollup computation: active user count.
 AGG-U05: Daily rollup computation: cost aggregation.
 """
 
-import statistics
-
 
 def compute_percentile(values: list[float], p: float) -> float:
     """Compute percentile matching ClickHouse's quantile() behavior.

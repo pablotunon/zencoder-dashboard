@@ -3,10 +3,7 @@ import { http, HttpResponse } from "msw";
 import { server } from "./msw-server";
 import {
   setAuthToken,
-  fetchOverview,
   fetchUsage,
-  fetchCost,
-  fetchPerformance,
   fetchOrg,
   apiGetMe,
   apiLogout,
@@ -100,20 +97,8 @@ describe("API auth headers", () => {
     registerAuthAssertingHandlers();
   });
 
-  it("fetchOverview sends Authorization header", async () => {
-    await expect(fetchOverview({ period: "7d" })).resolves.toBeDefined();
-  });
-
   it("fetchUsage sends Authorization header", async () => {
     await expect(fetchUsage({ period: "7d" })).resolves.toBeDefined();
-  });
-
-  it("fetchCost sends Authorization header", async () => {
-    await expect(fetchCost({ period: "7d" })).resolves.toBeDefined();
-  });
-
-  it("fetchPerformance sends Authorization header", async () => {
-    await expect(fetchPerformance({ period: "7d" })).resolves.toBeDefined();
   });
 
   it("fetchOrg sends Authorization header", async () => {
@@ -145,10 +130,6 @@ describe("API without token returns 401", () => {
   beforeEach(() => {
     setAuthToken(null);
     registerAuthAssertingHandlers();
-  });
-
-  it("fetchOverview rejects when no token is set", async () => {
-    await expect(fetchOverview({ period: "7d" })).rejects.toThrow("Unauthorized");
   });
 
   it("postWidgetQuery rejects when no token is set", async () => {

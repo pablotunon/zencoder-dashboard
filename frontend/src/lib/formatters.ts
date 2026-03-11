@@ -32,17 +32,8 @@ export function formatDuration(ms: number): string {
   return `${ms.toFixed(0)}ms`;
 }
 
-export function formatDate(dateStr: string): string {
-  const date = new Date(dateStr);
-  return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-}
-
 export function formatChangePct(value: number | null): string {
   if (value === null) return "N/A";
   const sign = value >= 0 ? "+" : "";
   return `${sign}${value.toFixed(1)}%`;
-}
-
-export function cn(...classes: (string | boolean | undefined | null)[]): string {
-  return classes.filter(Boolean).join(" ");
 }

@@ -13,35 +13,12 @@ pub enum AgentType {
     General,
 }
 
-impl std::fmt::Display for AgentType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Coding => write!(f, "coding"),
-            Self::Review => write!(f, "review"),
-            Self::Testing => write!(f, "testing"),
-            Self::Ci => write!(f, "ci"),
-            Self::Debugging => write!(f, "debugging"),
-            Self::General => write!(f, "general"),
-        }
-    }
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum EventType {
     RunStarted,
     RunCompleted,
     RunFailed,
-}
-
-impl std::fmt::Display for EventType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::RunStarted => write!(f, "run_started"),
-            Self::RunCompleted => write!(f, "run_completed"),
-            Self::RunFailed => write!(f, "run_failed"),
-        }
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

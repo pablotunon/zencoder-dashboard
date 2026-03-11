@@ -10,10 +10,6 @@ export function setAuthToken(token: string | null): void {
   _token = token;
 }
 
-export function getAuthToken(): string | null {
-  return _token;
-}
-
 export function setOnUnauthorized(callback: (() => void) | null): void {
   _onUnauthorized = callback;
 }
@@ -82,21 +78,6 @@ export async function putJson<T>(url: string, body: unknown): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-export async function patchJson(url: string, body: unknown): Promise<void> {
-  const res = await fetch(url, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json", ...authHeaders() },
-    body: JSON.stringify(body),
-  });
-  if (res.status === 401) {
-    _onUnauthorized?.();
-    throw new Error("Unauthorized");
-  }
-  if (!res.ok) {
-    throw new Error(`API error ${res.status}: ${res.statusText}`);
-  }
-}
-
 export async function deleteJson(url: string): Promise<void> {
   const res = await fetch(url, {
     method: "DELETE",
@@ -146,38 +127,12 @@ export async function apiGetMe(): Promise<AuthUser> {
   return fetchJson(`${BASE_URL}/auth/me`);
 }
 
-export async function fetchOverview(
-  filters: MetricFilters,
-): Promise<import("@/types/api").OverviewResponse> {
-  return fetchJson(`${BASE_URL}/metrics/overview${buildQueryString(filters)}`);
-}
-
 export async function fetchUsage(
   filters: MetricFilters,
 ): Promise<import("@/types/api").UsageResponse> {
   return fetchJson(`${BASE_URL}/metrics/usage${buildQueryString(filters)}`);
 }
 
-export async function fetchCost(
-  filters: MetricFilters,
-): Promise<import("@/types/api").CostResponse> {
-  return fetchJson(`${BASE_URL}/metrics/cost${buildQueryString(filters)}`);
-}
-
-export async function fetchPerformance(
-  filters: MetricFilters,
-): Promise<import("@/types/api").PerformanceResponse> {
-  return fetchJson(
-    `${BASE_URL}/metrics/performance${buildQueryString(filters)}`,
-  );
-}
-
 export async function fetchOrg(): Promise<import("@/types/api").OrgResponse> {
   return fetchJson(`${BASE_URL}/orgs/current`);
-}
-
-export async function fetchHealth(): Promise<
-  import("@/types/api").HealthResponse
-> {
-  return fetchJson(`${BASE_URL}/health`);
 }
