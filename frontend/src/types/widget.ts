@@ -1,4 +1,4 @@
-import type { Period } from "./api";
+import type { Granularity } from "./api";
 
 // 10 chart types: 6 original + gauge, stat, and 2 sealed template-only types
 export type ChartType =
@@ -55,7 +55,7 @@ export interface WidgetConfig {
   metrics: MetricKey[];
   orgMetric?: OrgMetricKey;
   breakdownDimension?: BreakdownDimension;
-  timeRange: { useGlobal: true } | { useGlobal: false; period: Period };
+  timeRange: { useGlobal: true } | { useGlobal: false; start: string; end: string };
   filters?: {
     teams?: string[];
     projects?: string[];
@@ -85,7 +85,7 @@ export interface MetricMeta {
 // Backend response types for POST /api/metrics/widget
 
 export interface WidgetTimeseriesPoint {
-  date: string;
+  timestamp: string;
   value: number;
   is_partial: boolean;
 }
@@ -93,6 +93,7 @@ export interface WidgetTimeseriesPoint {
 export interface WidgetTimeseriesResponse {
   type: "timeseries";
   metric: string;
+  granularity: Granularity;
   summary: { value: number; change_pct: number | null };
   data: WidgetTimeseriesPoint[];
 }

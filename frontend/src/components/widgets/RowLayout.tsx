@@ -4,7 +4,7 @@ import {
   XMarkIcon,
 } from "@heroicons/react/24/outline";
 import { WidgetRenderer } from "./WidgetRenderer";
-import type { Period } from "@/types/api";
+import type { DateRange } from "@/types/api";
 import type { DashboardRow } from "@/types/widget";
 
 /** CSS grid class per column count. */
@@ -17,7 +17,7 @@ const GRID_COLS: Record<1 | 2 | 3 | 4, string> = {
 
 interface RowLayoutProps {
   rows: DashboardRow[];
-  globalPeriod: Period;
+  globalDateRange: DateRange;
   /** When provided, empty slots show a "+" button. */
   onAddWidget?: (rowId: string, slotIndex: number) => void;
   /** When provided, widgets show a remove button. */
@@ -32,7 +32,7 @@ interface RowLayoutProps {
 
 export function RowLayout({
   rows,
-  globalPeriod,
+  globalDateRange,
   onAddWidget,
   onRemoveWidget,
   onRemoveRow,
@@ -74,7 +74,7 @@ export function RowLayout({
                   <WidgetRenderer
                     key={widget.id}
                     widget={widget}
-                    globalPeriod={globalPeriod}
+                    globalDateRange={globalDateRange}
                     onRemove={
                       onRemoveWidget
                         ? () => onRemoveWidget(row.id, slotIndex)

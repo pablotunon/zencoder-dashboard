@@ -65,7 +65,7 @@ function partialOffset(dataLength: number): number | null {
 export function TimeSeriesChart({
   variant = "area",
   data,
-  index = "date",
+  index = "timestamp",
   series: seriesProp,
   config,
   yFormatter,

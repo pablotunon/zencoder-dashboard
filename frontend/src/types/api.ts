@@ -1,5 +1,11 @@
-// Shared enum types
-export type Period = "7d" | "30d" | "90d";
+// Shared types
+export interface DateRange {
+  start: string; // ISO 8601 timestamp
+  end: string; // ISO 8601 timestamp
+}
+
+export type Granularity = "minute" | "hour" | "day" | "week";
+
 export type AgentType =
   | "coding"
   | "review"
@@ -17,7 +23,8 @@ export type UserRole = "admin" | "team_lead" | "viewer";
 
 // Filter parameters shared across metric endpoints
 export interface MetricFilters {
-  period?: Period;
+  start?: string;
+  end?: string;
   teams?: string[];
   projects?: string[];
   agent_types?: AgentType[];
@@ -40,7 +47,7 @@ export interface KpiCards {
 }
 
 export interface TimeSeriesPoint {
-  date: string;
+  timestamp: string;
   runs: number;
   cost: number;
   is_partial?: boolean;
@@ -70,7 +77,7 @@ export interface AdoptionRate {
 }
 
 export interface ActiveUsersTrendPoint {
-  date: string;
+  timestamp: string;
   dau: number;
   wau: number;
   mau: number;
@@ -111,7 +118,7 @@ export interface UsageResponse {
 // --- Cost ---
 
 export interface CostTrendPoint {
-  date: string;
+  timestamp: string;
   cost: number;
   is_partial?: boolean;
 }
@@ -124,7 +131,7 @@ export interface CostBreakdownItem {
 }
 
 export interface CostPerRunTrendPoint {
-  date: string;
+  timestamp: string;
   avg_cost_per_run: number;
   is_partial?: boolean;
 }
@@ -159,7 +166,7 @@ export interface CostResponse {
 // --- Performance ---
 
 export interface SuccessRateTrendPoint {
-  date: string;
+  timestamp: string;
   success_rate: number;
   failure_rate: number;
   error_rate: number;
@@ -167,7 +174,7 @@ export interface SuccessRateTrendPoint {
 }
 
 export interface LatencyTrendPoint {
-  date: string;
+  timestamp: string;
   p50: number;
   p95: number;
   p99: number;
@@ -181,7 +188,7 @@ export interface ErrorBreakdownItem {
 }
 
 export interface QueueWaitTrendPoint {
-  date: string;
+  timestamp: string;
   avg_wait_ms: number;
   p95_wait_ms: number;
   is_partial?: boolean;

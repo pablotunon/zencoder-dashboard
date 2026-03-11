@@ -73,7 +73,8 @@ Wire the updated models and query builder into the API endpoints.
 - Update cache key generation to handle datetime params (round to nearest minute)
 - Run `./scripts/test.sh analytics-api`
 
-### [ ] Step 4: Frontend types and API layer
+### [x] Step 4: Frontend types and API layer
+<!-- chat-id: 9fa2669e-9347-426f-8e19-aabd2e2adc16 -->
 
 Update TypeScript types, API client, and data hooks.
 
