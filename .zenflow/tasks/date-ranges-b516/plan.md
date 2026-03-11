@@ -148,7 +148,8 @@ Update timeseries charts to format timestamps based on granularity.
   - Pass `granularity` from API response to `TimeSeriesChart`
 - Run `./scripts/test.sh frontend`
 
-### [ ] Step 8: E2E tests and full-stack verification
+### [x] Step 8: E2E tests and full-stack verification
+<!-- chat-id: cedf3077-70f3-4244-bc7c-f52dbaec11a3 -->
 
 Update E2E tests and run full integration verification.
 

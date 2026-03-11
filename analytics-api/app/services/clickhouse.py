@@ -314,8 +314,8 @@ def query_active_users_trend(org_id: str, filters: MetricFilters) -> dict[str, A
             user_id
         FROM agent_runs
         WHERE org_id = %(org_id)s
-          AND toDate(started_at) >= %(wide_start)s
-          AND toDate(started_at) < %(end)s
+          AND started_at >= %(wide_start)s
+          AND started_at < %(end)s
           {extra_where}
     """
     wide_result = client.query(
