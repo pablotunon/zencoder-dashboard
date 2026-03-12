@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { METRIC_REGISTRY } from "@/lib/widget-registry";
-import { formatNumber, formatPercent } from "@/lib/formatters";
+import { formatNumber, formatPercent, formatTimestamp } from "@/lib/formatters";
 import { useWidgetData, useMultiMetricWidgetData } from "@/api/widget";
 import { useUsageMetrics, useOrg } from "@/api/hooks";
 import { TimeSeriesChart } from "@/components/charts/TimeSeriesChart";
@@ -150,11 +150,13 @@ function MultiMetricLoader({
     );
   if (!data) return null;
 
-  if (
-    data.type === "merged_timeseries" &&
-    (widget.chartType === "line" || widget.chartType === "area")
-  ) {
-    return <MultiTimeSeriesWidget data={data} variant={widget.chartType} />;
+  if (data.type === "merged_timeseries") {
+    if (widget.chartType === "line" || widget.chartType === "area") {
+      return <MultiTimeSeriesWidget data={data} variant={widget.chartType} />;
+    }
+    if (widget.chartType === "table") {
+      return <MultiTimeseriesTableWidget data={data} />;
+    }
   }
   if (data.type === "merged_breakdown" && widget.chartType === "table") {
     return <MultiTableWidget data={data} />;
@@ -241,6 +243,52 @@ function MultiTableWidget({ data }: { data: MergedBreakdownData }) {
               ))}
             </tr>
           ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// ── Multi-metric timeseries table ────────────────────────────────────
+
+function MultiTimeseriesTableWidget({ data }: { data: MergedTimeseriesData }) {
+  const formatters = useMemo(
+    () =>
+      data.metrics.map((m) => {
+        const meta = METRIC_REGISTRY[m];
+        return meta ? FORMAT_FN[meta.format] : formatNumber;
+      }),
+    [data.metrics],
+  );
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-left text-sm">
+        <thead>
+          <tr className="border-b border-gray-200 text-gray-500">
+            <th className="pb-3 font-medium">Date</th>
+            {data.metrics.map((m) => (
+              <th key={m} className="pb-3 font-medium text-right">
+                {METRIC_REGISTRY[m]?.label ?? m}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-gray-100">
+          {data.data
+            .filter((row) => !row.is_partial)
+            .map((row) => (
+              <tr key={String(row.timestamp)}>
+                <td className="py-2.5 text-gray-900">
+                  {formatTimestamp(String(row.timestamp), data.granularity)}
+                </td>
+                {data.metrics.map((m, i) => (
+                  <td key={m} className="py-2.5 text-right text-gray-600">
+                    {(formatters[i] ?? formatNumber)(Number(row[m] ?? 0))}
+                  </td>
+                ))}
+              </tr>
+            ))}
         </tbody>
       </table>
     </div>

@@ -1,8 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import "@testing-library/jest-dom/vitest";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { WidgetRenderer } from "@/components/widgets/WidgetRenderer";
+import type { MergedTimeseriesData, MergedBreakdownData } from "@/api/widget";
 import type {
   WidgetConfig,
   WidgetTimeseriesResponse,
@@ -31,14 +32,19 @@ const mockWidgetData: {
   error: null,
 };
 
+const mockMultiMetricData: {
+  data: MergedTimeseriesData | MergedBreakdownData | null;
+  isLoading: boolean;
+  error: Error | null;
+} = {
+  data: null,
+  isLoading: false,
+  error: null,
+};
+
 vi.mock("@/api/widget", () => ({
   useWidgetData: () => ({ ...mockWidgetData, refetch: vi.fn() }),
-  useMultiMetricWidgetData: () => ({
-    data: null,
-    isLoading: false,
-    error: null,
-    refetch: vi.fn(),
-  }),
+  useMultiMetricWidgetData: () => ({ ...mockMultiMetricData, refetch: vi.fn() }),
 }));
 
 vi.mock("@/api/hooks", () => ({
@@ -110,6 +116,9 @@ describe("TableWidget", () => {
     mockWidgetData.data = null;
     mockWidgetData.isLoading = false;
     mockWidgetData.error = null;
+    mockMultiMetricData.data = null;
+    mockMultiMetricData.isLoading = false;
+    mockMultiMetricData.error = null;
   });
 
   describe("with timeseries data (no breakdown)", () => {
@@ -205,6 +214,134 @@ describe("TableWidget", () => {
       );
 
       expect(screen.getByText("Agent_type")).toBeInTheDocument();
+    });
+  });
+
+  describe("multi-metric with timeseries data (no breakdown)", () => {
+    it("renders a Date column and one column per metric", () => {
+      mockMultiMetricData.data = {
+        type: "merged_timeseries",
+        metrics: ["run_count", "cost"],
+        granularity: "day",
+        summaries: {
+          run_count: { value: 750, change_pct: 5.0 },
+          cost: { value: 120, change_pct: -2.0 },
+        },
+        data: [
+          { timestamp: "2025-01-01", run_count: 100, cost: 40, is_partial: false },
+          { timestamp: "2025-01-02", run_count: 250, cost: 80, is_partial: false },
+        ],
+      } as MergedTimeseriesData;
+      renderWidget(makeTableWidget({ metrics: ["run_count", "cost"] }));
+
+      expect(screen.getByText("Date")).toBeInTheDocument();
+      expect(screen.getByText("Run Count")).toBeInTheDocument();
+      expect(screen.getByText("Cost (USD)")).toBeInTheDocument();
+    });
+
+    it("renders a row for each timestamp", () => {
+      mockMultiMetricData.data = {
+        type: "merged_timeseries",
+        metrics: ["run_count", "cost"],
+        granularity: "day",
+        summaries: {
+          run_count: { value: 750, change_pct: 5.0 },
+          cost: { value: 120, change_pct: -2.0 },
+        },
+        data: [
+          { timestamp: "2025-01-01", run_count: 100, cost: 40, is_partial: false },
+          { timestamp: "2025-01-02", run_count: 250, cost: 80, is_partial: false },
+        ],
+      } as MergedTimeseriesData;
+      renderWidget(makeTableWidget({ metrics: ["run_count", "cost"] }));
+
+      const rows = screen.getAllByRole("row");
+      // 1 header + 2 data rows
+      expect(rows).toHaveLength(3);
+    });
+
+    it("excludes partial rows", () => {
+      mockMultiMetricData.data = {
+        type: "merged_timeseries",
+        metrics: ["run_count", "cost"],
+        granularity: "day",
+        summaries: {
+          run_count: { value: 750, change_pct: 5.0 },
+          cost: { value: 120, change_pct: null },
+        },
+        data: [
+          { timestamp: "2025-01-01", run_count: 100, cost: 40, is_partial: false },
+          { timestamp: "2025-01-02", run_count: 250, cost: 80, is_partial: true },
+        ],
+      } as MergedTimeseriesData;
+      renderWidget(makeTableWidget({ metrics: ["run_count", "cost"] }));
+
+      const rows = screen.getAllByRole("row");
+      // 1 header + 1 non-partial data row
+      expect(rows).toHaveLength(2);
+    });
+
+    it("displays formatted values for each metric", () => {
+      mockMultiMetricData.data = {
+        type: "merged_timeseries",
+        metrics: ["run_count", "cost"],
+        granularity: "day",
+        summaries: {
+          run_count: { value: 350, change_pct: null },
+          cost: { value: 40, change_pct: null },
+        },
+        data: [
+          { timestamp: "2025-01-01", run_count: 350, cost: 40, is_partial: false },
+        ],
+      } as MergedTimeseriesData;
+      renderWidget(makeTableWidget({ metrics: ["run_count", "cost"] }));
+
+      expect(screen.getByText("350")).toBeInTheDocument();
+      // cost uses currency format: $40.00
+      expect(screen.getByText("$40.00")).toBeInTheDocument();
+    });
+  });
+
+  describe("multi-metric with breakdown data", () => {
+    it("renders dimension column and one column per metric", () => {
+      mockMultiMetricData.data = {
+        type: "merged_breakdown",
+        metrics: ["run_count", "cost"],
+        dimension: "team",
+        data: [
+          { label: "Platform", run_count: 300, cost: 120 },
+          { label: "Backend", run_count: 200, cost: 80 },
+        ],
+      } as MergedBreakdownData;
+      renderWidget(
+        makeTableWidget({ metrics: ["run_count", "cost"], breakdownDimension: "team" }),
+      );
+
+      expect(screen.getByText("Team")).toBeInTheDocument();
+      expect(screen.getByText("Run Count")).toBeInTheDocument();
+      expect(screen.getByText("Cost (USD)")).toBeInTheDocument();
+    });
+
+    it("renders a row for each label", () => {
+      mockMultiMetricData.data = {
+        type: "merged_breakdown",
+        metrics: ["run_count", "cost"],
+        dimension: "team",
+        data: [
+          { label: "Platform", run_count: 300, cost: 120 },
+          { label: "Backend", run_count: 200, cost: 80 },
+        ],
+      } as MergedBreakdownData;
+      renderWidget(
+        makeTableWidget({ metrics: ["run_count", "cost"], breakdownDimension: "team" }),
+      );
+
+      const rows = screen.getAllByRole("row");
+      // 1 header + 2 data rows
+      expect(rows).toHaveLength(3);
+
+      expect(screen.getByText("Platform")).toBeInTheDocument();
+      expect(screen.getByText("Backend")).toBeInTheDocument();
     });
   });
 });
