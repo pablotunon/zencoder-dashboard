@@ -40,7 +40,10 @@ run_tests() {
 
 run_e2e() {
   echo "=== Running E2E tests (Playwright) ==="
-  docker compose --profile testing run --rm --build e2e
+  # Build e2e image separately so --build on `run` doesn't rebuild (and
+  # potentially recreate) already-running services like analytics-api.
+  docker compose --profile testing build e2e
+  docker compose --profile testing run --rm e2e
   echo ""
 }
 
