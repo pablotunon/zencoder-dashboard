@@ -2,6 +2,8 @@
 
 Organizational analytics dashboard for monitoring AI agent usage, cost, and performance across engineering teams. Features multi-tenant authentication, customizable dashboards with drag-and-drop widgets, and real-time event processing.
 
+**Author:** Pablo Tuñón Sánchez — submission for the Senior Software Engineer position at [Zencoder](https://zencoder.ai).
+
 ## Architecture
 
 ```
@@ -99,6 +101,14 @@ open http://localhost:8080
 - Redis Streams consumer groups for async processing
 - ClickHouse rollup tables for fast aggregation queries
 
+## Tech Stack Rationale
+
+- **Rust (Ingestion)** — Zero-cost abstractions for high-throughput event processing; Axum provides async-first HTTP with compile-time safety
+- **Python (API + Worker)** — FastAPI for rapid BFF development with auto-generated OpenAPI docs; mature ClickHouse and PostgreSQL client libraries
+- **TypeScript (Frontend + Simulator)** — React + Vite for fast iteration; Tremor for analytics-grade charts; TanStack Query for server state management
+- **ClickHouse** — Column-oriented engine purpose-built for time-series aggregation at scale
+- **Redis Streams** — Lightweight event bus with consumer groups, avoiding the operational complexity of Kafka for this scale
+
 ## API Endpoints
 
 All `/api/metrics/*` endpoints accept: `period` (`7d`, `30d`, `90d`), `teams`, `projects`, `agent_types` as query parameters.
@@ -128,21 +138,13 @@ All commands run inside Docker containers. No local installs (`npm install`, `pi
 # Rebuild a single service
 docker compose up --build -d <service_name>
 
-# Run all tests
+# Run all tests / single service / E2E
 ./scripts/test.sh
-
-# Run tests for a single service
 ./scripts/test.sh <service_name>
-
-# Run E2E tests (Playwright, requires running stack)
 ./scripts/test.sh e2e
 
 # Manage npm dependencies without leaving Docker
 ./scripts/npm.sh frontend install --save-dev <package>
-
-# Linting
-docker compose exec simulator npm run lint
-docker compose exec ingestion cargo fmt && docker compose exec ingestion cargo clippy
 
 # Stop / full reset
 docker compose down
