@@ -5,6 +5,7 @@ import {
   pickAgentType,
   pickErrorCategory,
   weightedRandom,
+  skewedRandom,
   getOrgEventProfile,
   AGENT_TYPE_WEIGHTS,
   ERROR_DISTRIBUTION,
@@ -214,5 +215,133 @@ describe("Success rate", () => {
 
     const rate = succeeded / n;
     expect(rate).toBeCloseTo(profile.successRate, 1);
+  });
+});
+
+// Per-team agent type distribution tests
+describe("Per-team agent type distributions", () => {
+  it("should produce different CI rates for platform vs frontend teams", () => {
+    const org = ORGS[0]; // Acme
+    const users = generateUsers(org, 42);
+    const projects = generateProjects(org);
+    const ctx = createEventGeneratorContext(org, users, projects);
+
+    const teamCiCounts: Record<string, { ci: number; total: number }> = {};
+    const n = 5000;
+
+    for (let i = 0; i < n; i++) {
+      const events = generateRunEvents(ctx, new Date("2025-01-15T12:00:00Z"));
+      const teamId = events[0].team_id;
+      const agentType = events[0].agent_type;
+
+      if (!teamCiCounts[teamId]) teamCiCounts[teamId] = { ci: 0, total: 0 };
+      teamCiCounts[teamId].total++;
+      if (agentType === "ci") teamCiCounts[teamId].ci++;
+    }
+
+    // Platform team has CI weight 0.25, Frontend has 0.05
+    const platformCiRate = teamCiCounts["team_platform"]
+      ? teamCiCounts["team_platform"].ci / teamCiCounts["team_platform"].total
+      : 0;
+    const frontendCiRate = teamCiCounts["team_frontend"]
+      ? teamCiCounts["team_frontend"].ci / teamCiCounts["team_frontend"].total
+      : 0;
+
+    // Platform should have significantly more CI events than Frontend
+    expect(platformCiRate).toBeGreaterThan(frontendCiRate);
+    expect(platformCiRate).toBeGreaterThan(0.15); // at least 15%
+    expect(frontendCiRate).toBeLessThan(0.15); // less than 15%
+  });
+
+  it("should produce higher coding rate for frontend vs platform teams", () => {
+    const org = ORGS[0]; // Acme
+    const users = generateUsers(org, 42);
+    const projects = generateProjects(org);
+    const ctx = createEventGeneratorContext(org, users, projects);
+
+    const teamCodingCounts: Record<string, { coding: number; total: number }> = {};
+    const n = 5000;
+
+    for (let i = 0; i < n; i++) {
+      const events = generateRunEvents(ctx, new Date("2025-01-15T12:00:00Z"));
+      const teamId = events[0].team_id;
+      const agentType = events[0].agent_type;
+
+      if (!teamCodingCounts[teamId]) teamCodingCounts[teamId] = { coding: 0, total: 0 };
+      teamCodingCounts[teamId].total++;
+      if (agentType === "coding") teamCodingCounts[teamId].coding++;
+    }
+
+    // Frontend has coding weight 0.55, Platform has 0.25
+    const frontendCodingRate = teamCodingCounts["team_frontend"]
+      ? teamCodingCounts["team_frontend"].coding / teamCodingCounts["team_frontend"].total
+      : 0;
+    const platformCodingRate = teamCodingCounts["team_platform"]
+      ? teamCodingCounts["team_platform"].coding / teamCodingCounts["team_platform"].total
+      : 0;
+
+    expect(frontendCodingRate).toBeGreaterThan(platformCodingRate);
+    expect(frontendCodingRate).toBeGreaterThan(0.4); // at least 40%
+  });
+});
+
+// Skewed distribution tests
+describe("skewedRandom", () => {
+  it("should produce values within bounds", () => {
+    for (let i = 0; i < 1000; i++) {
+      const val = skewedRandom(100, 10000, 2.5);
+      expect(val).toBeGreaterThanOrEqual(100);
+      expect(val).toBeLessThanOrEqual(10000);
+    }
+  });
+
+  it("should have median less than mean (right-skewed)", () => {
+    const n = 10000;
+    const values: number[] = [];
+
+    for (let i = 0; i < n; i++) {
+      values.push(skewedRandom(100, 10000, 2.5));
+    }
+
+    values.sort((a, b) => a - b);
+    const median = values[Math.floor(n / 2)];
+    const mean = values.reduce((s, v) => s + v, 0) / n;
+
+    // For a right-skewed distribution, median should be less than mean
+    expect(median).toBeLessThan(mean);
+  });
+
+  it("should produce occasional outliers near the high end", () => {
+    const n = 10000;
+    const max = 10000;
+    const highThreshold = max * 0.8; // 8000
+    let highCount = 0;
+
+    for (let i = 0; i < n; i++) {
+      const val = skewedRandom(0, max, 2.5);
+      if (val >= highThreshold) highCount++;
+    }
+
+    // Outlier mechanism (~2%) plus natural tail should produce some high values
+    // At least 1% should be above 80% of max
+    expect(highCount / n).toBeGreaterThan(0.01);
+    // But not too many — most values should be low
+    expect(highCount / n).toBeLessThan(0.15);
+  });
+
+  it("should cluster most values toward the low end", () => {
+    const n = 10000;
+    const min = 100;
+    const max = 10000;
+    const lowerHalf = min + (max - min) / 2; // 5050
+    let belowHalf = 0;
+
+    for (let i = 0; i < n; i++) {
+      const val = skewedRandom(min, max, 2.5);
+      if (val < lowerHalf) belowHalf++;
+    }
+
+    // With skew=2.5, most values (>70%) should be below the midpoint
+    expect(belowHalf / n).toBeGreaterThan(0.7);
   });
 });

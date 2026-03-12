@@ -12,10 +12,12 @@ export interface Config {
     port: number;
   };
   backfillDays: number;
-  liveEventsPerSec: number;
+  /** When set, overrides the derived live rate. Undefined means "derive from backfill parameters". */
+  liveEventsPerSecOverride: number | undefined;
 }
 
 export function loadConfig(): Config {
+  const envLiveRate = process.env.SIMULATOR_LIVE_EVENTS_PER_SEC;
   return {
     ingestionUrl:
       process.env.INGESTION_URL || "http://localhost:8001",
@@ -34,9 +36,6 @@ export function loadConfig(): Config {
       process.env.SIMULATOR_BACKFILL_DAYS || "90",
       10,
     ),
-    liveEventsPerSec: parseInt(
-      process.env.SIMULATOR_LIVE_EVENTS_PER_SEC || "3",
-      10,
-    ),
+    liveEventsPerSecOverride: envLiveRate ? parseInt(envLiveRate, 10) : undefined,
   };
 }

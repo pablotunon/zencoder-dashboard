@@ -5,6 +5,9 @@ import {
   getActivityMultiplier,
   expectedEventsForDay,
   distributeEventsAcrossHours,
+  getGrowthMultiplier,
+  getDailyNoise,
+  deriveLiveEventsPerSecond,
 } from "../generators/patterns.js";
 
 // SIM-U03: Temporal patterns — weekday > weekend activity
@@ -76,5 +79,163 @@ describe("distributeEventsAcrossHours", () => {
     const distribution = distributeEventsAcrossHours(0);
     expect(distribution).toHaveLength(24);
     expect(distribution.reduce((s, c) => s + c, 0)).toBe(0);
+  });
+});
+
+describe("getGrowthMultiplier", () => {
+  it("should return 1.0 for today (daysAgo=0)", () => {
+    expect(getGrowthMultiplier(0, 90)).toBe(1.0);
+  });
+
+  it("should return 0.6 at the oldest day", () => {
+    expect(getGrowthMultiplier(90, 90)).toBeCloseTo(0.6, 5);
+  });
+
+  it("should monotonically increase toward the present", () => {
+    const values = [];
+    for (let d = 90; d >= 0; d--) {
+      values.push(getGrowthMultiplier(d, 90));
+    }
+    for (let i = 1; i < values.length; i++) {
+      expect(values[i]).toBeGreaterThanOrEqual(values[i - 1]);
+    }
+  });
+
+  it("should be bounded between 0.5 and 1.0", () => {
+    for (let d = 0; d <= 90; d++) {
+      const m = getGrowthMultiplier(d, 90);
+      expect(m).toBeGreaterThanOrEqual(0.5);
+      expect(m).toBeLessThanOrEqual(1.0);
+    }
+  });
+
+  it("should clamp values beyond the backfill range", () => {
+    expect(getGrowthMultiplier(200, 90)).toBeCloseTo(0.6, 5);
+    expect(getGrowthMultiplier(-5, 90)).toBe(1.0);
+  });
+
+  it("should return 1.0 when totalBackfillDays is 0", () => {
+    expect(getGrowthMultiplier(0, 0)).toBe(1.0);
+    expect(getGrowthMultiplier(10, 0)).toBe(1.0);
+  });
+});
+
+describe("getDailyNoise", () => {
+  it("should be deterministic for the same date", () => {
+    const date = new Date("2025-03-15T00:00:00Z");
+    const v1 = getDailyNoise(date);
+    const v2 = getDailyNoise(date);
+    expect(v1).toBe(v2);
+  });
+
+  it("should produce different values for different dates", () => {
+    const d1 = getDailyNoise(new Date("2025-03-15T00:00:00Z"));
+    const d2 = getDailyNoise(new Date("2025-03-16T00:00:00Z"));
+    const d3 = getDailyNoise(new Date("2025-03-17T00:00:00Z"));
+
+    // At least two of the three should differ
+    const allSame = d1 === d2 && d2 === d3;
+    expect(allSame).toBe(false);
+  });
+
+  it("should produce values in a bounded range [0.3, 2.0]", () => {
+    for (let i = 0; i < 365; i++) {
+      const date = new Date(2025, 0, 1 + i);
+      const noise = getDailyNoise(date);
+      expect(noise).toBeGreaterThanOrEqual(0.3);
+      expect(noise).toBeLessThanOrEqual(2.0);
+    }
+  });
+
+  it("should have a mean near 1.0 over many days", () => {
+    const values: number[] = [];
+    for (let i = 0; i < 1000; i++) {
+      const date = new Date(2020, 0, 1 + i);
+      values.push(getDailyNoise(date));
+    }
+    const mean = values.reduce((s, v) => s + v, 0) / values.length;
+    // Mean should be near 1.0 (allowing for anomalies shifting it slightly)
+    expect(mean).toBeGreaterThan(0.85);
+    expect(mean).toBeLessThan(1.15);
+  });
+
+  it("should produce occasional anomalies (spikes and dips)", () => {
+    const values: number[] = [];
+    for (let i = 0; i < 1000; i++) {
+      const date = new Date(2020, 0, 1 + i);
+      values.push(getDailyNoise(date));
+    }
+    const spikes = values.filter((v) => v >= 1.5);
+    const dips = values.filter((v) => v <= 0.5);
+
+    // With ~5% each over 1000 days, we expect roughly 50 of each
+    // but allow wide tolerance since it's seeded PRNG
+    expect(spikes.length).toBeGreaterThan(10);
+    expect(dips.length).toBeGreaterThan(10);
+  });
+});
+
+describe("deriveLiveEventsPerSecond", () => {
+  it("should return a positive rate during peak weekday hours", () => {
+    // Tuesday at 2pm UTC
+    const now = new Date("2025-01-14T14:00:00Z");
+    const rate = deriveLiveEventsPerSecond(now, [200, 120], 90);
+    expect(rate).toBeGreaterThan(0);
+  });
+
+  it("should return a lower rate during night hours than peak hours", () => {
+    // Tuesday at 2pm vs Tuesday at 3am
+    const peak = new Date("2025-01-14T14:00:00Z");
+    const night = new Date("2025-01-14T03:00:00Z");
+
+    const peakRate = deriveLiveEventsPerSecond(peak, [200], 90);
+    const nightRate = deriveLiveEventsPerSecond(night, [200], 90);
+
+    expect(peakRate).toBeGreaterThan(nightRate);
+  });
+
+  it("should return a lower rate on weekends than weekdays", () => {
+    // Tuesday noon vs Sunday noon
+    const weekday = new Date("2025-01-14T12:00:00Z"); // Tuesday
+    const weekend = new Date("2025-01-12T12:00:00Z"); // Sunday
+
+    const weekdayRate = deriveLiveEventsPerSecond(weekday, [200], 90);
+    const weekendRate = deriveLiveEventsPerSecond(weekend, [200], 90);
+
+    expect(weekdayRate).toBeGreaterThan(weekendRate);
+  });
+
+  it("should scale linearly with total baseDailyEvents", () => {
+    const now = new Date("2025-01-14T14:00:00Z");
+
+    const singleOrg = deriveLiveEventsPerSecond(now, [200], 90);
+    const doubleOrg = deriveLiveEventsPerSecond(now, [200, 200], 90);
+
+    // Two orgs with same base should produce ~2x the rate
+    expect(doubleOrg / singleOrg).toBeCloseTo(2.0, 1);
+  });
+
+  it("should produce a rate consistent with backfill event counts", () => {
+    // For a single org with 200 baseDailyEvents on a weekday,
+    // the total daily events = 200 (dayMultiplier=1.0).
+    // At peak hour (multiplier=1.0), the hourly share =
+    //   200 * (1.0 / totalHourWeight).
+    // totalHourWeight = 6*1.0 + 2*0.6 + 1*0.3 + 3*0.2 + 6*0.6 + 6*0.05 = ~8.8
+    // (approximate — let's just verify the relationship holds)
+    const now = new Date("2025-01-14T12:00:00Z"); // Tuesday noon
+    const rate = deriveLiveEventsPerSecond(now, [200], 90);
+
+    // At peak on a normal-noise day, rate should be in a reasonable range.
+    // 200 events/day, peak hour gets ~1/8.8 * 200 ≈ 22.7 events/hour ≈ 0.006 events/sec.
+    // With noise multiplier varying, allow a range.
+    const eventsPerHour = rate * 3600;
+    expect(eventsPerHour).toBeGreaterThan(5);   // at least 5 events/hour
+    expect(eventsPerHour).toBeLessThan(60);     // at most 60 events/hour (noise spike)
+  });
+
+  it("should return 0 when given no orgs", () => {
+    const now = new Date("2025-01-14T14:00:00Z");
+    const rate = deriveLiveEventsPerSecond(now, [], 90);
+    expect(rate).toBe(0);
   });
 });
