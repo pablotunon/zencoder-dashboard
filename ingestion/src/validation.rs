@@ -17,20 +17,20 @@ pub async fn check_org_exists(
         .await
 }
 
+fn require_non_empty(value: &str, field: &str) -> Result<(), String> {
+    if value.is_empty() {
+        Err(format!("{} is required", field))
+    } else {
+        Ok(())
+    }
+}
+
 pub fn validate_event(event: &AgentEvent) -> Result<(), String> {
     // Required string fields must not be empty
-    if event.org_id.is_empty() {
-        return Err("org_id is required".to_string());
-    }
-    if event.team_id.is_empty() {
-        return Err("team_id is required".to_string());
-    }
-    if event.user_id.is_empty() {
-        return Err("user_id is required".to_string());
-    }
-    if event.project_id.is_empty() {
-        return Err("project_id is required".to_string());
-    }
+    require_non_empty(&event.org_id, "org_id")?;
+    require_non_empty(&event.team_id, "team_id")?;
+    require_non_empty(&event.user_id, "user_id")?;
+    require_non_empty(&event.project_id, "project_id")?;
 
     // Timestamp must not be too far in the future
     let now = Utc::now();

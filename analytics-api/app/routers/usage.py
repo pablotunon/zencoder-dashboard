@@ -1,6 +1,4 @@
-import logging
-
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 
 from app.auth.dependencies import get_org_context
 from app.config import settings
@@ -14,11 +12,10 @@ from app.models.responses import (
     TopUser,
     UsageResponse,
 )
+from app.routers._helpers import get_cached_or_none, query_clickhouse, safe_pg_query, set_cache
 from app.services import clickhouse as ch_service
 from app.services import postgres as pg_service
-from app.services import redis_cache
 
-logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
@@ -27,30 +24,37 @@ async def get_usage(
     filters: MetricFilters = Depends(get_metric_filters),
     ctx: OrgContext = Depends(get_org_context),
 ):
-    cache_key = redis_cache.make_cache_key(ctx.org_id, "usage", filters.model_dump(exclude_none=True))
-    cached = redis_cache.get_cached(cache_key)
+    filters_dict = filters.model_dump(exclude_none=True)
+    cached = get_cached_or_none(ctx.org_id, "usage", filters_dict)
     if cached:
         return cached
 
-    try:
-        active_users_trend_data = ch_service.query_active_users_trend(ctx.org_id, filters)
-        agent_type_data = ch_service.query_agent_type_breakdown(ctx.org_id, filters)
-        top_users_data = ch_service.query_top_users(ctx.org_id, filters)
-        project_data = ch_service.query_project_breakdown(ctx.org_id, filters)
-        kpis = ch_service.query_overview_kpis(ctx.org_id, filters)
-    except Exception:
-        logger.exception("ClickHouse query failed for usage metrics")
-        raise HTTPException(status_code=503, detail="Analytics data temporarily unavailable")
+    active_users_trend_data, agent_type_data, top_users_data, project_data, kpis = query_clickhouse(
+        lambda: (
+            ch_service.query_active_users_trend(ctx.org_id, filters),
+            ch_service.query_agent_type_breakdown(ctx.org_id, filters),
+            ch_service.query_top_users(ctx.org_id, filters),
+            ch_service.query_project_breakdown(ctx.org_id, filters),
+            ch_service.query_overview_kpis(ctx.org_id, filters),
+        ),
+        context="usage metrics",
+    )
 
-    try:
-        licensed_users = await pg_service.get_total_licensed_users(ctx.org_id)
-        user_info = await pg_service.get_users(ctx.org_id)
-        project_names = await pg_service.get_project_names(ctx.org_id)
-    except Exception:
-        logger.exception("PostgreSQL query failed for usage enrichment")
-        licensed_users = 0
-        user_info = []
-        project_names = {}
+    licensed_users = await safe_pg_query(
+        lambda: pg_service.get_total_licensed_users(ctx.org_id),
+        default=0,
+        context="licensed users",
+    )
+    user_info = await safe_pg_query(
+        lambda: pg_service.get_users(ctx.org_id),
+        default=[],
+        context="user info",
+    )
+    project_names = await safe_pg_query(
+        lambda: pg_service.get_project_names(ctx.org_id),
+        default={},
+        context="project names",
+    )
 
     user_map = {u["user_id"]: u for u in user_info}
 
@@ -94,5 +98,5 @@ async def get_usage(
         ],
     )
 
-    redis_cache.set_cached(cache_key, response.model_dump(), settings.cache_ttl_metrics)
+    set_cache(ctx.org_id, "usage", response.model_dump(), settings.cache_ttl_metrics, filters_dict)
     return response

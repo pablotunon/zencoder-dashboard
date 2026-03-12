@@ -1,7 +1,6 @@
-import logging
 from datetime import date
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 
 from app.auth.dependencies import get_org_context
 from app.config import settings
@@ -16,11 +15,10 @@ from app.models.responses import (
     TokenBreakdown,
     TokenBreakdownByModel,
 )
+from app.routers._helpers import get_cached_or_none, query_clickhouse, safe_pg_query, set_cache
 from app.services import clickhouse as ch_service
 from app.services import postgres as pg_service
-from app.services import redis_cache
 
-logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
@@ -29,26 +27,27 @@ async def get_cost(
     filters: MetricFilters = Depends(get_metric_filters),
     ctx: OrgContext = Depends(get_org_context),
 ):
-    cache_key = redis_cache.make_cache_key(ctx.org_id, "cost", filters.model_dump(exclude_none=True))
-    cached = redis_cache.get_cached(cache_key)
+    filters_dict = filters.model_dump(exclude_none=True)
+    cached = get_cached_or_none(ctx.org_id, "cost", filters_dict)
     if cached:
         return cached
 
-    try:
-        cost_trend_data = ch_service.query_cost_trend(ctx.org_id, filters)
-        cost_breakdown_data = ch_service.query_cost_breakdown(ctx.org_id, filters)
-        cost_per_run_data = ch_service.query_cost_per_run_trend(ctx.org_id, filters)
-        token_data = ch_service.query_token_breakdown(ctx.org_id, filters)
-        current_spend = ch_service.query_current_month_spend(ctx.org_id)
-    except Exception:
-        logger.exception("ClickHouse query failed for cost metrics")
-        raise HTTPException(status_code=503, detail="Analytics data temporarily unavailable")
+    cost_trend_data, cost_breakdown_data, cost_per_run_data, token_data, current_spend = query_clickhouse(
+        lambda: (
+            ch_service.query_cost_trend(ctx.org_id, filters),
+            ch_service.query_cost_breakdown(ctx.org_id, filters),
+            ch_service.query_cost_per_run_trend(ctx.org_id, filters),
+            ch_service.query_token_breakdown(ctx.org_id, filters),
+            ch_service.query_current_month_spend(ctx.org_id),
+        ),
+        context="cost metrics",
+    )
 
-    try:
-        org = await pg_service.get_org(ctx.org_id)
-    except Exception:
-        logger.exception("PostgreSQL query failed for org budget info")
-        org = None
+    org = await safe_pg_query(
+        lambda: pg_service.get_org(ctx.org_id),
+        default=None,
+        context="org budget info",
+    )
 
     monthly_budget = float(org["monthly_budget"]) if org and org.get("monthly_budget") else None
 
@@ -78,5 +77,5 @@ async def get_cost(
         ),
     )
 
-    redis_cache.set_cached(cache_key, response.model_dump(), settings.cache_ttl_metrics)
+    set_cache(ctx.org_id, "cost", response.model_dump(), settings.cache_ttl_metrics, filters_dict)
     return response

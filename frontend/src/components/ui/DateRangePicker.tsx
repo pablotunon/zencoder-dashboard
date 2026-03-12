@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo, type ChangeEvent } from "react";
+import { useOutsideClick } from "@/hooks/useOutsideClick";
 import { DayPicker, getDefaultClassNames } from "react-day-picker";
 import "react-day-picker/style.css";
 import { CalendarIcon, ClockIcon, XMarkIcon } from "@heroicons/react/24/outline";
@@ -212,32 +213,9 @@ export function DateRangePicker({ value, onChange }: DateRangePickerProps) {
     }
   }, [open, value]);
 
-  // Close on outside click
-  useEffect(() => {
-    if (!open) return;
-    const handleClick = (e: MouseEvent) => {
-      if (
-        popoverRef.current &&
-        !popoverRef.current.contains(e.target as Node) &&
-        triggerRef.current &&
-        !triggerRef.current.contains(e.target as Node)
-      ) {
-        setOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, [open]);
-
-  // Close on Escape
-  useEffect(() => {
-    if (!open) return;
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("keydown", handleKey);
-    return () => document.removeEventListener("keydown", handleKey);
-  }, [open]);
+  // Close on outside click or Escape
+  const closePicker = useCallback(() => setOpen(false), []);
+  useOutsideClick([popoverRef, triggerRef], closePicker, open);
 
   const handlePreset = useCallback((index: number) => {
     const range = DATE_RANGE_PRESETS[index].getRange();
