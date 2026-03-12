@@ -15,7 +15,6 @@ from app.models.responses import (
 )
 from app.services.clickhouse import (
     _is_current_bucket,
-    _is_today,
     period_to_dates,
     previous_period_dates,
     previous_range,

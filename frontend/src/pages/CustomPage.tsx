@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from "react";
+import { useOutsideClick } from "@/hooks/useOutsideClick";
 import { useParams, Navigate } from "react-router-dom";
 import { ChevronDownIcon, PencilIcon } from "@heroicons/react/24/outline";
 import { usePage, usePages, useUpdatePage } from "@/api/pages";
@@ -112,20 +113,9 @@ export function CustomPage() {
     }
   }, [editingName]);
 
-  // Close icon picker on outside click
-  useEffect(() => {
-    if (!iconPickerOpen) return;
-    const handleClick = (e: MouseEvent) => {
-      if (
-        iconPickerRef.current &&
-        !iconPickerRef.current.contains(e.target as Node)
-      ) {
-        setIconPickerOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, [iconPickerOpen]);
+  // Close icon picker on outside click or Escape
+  const closeIconPicker = useCallback(() => setIconPickerOpen(false), []);
+  useOutsideClick(iconPickerRef, closeIconPicker, iconPickerOpen);
 
   const startEditingName = () => {
     if (!page) return;

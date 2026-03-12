@@ -1,81 +1,19 @@
 import { useMemo } from "react";
-import {
-  Area,
-  AreaChart,
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Cell,
-  Pie,
-  PieChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
-import { XMarkIcon, InformationCircleIcon, FunnelIcon } from "@heroicons/react/24/outline";
 import { METRIC_REGISTRY } from "@/lib/widget-registry";
-import { AGENT_TYPE_LABELS } from "@/lib/constants";
+import { formatNumber, formatPercent, formatTimestamp } from "@/lib/formatters";
 import { useWidgetData, useMultiMetricWidgetData } from "@/api/widget";
 import { useUsageMetrics, useOrg } from "@/api/hooks";
 import { TimeSeriesChart } from "@/components/charts/TimeSeriesChart";
-import { ChartContainer, type ChartConfig } from "@/components/ui/chart";
-import { Skeleton } from "@/components/ui/Skeleton";
+import { type ChartConfig } from "@/components/ui/chart";
 import { ErrorState } from "@/components/ui/ErrorState";
-import {
-  formatNumber,
-  formatCurrency,
-  formatPercent,
-  formatDuration,
-  formatChangePct,
-  formatTimestamp,
-} from "@/lib/formatters";
-import type { DateRange, Granularity } from "@/types/api";
-import type {
-  WidgetConfig,
-  ValueFormat,
-  MetricKey,
-  MetricMeta,
-  WidgetTimeseriesResponse,
-  WidgetBreakdownResponse,
-} from "@/types/widget";
+import { FORMAT_FN, resolveEffectiveDateRange, primaryMetric } from "./widget-helpers";
+import { WidgetCard, WidgetSkeleton } from "./WidgetCard";
+import { SingleChartDispatch } from "./ChartWidgets";
+import type { DateRange } from "@/types/api";
+import type { WidgetConfig } from "@/types/widget";
 import type { MergedTimeseriesData, MergedBreakdownData } from "@/api/widget";
 
-// ── Helpers ─────────────────────────────────────────────────────────────────
-
-const FORMAT_FN: Record<ValueFormat, (v: number) => string> = {
-  number: formatNumber,
-  currency: formatCurrency,
-  percent: formatPercent,
-  duration: formatDuration,
-};
-
-const PIE_COLORS = [
-  "#6366f1",
-  "#8b5cf6",
-  "#10b981",
-  "#f59e0b",
-  "#ef4444",
-  "#06b6d4",
-  "#f43f5e",
-  "#14b8a6",
-  "#059669",
-  "#0d9488",
-];
-
-function resolveEffectiveDateRange(
-  widget: WidgetConfig,
-  globalDateRange: DateRange,
-): DateRange {
-  if (widget.timeRange.useGlobal) return globalDateRange;
-  return { start: widget.timeRange.start, end: widget.timeRange.end };
-}
-
-function primaryMetric(widget: WidgetConfig): MetricKey {
-  return widget.metrics[0] ?? "run_count";
-}
-
-// ── Public API ──────────────────────────────────────────────────────────────
+// ── Public API ──────────────────────────────────────────────────────────
 
 interface WidgetRendererProps {
   widget: WidgetConfig;
@@ -141,7 +79,7 @@ export function WidgetRenderer({
   );
 }
 
-// ── Single-metric widget (original path) ─────────────────────────────────
+// ── Single-metric widget ────────────────────────────────────────────────
 
 function SingleMetricWidget({
   widget,
@@ -188,7 +126,7 @@ function SingleMetricWidget({
   );
 }
 
-// ── Multi-metric loader ──────────────────────────────────────────────────
+// ── Multi-metric loader ─────────────────────────────────────────────────
 
 function MultiMetricLoader({
   widget,
@@ -212,11 +150,13 @@ function MultiMetricLoader({
     );
   if (!data) return null;
 
-  if (
-    data.type === "merged_timeseries" &&
-    (widget.chartType === "line" || widget.chartType === "area")
-  ) {
-    return <MultiTimeSeriesWidget data={data} variant={widget.chartType} />;
+  if (data.type === "merged_timeseries") {
+    if (widget.chartType === "line" || widget.chartType === "area") {
+      return <MultiTimeSeriesWidget data={data} variant={widget.chartType} />;
+    }
+    if (widget.chartType === "table") {
+      return <MultiTimeseriesTableWidget data={data} />;
+    }
   }
   if (data.type === "merged_breakdown" && widget.chartType === "table") {
     return <MultiTableWidget data={data} />;
@@ -225,7 +165,7 @@ function MultiMetricLoader({
   return null;
 }
 
-// ── Multi-metric time-series ─────────────────────────────────────────────
+// ── Multi-metric time-series ────────────────────────────────────────────
 
 function MultiTimeSeriesWidget({
   data,
@@ -265,7 +205,7 @@ function MultiTimeSeriesWidget({
   );
 }
 
-// ── Multi-metric table ───────────────────────────────────────────────────
+// ── Multi-metric table ──────────────────────────────────────────────────
 
 function MultiTableWidget({ data }: { data: MergedBreakdownData }) {
   const formatters = useMemo(
@@ -309,7 +249,53 @@ function MultiTableWidget({ data }: { data: MergedBreakdownData }) {
   );
 }
 
-// ── Gauge widget (progress bar toward org metric) ────────────────────────
+// ── Multi-metric timeseries table ────────────────────────────────────
+
+function MultiTimeseriesTableWidget({ data }: { data: MergedTimeseriesData }) {
+  const formatters = useMemo(
+    () =>
+      data.metrics.map((m) => {
+        const meta = METRIC_REGISTRY[m];
+        return meta ? FORMAT_FN[meta.format] : formatNumber;
+      }),
+    [data.metrics],
+  );
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-left text-sm">
+        <thead>
+          <tr className="border-b border-gray-200 text-gray-500">
+            <th className="pb-3 font-medium">Date</th>
+            {data.metrics.map((m) => (
+              <th key={m} className="pb-3 font-medium text-right">
+                {METRIC_REGISTRY[m]?.label ?? m}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-gray-100">
+          {data.data
+            .filter((row) => !row.is_partial)
+            .map((row) => (
+              <tr key={String(row.timestamp)}>
+                <td className="py-2.5 text-gray-900">
+                  {formatTimestamp(String(row.timestamp), data.granularity)}
+                </td>
+                {data.metrics.map((m, i) => (
+                  <td key={m} className="py-2.5 text-right text-gray-600">
+                    {(formatters[i] ?? formatNumber)(Number(row[m] ?? 0))}
+                  </td>
+                ))}
+              </tr>
+            ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// ── Gauge widget (progress bar toward org metric) ───────────────────────
 
 function GaugeWidgetLoader({
   widget,
@@ -403,7 +389,7 @@ function GaugeWidgetLoader({
   );
 }
 
-// ── Stat widget (value / denominator) ────────────────────────────────────
+// ── Stat widget (value / denominator) ───────────────────────────────────
 
 function StatWidgetLoader({
   widget,
@@ -458,7 +444,7 @@ function StatWidgetLoader({
   );
 }
 
-// ── Sealed: Active Users Trend (DAU/WAU/MAU) ─────────────────────────────
+// ── Sealed: Active Users Trend (DAU/WAU/MAU) ────────────────────────────
 
 const ACTIVE_USERS_CONFIG: ChartConfig = {
   dau: { label: "DAU", color: "#6366f1" },
@@ -489,7 +475,7 @@ function ActiveUsersTrendWidget({ dateRange }: { dateRange: DateRange }) {
   );
 }
 
-// ── Sealed: Top Users ────────────────────────────────────────────────────
+// ── Sealed: Top Users ───────────────────────────────────────────────────
 
 function TopUsersWidget({ dateRange }: { dateRange: DateRange }) {
   const { data, isLoading, error, refetch } = useUsageMetrics({ start: dateRange.start, end: dateRange.end });
@@ -532,576 +518,6 @@ function TopUsersWidget({ dateRange }: { dateRange: DateRange }) {
                 {user.last_active
                   ? new Date(user.last_active).toLocaleDateString()
                   : "\u2014"}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-// ── Card wrapper ────────────────────────────────────────────────────────
-
-function WidgetCard({
-  title,
-  subtitle,
-  tooltip,
-  filters,
-  onRemove,
-  children,
-}: {
-  title: string;
-  subtitle?: string;
-  tooltip?: string;
-  filters?: WidgetConfig["filters"];
-  onRemove?: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="rounded-lg border border-gray-200 bg-white p-6">
-      <div className="mb-4 flex items-center justify-between">
-        <div className="min-w-0">
-          <div className="flex items-center gap-1.5">
-            <h2 className="text-base font-medium text-gray-900">{title}</h2>
-            {tooltip && (
-              <div className="group relative">
-                <InformationCircleIcon className="h-4 w-4 shrink-0 text-gray-400 hover:text-gray-600" />
-                <div className="pointer-events-none absolute left-1/2 top-full z-50 mt-1.5 hidden w-64 -translate-x-1/2 rounded-md border border-gray-200 bg-white p-3 text-xs leading-relaxed text-gray-600 shadow-lg group-hover:block">
-                  {tooltip}
-                </div>
-              </div>
-            )}
-            <FilterIndicator filters={filters} />
-          </div>
-          {subtitle && (
-            <p className="mt-0.5 text-sm text-gray-500">{subtitle}</p>
-          )}
-        </div>
-        {onRemove && (
-          <button
-            onClick={onRemove}
-            className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
-            aria-label="Remove widget"
-          >
-            <XMarkIcon className="h-4 w-4" />
-          </button>
-        )}
-      </div>
-      {children}
-    </div>
-  );
-}
-
-// ── Filter indicator (funnel icon + hover tooltip) ───────────────────────
-
-function FilterIndicator({
-  filters,
-}: {
-  filters?: WidgetConfig["filters"];
-}) {
-  const { data: org } = useOrg();
-
-  const hasFilters =
-    filters &&
-    ((filters.teams?.length ?? 0) > 0 ||
-      (filters.projects?.length ?? 0) > 0 ||
-      (filters.agent_types?.length ?? 0) > 0);
-
-  if (!hasFilters) return null;
-
-  const teamNames = (filters.teams ?? []).map((id) => {
-    const team = org?.teams?.find((t) => t.team_id === id);
-    return team?.name ?? id;
-  });
-
-  const projectNames = (filters.projects ?? []).map((id) => {
-    const project = org?.projects?.find((p) => p.project_id === id);
-    return project?.name ?? id;
-  });
-
-  const agentTypeNames = (filters.agent_types ?? []).map(
-    (key) => AGENT_TYPE_LABELS[key] ?? key,
-  );
-
-  return (
-    <div className="group relative">
-      <FunnelIcon className="h-4 w-4 shrink-0 text-indigo-400 hover:text-indigo-600" />
-      <div className="pointer-events-none absolute left-1/2 top-full z-50 mt-1.5 hidden w-56 -translate-x-1/2 rounded-md border border-gray-200 bg-white p-3 text-xs leading-relaxed text-gray-600 shadow-lg group-hover:block">
-        <p className="mb-1.5 font-medium text-gray-900">Active Filters</p>
-        {teamNames.length > 0 && (
-          <p>
-            <span className="font-medium text-gray-700">Teams:</span>{" "}
-            {teamNames.join(", ")}
-          </p>
-        )}
-        {projectNames.length > 0 && (
-          <p>
-            <span className="font-medium text-gray-700">Projects:</span>{" "}
-            {projectNames.join(", ")}
-          </p>
-        )}
-        {agentTypeNames.length > 0 && (
-          <p>
-            <span className="font-medium text-gray-700">Agent Types:</span>{" "}
-            {agentTypeNames.join(", ")}
-          </p>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ── Loading skeleton per chart type ─────────────────────────────────────
-
-function WidgetSkeleton({ chartType }: { chartType: string }) {
-  if (chartType === "kpi" || chartType === "gauge" || chartType === "stat") {
-    return (
-      <div className="space-y-2">
-        <Skeleton className="h-9 w-28" />
-        <Skeleton className="h-4 w-20" />
-      </div>
-    );
-  }
-  if (chartType === "table" || chartType === "top_users") {
-    return (
-      <div className="space-y-2">
-        {Array.from({ length: 5 }).map((_, i) => (
-          <Skeleton key={i} className="h-8 w-full" />
-        ))}
-      </div>
-    );
-  }
-  return <Skeleton className="h-64 w-full" />;
-}
-
-// ── Single-metric chart dispatch ────────────────────────────────────────
-
-function SingleChartDispatch({
-  widget,
-  data,
-  formatter,
-  color,
-}: {
-  widget: WidgetConfig;
-  data: WidgetTimeseriesResponse | WidgetBreakdownResponse;
-  formatter: (v: number) => string;
-  color: string;
-}) {
-  const metric = primaryMetric(widget);
-
-  switch (widget.chartType) {
-    case "kpi":
-      return data.type === "timeseries" ? (
-        <KpiWidget
-          data={data}
-          formatter={formatter}
-          metricMeta={METRIC_REGISTRY[metric]}
-        />
-      ) : null;
-
-    case "line":
-    case "area":
-      return data.type === "timeseries" ? (
-        <TimeSeriesWidget
-          data={data}
-          variant={widget.chartType}
-          formatter={formatter}
-          color={color}
-          metricKey={metric}
-          metricLabel={METRIC_REGISTRY[metric]?.label ?? metric}
-          granularity={data.granularity}
-        />
-      ) : null;
-
-    case "bar":
-      if (data.type === "breakdown") {
-        return (
-          <BreakdownBarWidget data={data} formatter={formatter} color={color} />
-        );
-      }
-      return (
-        <TimeSeriesWidget
-          data={data as WidgetTimeseriesResponse}
-          variant="bar"
-          formatter={formatter}
-          color={color}
-          metricKey={metric}
-          metricLabel={METRIC_REGISTRY[metric]?.label ?? metric}
-          granularity={(data as WidgetTimeseriesResponse).granularity}
-        />
-      );
-
-    case "pie":
-      return data.type === "breakdown" ? (
-        <PieWidget data={data} formatter={formatter} />
-      ) : null;
-
-    case "table":
-      return data.type === "breakdown" ? (
-        <SingleTableWidget data={data} formatter={formatter} />
-      ) : null;
-
-    default:
-      return null;
-  }
-}
-
-// ── KPI widget ──────────────────────────────────────────────────────────
-
-function KpiWidget({
-  data,
-  formatter,
-  metricMeta,
-}: {
-  data: WidgetTimeseriesResponse;
-  formatter: (v: number) => string;
-  metricMeta?: MetricMeta;
-}) {
-  const { value, change_pct } = data.summary;
-  const changePositive = change_pct !== null ? change_pct >= 0 : null;
-
-  // Derive previous period value: prevValue = value / (1 + change_pct / 100)
-  const prevValue = useMemo(() => {
-    if (change_pct === null || change_pct === -100) return null;
-    return value / (1 + change_pct / 100);
-  }, [value, change_pct]);
-
-  // Sparkline data: exclude partial buckets
-  const sparklineData = useMemo(
-    () => data.data.filter((p) => !p.is_partial),
-    [data.data],
-  );
-
-  // Period high/low from non-partial data
-  const { low, high } = useMemo(() => {
-    if (sparklineData.length === 0) return { low: null, high: null };
-    let lo = sparklineData[0]!.value;
-    let hi = sparklineData[0]!.value;
-    for (const p of sparklineData) {
-      if (p.value < lo) lo = p.value;
-      if (p.value > hi) hi = p.value;
-    }
-    return { low: lo, high: hi };
-  }, [sparklineData]);
-
-  const sparklineColor = metricMeta?.color ?? "#6366f1";
-
-  return (
-    <div>
-      {/* Value + sparkline row */}
-      <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0">
-          <p className="text-3xl font-semibold text-gray-900">
-            {formatter(value)}
-          </p>
-          {change_pct !== null && (
-            <p
-              className={`mt-1 text-sm font-medium ${
-                change_pct === 0
-                  ? "text-gray-500"
-                  : changePositive
-                    ? "text-green-600"
-                    : "text-red-600"
-              }`}
-            >
-              {formatChangePct(change_pct)}{" "}
-              <span className="font-normal text-gray-500">vs prev period</span>
-            </p>
-          )}
-          {prevValue !== null && (
-            <p className="mt-0.5 text-xs text-gray-400">
-              was {formatter(prevValue)}
-            </p>
-          )}
-        </div>
-        {sparklineData.length > 1 && (
-          <div className="h-12 w-24 shrink-0">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={sparklineData}>
-                <defs>
-                  <linearGradient id={`kpi-fill-${metricMeta?.key ?? "default"}`} x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor={sparklineColor} stopOpacity={0.3} />
-                    <stop offset="100%" stopColor={sparklineColor} stopOpacity={0.05} />
-                  </linearGradient>
-                </defs>
-                <Area
-                  type="monotone"
-                  dataKey="value"
-                  stroke={sparklineColor}
-                  strokeWidth={1.5}
-                  fill={`url(#kpi-fill-${metricMeta?.key ?? "default"})`}
-                  isAnimationActive={false}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        )}
-      </div>
-
-      {/* Period high/low */}
-      {low !== null && high !== null && (
-        <>
-          <div className="mt-3 border-t border-dashed border-gray-200" />
-          <p className="mt-2 text-xs text-gray-400">
-            {low === high ? (
-              <>Constant {formatter(low)}</>
-            ) : (
-              <>
-                Low {formatter(low)}{" "}
-                <span className="mx-1 text-gray-300">&middot;</span> High{" "}
-                {formatter(high)}
-              </>
-            )}
-          </p>
-        </>
-      )}
-    </div>
-  );
-}
-
-// ── Time-series widget (line / area / bar) ──────────────────────────────
-
-function TimeSeriesWidget({
-  data,
-  variant,
-  formatter,
-  color,
-  metricKey,
-  metricLabel,
-  granularity,
-}: {
-  data: WidgetTimeseriesResponse;
-  variant: "line" | "area" | "bar";
-  formatter: (v: number) => string;
-  color: string;
-  metricKey: string;
-  metricLabel: string;
-  granularity?: Granularity;
-}) {
-  const chartData = useMemo(
-    () =>
-      data.data.map((p) => ({
-        timestamp: p.timestamp,
-        [metricKey]: p.value,
-        is_partial: p.is_partial,
-      })),
-    [data.data, metricKey],
-  );
-
-  const config: ChartConfig = useMemo(
-    () => ({ [metricKey]: { label: metricLabel, color } }),
-    [metricKey, metricLabel, color],
-  );
-
-  if (variant === "bar") {
-    return (
-      <ChartContainer config={config} className="h-64 w-full">
-        <BarChart data={chartData} accessibilityLayer>
-          <CartesianGrid vertical={false} strokeDasharray="3 3" />
-          <XAxis
-            dataKey="timestamp"
-            tickLine={false}
-            axisLine={false}
-            tickFormatter={granularity ? (v: string) => formatTimestamp(v, granularity) : undefined}
-          />
-          <YAxis tickLine={false} axisLine={false} tickFormatter={formatter} />
-          <Tooltip
-            content={({ active, payload, label }) => {
-              if (!active || !payload?.length) return null;
-              return (
-                <div className="rounded-md border border-gray-200 bg-white p-2 text-sm shadow-lg">
-                  <p className="mb-1 font-medium text-gray-900">
-                    {String(label)}
-                  </p>
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="flex items-center gap-1.5">
-                      <span
-                        className="inline-block h-2.5 w-2.5 rounded-full"
-                        style={{ backgroundColor: color }}
-                      />
-                      <span className="text-gray-600">{metricLabel}</span>
-                    </div>
-                    <span className="font-medium text-gray-900">
-                      {formatter(Number(payload[0]?.value ?? 0))}
-                    </span>
-                  </div>
-                </div>
-              );
-            }}
-          />
-          <Bar dataKey={metricKey} fill={color} radius={[4, 4, 0, 0]} />
-        </BarChart>
-      </ChartContainer>
-    );
-  }
-
-  return (
-    <TimeSeriesChart
-      variant={variant}
-      data={chartData}
-      config={config}
-      yFormatter={formatter}
-      valueFormatter={formatter}
-      granularity={granularity}
-    />
-  );
-}
-
-// ── Breakdown bar widget ────────────────────────────────────────────────
-
-function BreakdownBarWidget({
-  data,
-  formatter,
-  color,
-}: {
-  data: WidgetBreakdownResponse;
-  formatter: (v: number) => string;
-  color: string;
-}) {
-  const config: ChartConfig = useMemo(
-    () => ({ value: { label: data.metric, color } }),
-    [data.metric, color],
-  );
-
-  return (
-    <ChartContainer config={config} className="h-64 w-full">
-      <BarChart data={data.data} accessibilityLayer>
-        <CartesianGrid vertical={false} strokeDasharray="3 3" />
-        <XAxis dataKey="label" tickLine={false} axisLine={false} />
-        <YAxis tickLine={false} axisLine={false} tickFormatter={formatter} />
-        <Tooltip
-          content={({ active, payload, label }) => {
-            if (!active || !payload?.length) return null;
-            return (
-              <div className="rounded-md border border-gray-200 bg-white p-2 text-sm shadow-lg">
-                <p className="mb-1 font-medium text-gray-900">
-                  {String(label)}
-                </p>
-                <span className="font-medium text-gray-900">
-                  {formatter(Number(payload[0]?.value ?? 0))}
-                </span>
-              </div>
-            );
-          }}
-        />
-        <Bar dataKey="value" fill={color} radius={[4, 4, 0, 0]} />
-      </BarChart>
-    </ChartContainer>
-  );
-}
-
-// ── Pie widget (donut) ──────────────────────────────────────────────────
-
-function PieWidget({
-  data,
-  formatter,
-}: {
-  data: WidgetBreakdownResponse;
-  formatter: (v: number) => string;
-}) {
-  const config: ChartConfig = useMemo(
-    () =>
-      Object.fromEntries(
-        data.data.map((item, i) => [
-          item.label,
-          { label: item.label, color: PIE_COLORS[i % PIE_COLORS.length] },
-        ]),
-      ),
-    [data.data],
-  );
-
-  return (
-    <div className="flex items-center justify-center gap-6">
-      <ChartContainer config={config} className="h-64 w-64">
-        <PieChart accessibilityLayer>
-          <Tooltip
-            content={({ active, payload }) => {
-              if (!active || !payload?.length) return null;
-              const item = payload[0];
-              if (!item) return null;
-              return (
-                <div className="rounded-md border border-gray-200 bg-white p-2 text-sm shadow-lg">
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="flex items-center gap-1.5">
-                      <span
-                        className="inline-block h-2.5 w-2.5 rounded-full"
-                        style={{
-                          backgroundColor: String(
-                            (item.payload as Record<string, unknown>)?.fill ??
-                              "#888",
-                          ),
-                        }}
-                      />
-                      <span className="text-gray-600">{String(item.name)}</span>
-                    </div>
-                    <span className="font-medium text-gray-900">
-                      {formatter(Number(item.value))}
-                    </span>
-                  </div>
-                </div>
-              );
-            }}
-          />
-          <Pie
-            data={data.data.map((item, i) => ({
-              name: item.label,
-              value: item.value,
-              fill: PIE_COLORS[i % PIE_COLORS.length],
-            }))}
-            dataKey="value"
-            nameKey="name"
-            innerRadius="50%"
-            outerRadius="80%"
-            paddingAngle={2}
-          >
-            {data.data.map((item, i) => (
-              <Cell key={item.label} fill={PIE_COLORS[i % PIE_COLORS.length]} />
-            ))}
-          </Pie>
-        </PieChart>
-      </ChartContainer>
-      <ul className="flex flex-col gap-1.5">
-        {data.data.map((item, i) => (
-          <li key={item.label} className="flex items-center gap-2">
-            <span
-              className="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
-              style={{ backgroundColor: PIE_COLORS[i % PIE_COLORS.length] }}
-            />
-            <span className="text-xs text-gray-600">{item.label}</span>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-// ── Single-metric table widget ──────────────────────────────────────────
-
-function SingleTableWidget({
-  data,
-  formatter,
-}: {
-  data: WidgetBreakdownResponse;
-  formatter: (v: number) => string;
-}) {
-  return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-left text-sm">
-        <thead>
-          <tr className="border-b border-gray-200 text-gray-500">
-            <th className="pb-3 font-medium">
-              {data.dimension.charAt(0).toUpperCase() + data.dimension.slice(1)}
-            </th>
-            <th className="pb-3 font-medium text-right">Value</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-100">
-          {data.data.map((item) => (
-            <tr key={item.label}>
-              <td className="py-2.5 text-gray-900">{item.label}</td>
-              <td className="py-2.5 text-right text-gray-600">
-                {formatter(item.value)}
               </td>
             </tr>
           ))}

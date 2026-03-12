@@ -11,7 +11,7 @@ import {
   expectedEventsForDay,
   distributeEventsAcrossHours,
 } from "./generators/patterns.js";
-import { sendEvents } from "./sender.js";
+import { sendEvents, sleep } from "./sender.js";
 
 async function main() {
   const config = loadConfig();
@@ -117,10 +117,6 @@ async function main() {
   };
 
   await runLiveLoop();
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 main().catch((error) => {

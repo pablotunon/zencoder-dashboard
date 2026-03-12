@@ -9,11 +9,14 @@ use redis::AsyncCommands;
 use serde_json::{json, Value};
 use tower::ServiceExt;
 
-/// Helper: build a router with a mock Redis (connection will fail).
-fn app_with_bad_redis() -> Router {
-    let client = redis::Client::open("redis://localhost:19999").unwrap(); // bad port
-    let state = ingestion::AppState { redis: client };
+fn redis_url() -> String {
+    let host = std::env::var("REDIS_HOST").unwrap_or_else(|_| "redis".to_string());
+    let port = std::env::var("REDIS_PORT").unwrap_or_else(|_| "6379".to_string());
+    format!("redis://{}:{}", host, port)
+}
 
+fn build_app(client: redis::Client) -> Router {
+    let state = ingestion::AppState { redis: client };
     Router::new()
         .route(
             "/ingest/events",
@@ -21,31 +24,23 @@ fn app_with_bad_redis() -> Router {
         )
         .route("/ingest/health", get(ingestion::routes::health::health))
         .with_state(state)
+}
+
+/// Helper: build a router with a mock Redis (connection will fail).
+fn app_with_bad_redis() -> Router {
+    let client = redis::Client::open("redis://localhost:19999").unwrap(); // bad port
+    build_app(client)
 }
 
 /// Helper: build a router with a real Redis connection (for use in Docker).
 fn app_with_real_redis() -> Router {
-    let redis_host = std::env::var("REDIS_HOST").unwrap_or_else(|_| "redis".to_string());
-    let redis_port = std::env::var("REDIS_PORT").unwrap_or_else(|_| "6379".to_string());
-    let url = format!("redis://{}:{}", redis_host, redis_port);
-    let client = redis::Client::open(url.as_str()).unwrap();
-    let state = ingestion::AppState { redis: client };
-
-    Router::new()
-        .route(
-            "/ingest/events",
-            post(ingestion::routes::events::ingest_events),
-        )
-        .route("/ingest/health", get(ingestion::routes::health::health))
-        .with_state(state)
+    let client = redis::Client::open(redis_url().as_str()).unwrap();
+    build_app(client)
 }
 
 /// Helper: get a Redis connection for test setup/teardown.
 async fn redis_conn() -> redis::aio::MultiplexedConnection {
-    let redis_host = std::env::var("REDIS_HOST").unwrap_or_else(|_| "redis".to_string());
-    let redis_port = std::env::var("REDIS_PORT").unwrap_or_else(|_| "6379".to_string());
-    let url = format!("redis://{}:{}", redis_host, redis_port);
-    let client = redis::Client::open(url.as_str()).unwrap();
+    let client = redis::Client::open(redis_url().as_str()).unwrap();
     client.get_multiplexed_async_connection().await.unwrap()
 }
 

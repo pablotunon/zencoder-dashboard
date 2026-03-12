@@ -35,8 +35,8 @@ function authHeaders(): Record<string, string> {
   return {};
 }
 
-export async function fetchJson<T>(url: string): Promise<T> {
-  const res = await fetch(url, { headers: authHeaders() });
+async function request(url: string, init?: RequestInit): Promise<Response> {
+  const res = await fetch(url, init);
   if (res.status === 401) {
     _onUnauthorized?.();
     throw new Error("Unauthorized");
@@ -44,53 +44,37 @@ export async function fetchJson<T>(url: string): Promise<T> {
   if (!res.ok) {
     throw new Error(`API error ${res.status}: ${res.statusText}`);
   }
+  return res;
+}
+
+export async function fetchJson<T>(url: string): Promise<T> {
+  const res = await request(url, { headers: authHeaders() });
   return res.json() as Promise<T>;
 }
 
 export async function postJson<T>(url: string, body: unknown): Promise<T> {
-  const res = await fetch(url, {
+  const res = await request(url, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify(body),
   });
-  if (res.status === 401) {
-    _onUnauthorized?.();
-    throw new Error("Unauthorized");
-  }
-  if (!res.ok) {
-    throw new Error(`API error ${res.status}: ${res.statusText}`);
-  }
   return res.json() as Promise<T>;
 }
 
 export async function putJson<T>(url: string, body: unknown): Promise<T> {
-  const res = await fetch(url, {
+  const res = await request(url, {
     method: "PUT",
     headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify(body),
   });
-  if (res.status === 401) {
-    _onUnauthorized?.();
-    throw new Error("Unauthorized");
-  }
-  if (!res.ok) {
-    throw new Error(`API error ${res.status}: ${res.statusText}`);
-  }
   return res.json() as Promise<T>;
 }
 
 export async function deleteJson(url: string): Promise<void> {
-  const res = await fetch(url, {
+  await request(url, {
     method: "DELETE",
     headers: authHeaders(),
   });
-  if (res.status === 401) {
-    _onUnauthorized?.();
-    throw new Error("Unauthorized");
-  }
-  if (!res.ok) {
-    throw new Error(`API error ${res.status}: ${res.statusText}`);
-  }
 }
 
 // --- Auth API ---

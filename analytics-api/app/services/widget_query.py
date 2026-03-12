@@ -5,6 +5,7 @@ from typing import Any
 
 from app.services.clickhouse import (
     _is_current_bucket,
+    build_filter_clause,
     get_client,
     previous_range,
     resolve_granularity,
@@ -61,25 +62,7 @@ def _build_filter_clause(
     filters: dict[str, list[str] | None] | None,
 ) -> tuple[str, dict[str, Any]]:
     """Build WHERE clause fragment and params dict from widget filters."""
-    if not filters:
-        return "", {}
-
-    clauses: list[str] = []
-    params: dict[str, Any] = {}
-
-    if filters.get("teams"):
-        clauses.append("team_id IN %(team_ids)s")
-        params["team_ids"] = filters["teams"]
-
-    if filters.get("projects"):
-        clauses.append("project_id IN %(project_ids)s")
-        params["project_ids"] = filters["projects"]
-
-    if filters.get("agent_types"):
-        clauses.append("agent_type IN %(agent_types)s")
-        params["agent_types"] = filters["agent_types"]
-
-    return (" AND " + " AND ".join(clauses) if clauses else ""), params
+    return build_filter_clause(filters)
 
 
 def _query_aggregate(

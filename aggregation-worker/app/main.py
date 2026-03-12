@@ -114,37 +114,33 @@ class Worker:
             "Worker stopped. Total events processed: %d", total_processed
         )
 
+    def _wait_for_service(self, name: str, connect_fn, max_attempts: int = 30, sleep_seconds: int = 2):
+        """Try calling *connect_fn* up to *max_attempts* times, exiting on failure."""
+        for attempt in range(max_attempts):
+            try:
+                result = connect_fn()
+                logger.info("Connected to %s", name)
+                return result
+            except Exception:
+                logger.info(
+                    "Waiting for %s (attempt %d/%d)...",
+                    name, attempt + 1, max_attempts,
+                )
+                time.sleep(sleep_seconds)
+        logger.error("Could not connect to %s after %d attempts", name, max_attempts)
+        sys.exit(1)
+
     def _wait_for_redis(self, r: redis_lib.Redis) -> None:
         """Wait for Redis to be available."""
-        for attempt in range(30):
-            try:
-                r.ping()
-                logger.info("Connected to Redis")
-                return
-            except redis_lib.ConnectionError:
-                logger.info(
-                    "Waiting for Redis (attempt %d/30)...", attempt + 1
-                )
-                time.sleep(2)
-        logger.error("Could not connect to Redis after 30 attempts")
-        sys.exit(1)
+        self._wait_for_service("Redis", r.ping)
 
     def _create_ch_client_with_retry(self, config: Config):
         """Create ClickHouse client with retry logic."""
-        for attempt in range(30):
-            try:
-                client = create_ch_client(config)
-                # Test the connection
-                client.query("SELECT 1")
-                logger.info("Connected to ClickHouse")
-                return client
-            except Exception:
-                logger.info(
-                    "Waiting for ClickHouse (attempt %d/30)...", attempt + 1
-                )
-                time.sleep(2)
-        logger.error("Could not connect to ClickHouse after 30 attempts")
-        sys.exit(1)
+        def connect():
+            client = create_ch_client(config)
+            client.query("SELECT 1")
+            return client
+        return self._wait_for_service("ClickHouse", connect)
 
 
 def main():

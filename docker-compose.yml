@@ -2,6 +2,19 @@
 # Run ./scripts/setup-ports.sh to configure ports for this branch.
 # The script manages a marked section in .env (auto-read by docker compose).
 
+x-database-env: &database-env
+  CLICKHOUSE_HOST: clickhouse
+  CLICKHOUSE_PORT: "8123"
+  CLICKHOUSE_USER: default
+  CLICKHOUSE_PASSWORD: clickhouse_dev
+  POSTGRES_HOST: postgres
+  POSTGRES_PORT: "5432"
+  POSTGRES_DB: agenthub
+  POSTGRES_USER: agenthub
+  POSTGRES_PASSWORD: agenthub_dev
+  REDIS_HOST: redis
+  REDIS_PORT: "6379"
+
 services:
   # --- Infrastructure ---
 
@@ -70,17 +83,7 @@ services:
       context: ./analytics-api
       target: prod
     environment:
-      CLICKHOUSE_HOST: clickhouse
-      CLICKHOUSE_PORT: "8123"
-      CLICKHOUSE_USER: default
-      CLICKHOUSE_PASSWORD: clickhouse_dev
-      POSTGRES_HOST: postgres
-      POSTGRES_PORT: "5432"
-      POSTGRES_DB: agenthub
-      POSTGRES_USER: agenthub
-      POSTGRES_PASSWORD: agenthub_dev
-      REDIS_HOST: redis
-      REDIS_PORT: "6379"
+      <<: *database-env
       JWT_SECRET: "dev-secret-change-in-production"
     depends_on:
       clickhouse:
@@ -101,17 +104,7 @@ services:
       context: ./aggregation-worker
       target: prod
     environment:
-      CLICKHOUSE_HOST: clickhouse
-      CLICKHOUSE_PORT: "8123"
-      CLICKHOUSE_USER: default
-      CLICKHOUSE_PASSWORD: clickhouse_dev
-      POSTGRES_HOST: postgres
-      POSTGRES_PORT: "5432"
-      POSTGRES_DB: agenthub
-      POSTGRES_USER: agenthub
-      POSTGRES_PASSWORD: agenthub_dev
-      REDIS_HOST: redis
-      REDIS_PORT: "6379"
+      <<: *database-env
     depends_on:
       clickhouse:
         condition: service_healthy
@@ -125,14 +118,8 @@ services:
       context: ./simulator
       target: prod
     environment:
+      <<: *database-env
       INGESTION_URL: http://ingestion:8001
-      POSTGRES_HOST: postgres
-      POSTGRES_PORT: "5432"
-      POSTGRES_DB: agenthub
-      POSTGRES_USER: agenthub
-      POSTGRES_PASSWORD: agenthub_dev
-      REDIS_HOST: redis
-      REDIS_PORT: "6379"
       SIMULATOR_BACKFILL_DAYS: "90"
       SIMULATOR_LIVE_EVENTS_PER_SEC: "3"
     depends_on:
