@@ -25,11 +25,37 @@ async function globalSetup() {
     console.warn(`[global-setup] Frontend warmup failed:`, e);
   }
 
-  // 2. Warm up the API — first request may be slow
-  try {
-    await ctx.get("/api/health");
-  } catch {
-    // ignore
+  // 2. Wait for the API to be reachable through nginx.
+  //    In CI the analytics-api may become temporarily unavailable (502)
+  //    during heavy data seeding. Retry until it responds or we time out.
+  const maxAttempts = 30;
+  const intervalMs = 2_000;
+  let apiReady = false;
+  for (let i = 1; i <= maxAttempts; i++) {
+    try {
+      const healthResp = await ctx.get("/api/health");
+      if (healthResp.ok()) {
+        apiReady = true;
+        console.log(`[global-setup] API healthy (attempt ${i}/${maxAttempts})`);
+        break;
+      }
+      console.warn(
+        `[global-setup] API returned ${healthResp.status()} (attempt ${i}/${maxAttempts})`,
+      );
+    } catch (err) {
+      console.warn(
+        `[global-setup] API unreachable (attempt ${i}/${maxAttempts}):`,
+        (err as Error).message,
+      );
+    }
+    if (i < maxAttempts) {
+      await new Promise((r) => setTimeout(r, intervalMs));
+    }
+  }
+  if (!apiReady) {
+    throw new Error(
+      `[global-setup] API did not become healthy after ${maxAttempts} attempts (${(maxAttempts * intervalMs) / 1000}s). Aborting tests.`,
+    );
   }
 
   await ctx.dispose();
