@@ -89,9 +89,16 @@ export function SingleChartDispatch({
       ) : null;
 
     case "table":
-      return data.type === "breakdown" ? (
-        <SingleTableWidget data={data} formatter={formatter} />
-      ) : null;
+      if (data.type === "breakdown") {
+        return <SingleTableWidget data={data} formatter={formatter} />;
+      }
+      return (
+        <TimeseriesTableWidget
+          data={data as WidgetTimeseriesResponse}
+          formatter={formatter}
+          metricLabel={METRIC_REGISTRY[metric]?.label ?? metric}
+        />
+      );
 
     default:
       return null;
@@ -418,6 +425,45 @@ function PieWidget({
           </li>
         ))}
       </ul>
+    </div>
+  );
+}
+
+// ── Timeseries table widget (table without breakdown) ────────────────────
+
+function TimeseriesTableWidget({
+  data,
+  formatter,
+  metricLabel,
+}: {
+  data: WidgetTimeseriesResponse;
+  formatter: (v: number) => string;
+  metricLabel: string;
+}) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-left text-sm">
+        <thead>
+          <tr className="border-b border-gray-200 text-gray-500">
+            <th className="pb-3 font-medium">Date</th>
+            <th className="pb-3 font-medium text-right">{metricLabel}</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-gray-100">
+          {data.data
+            .filter((p) => !p.is_partial)
+            .map((point) => (
+              <tr key={point.timestamp}>
+                <td className="py-2.5 text-gray-900">
+                  {formatTimestamp(point.timestamp, data.granularity)}
+                </td>
+                <td className="py-2.5 text-right text-gray-600">
+                  {formatter(point.value)}
+                </td>
+              </tr>
+            ))}
+        </tbody>
+      </table>
     </div>
   );
 }
