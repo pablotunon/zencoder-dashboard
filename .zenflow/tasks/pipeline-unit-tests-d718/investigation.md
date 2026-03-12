@@ -104,9 +104,20 @@ This two-layer defense ensures:
 1. **CI workflow level**: API is confirmed healthy after all heavy operations complete
 2. **Playwright global-setup level**: API is confirmed healthy from inside the e2e container immediately before tests run
 
+### Root Cause Fix: Prevent `--build` from Recreating Running Services
+
+A third CI run revealed the true root cause. The global-setup retry worked correctly — it detected 30 consecutive 502 responses over 60 seconds and aborted with a clear error. But why was the analytics-api down for 60+ seconds when it had just passed the CI health check?
+
+**The `--build` flag on `docker compose run` was recreating the analytics-api container.** When `docker compose --profile testing run --rm --build e2e` executes, docker compose rebuilds **all services in the dependency chain** (e2e → nginx → analytics-api, ingestion, frontend). If the analytics-api image hash changes (e.g., COPY context differs), docker compose recreates the container — stopping the running one and starting a new one. The new container needs time to pass its healthcheck (start_period: 10s + retries), during which nginx returns 502.
+
+**Fix:** Split the build and run into two commands:
+1. `docker compose --profile testing build e2e` — builds images (harmless to running containers)
+2. `docker compose --profile testing run --rm e2e` — runs e2e without triggering rebuilds/recreation
+
+Applied to both:
+- `.github/workflows/ci.yml` (CI pipeline)
+- `scripts/test.sh` (local development)
+
 ### Test Results
 
-All 54 E2E tests passed after the fix, including the previously failing test:
-- `E2E-04a: GET /api/metrics/overview returns 401 without token` — now receives 401 as expected
-
-The global setup logged `API healthy (attempt 1/30)` confirming the retry loop works correctly.
+All 54 E2E tests passed. The analytics-api container ID remained unchanged throughout the test run, confirming no recreation occurred.

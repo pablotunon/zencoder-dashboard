@@ -176,8 +176,11 @@ jobs:
           curl -sf http://localhost:8080/api/health \
             || (echo "API not healthy after seeding" && $DC logs analytics-api --tail=50 && exit 1)
 
+      - name: Build E2E container
+        run: $DC --profile testing build e2e
+
       - name: Run E2E tests
-        run: $DC --profile testing run --rm --build e2e
+        run: $DC --profile testing run --rm e2e
 
       - name: Show service logs on failure
         if: failure()
