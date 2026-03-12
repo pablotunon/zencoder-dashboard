@@ -18,50 +18,50 @@ Do not make assumptions on important decisions — get clarification first.
 
 ## Workflow Steps
 
-### [ ] Step: Technical Specification
+### [x] Step: Technical Specification
 
-Assess the task's difficulty, as underestimating it leads to poor outcomes.
-- easy: Straightforward implementation, trivial bug fix or feature
-- medium: Moderate complexity, some edge cases or caveats to consider
-- hard: Complex logic, many caveats, architectural considerations, or high-risk changes
-
-Create a technical specification for the task that is appropriate for the complexity level:
-- Review the existing codebase architecture and identify reusable components.
-- Define the implementation approach based on established patterns in the project.
-- Identify all source code files that will be created or modified.
-- Define any necessary data model, API, or interface changes.
-- Describe verification steps using the project's test and lint commands.
-
-Save the output to `{@artifacts_path}/spec.md` with:
-- Technical context (language, dependencies)
-- Implementation approach
-- Source code structure changes
-- Data model / API / interface changes
-- Verification approach
-
-If the task is complex enough, create a detailed implementation plan based on `{@artifacts_path}/spec.md`:
-- Break down the work into concrete tasks (incrementable, testable milestones)
-- Each task should reference relevant contracts and include verification steps
-- Replace the Implementation step below with the planned tasks
-
-Rule of thumb for step size: each step should represent a coherent unit of work (e.g., implement a component, add an API endpoint, write tests for a module). Avoid steps that are too granular (single function).
-
-Important: unit tests must be part of each implementation task, not separate tasks. Each task should implement the code and its tests together, if relevant.
-
-Save to `{@artifacts_path}/plan.md`. If the feature is trivial and doesn't warrant this breakdown, keep the Implementation step below as is.
+Difficulty: **Medium**. Spec saved to `.zenflow/tasks/improve-simulator-2364/spec.md`.
 
 ---
 
-### [ ] Step: Implementation
+### [ ] Step: Per-breakdown multipliers and skewed distributions
 
-Implement the task according to the technical specification and general engineering best practices.
+Implement changes 1 and 2 from the spec — the core data realism improvements.
 
-1. Break the task into steps where possible.
-2. Implement the required changes in the codebase
-3. If relevant, write unit tests alongside each change.
-4. Run relevant tests and linters in the end of each step.
-5. Perform basic manual verification if applicable.
-6. After completion, write a report to `{@artifacts_path}/report.md` describing:
-   - What was implemented
-   - How the solution was tested
-   - The biggest issues or challenges encountered
+1. In `events.ts`: Add per-org and per-team profile overrides for `agentTypeWeights`, `modelWeights`, and `preferredTools`. Define distinct profiles for each team (e.g., DevOps → more CI, Frontend → more coding).
+2. In `events.ts`: Add a `skewedRandom(min, max, skew)` utility function that produces right-skewed distributions (median < mean). Apply it to `duration_ms`, `tokens_input`, `tokens_output`, and `queue_wait_ms`.
+3. Update `generateRunEvents` to use team-aware overrides when picking agent type, model, and tools.
+4. Update existing tests in `events.test.ts` and add new tests:
+   - Verify per-team agent type distributions differ (DevOps team generates more CI events than Frontend)
+   - Verify skewed distributions have median < mean and produce occasional outliers
+5. Run tests: `docker compose exec simulator npm run test`
+6. Run lint: `docker compose exec simulator npm run lint`
+
+---
+
+### [ ] Step: Growth trend, daily variance, and anomalies
+
+Implement changes 4 and 5 from the spec — temporal realism improvements.
+
+1. In `patterns.ts`: Add `getGrowthMultiplier(daysAgo, totalBackfillDays)` — linear curve from ~0.6x at 90 days ago to 1.0x today.
+2. In `patterns.ts`: Add `getDailyNoise(date)` — deterministic seeded noise returning multiplier around 1.0 (stddev ~0.15), with ~5% chance of spike (1.5-2.0x) or dip (0.3-0.5x).
+3. In `index.ts`: Apply growth multiplier and daily noise to `dayEventCount` during backfill.
+4. Add tests in `patterns.test.ts`:
+   - Growth multiplier: monotonically increases toward present, bounded [0.5, 1.0]
+   - Daily noise: deterministic for same date, bounded range, mean near 1.0 over many days
+5. Run tests: `docker compose exec simulator npm run test`
+6. Run lint: `docker compose exec simulator npm run lint`
+
+---
+
+### [ ] Step: Align backfill and live mode rates
+
+Implement change 3 from the spec — eliminate the data cliff.
+
+1. In `index.ts`: Derive live event rate from `baseDailyEvents` + current temporal multipliers instead of using a hardcoded rate. Recalculate each minute as the hour changes.
+2. Keep `SIMULATOR_LIVE_EVENTS_PER_SEC` env var as an optional override.
+3. Verify: live mode rate at peak hours should be consistent with what the backfill generates for recent days.
+4. Update any tests affected by the rate derivation logic.
+5. Run tests: `docker compose exec simulator npm run test`
+6. Run lint: `docker compose exec simulator npm run lint`
+7. Write report to `.zenflow/tasks/improve-simulator-2364/report.md`
