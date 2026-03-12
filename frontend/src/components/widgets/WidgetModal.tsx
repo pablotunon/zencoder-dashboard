@@ -68,15 +68,39 @@ export function WidgetModal({ open, onClose, onAdd }: WidgetModalProps) {
   const isCompatible =
     metricMeta !== null && metricMeta.compatibleChartTypes.includes(chartType);
 
-  // Adjust metrics array length when chart type changes
+  // Metrics grouped by category with compatible ones first
+  const metricsByCategory = useMemo(() => {
+    return Object.entries(METRIC_BY_CATEGORY).map(([category, catMetrics]) => {
+      const compatible = catMetrics.filter((m) =>
+        m.compatibleChartTypes.includes(chartType),
+      );
+      const incompatible = catMetrics.filter(
+        (m) => !m.compatibleChartTypes.includes(chartType),
+      );
+      return { category, compatible, incompatible };
+    });
+  }, [chartType]);
+
+  // Adjust metrics array length when chart type changes, and swap out
+  // incompatible selections for the first compatible metric.
   useEffect(() => {
     setMetrics((prev) => {
       const capped = prev.slice(0, Math.max(maxMetrics, 1));
-      // Ensure at least one slot
       if (capped.length === 0) return ["run_count"];
-      return capped;
+
+      const firstCompatible = Object.values(METRIC_REGISTRY).find((m) =>
+        m.compatibleChartTypes.includes(chartType),
+      );
+      const fallback = firstCompatible?.key ?? ("" as MetricKey | "");
+
+      return capped.map((m) => {
+        if (!m) return fallback;
+        const meta = METRIC_REGISTRY[m as MetricKey];
+        if (meta && meta.compatibleChartTypes.includes(chartType)) return m;
+        return fallback;
+      });
     });
-  }, [maxMetrics]);
+  }, [maxMetrics, chartType]);
 
   const setMetricAt = useCallback((index: number, value: MetricKey | "") => {
     setMetrics((prev) => {
@@ -268,25 +292,27 @@ export function WidgetModal({ open, onClose, onAdd }: WidgetModalProps) {
                       className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                     >
                       {!isRequired && <option value="">None</option>}
-                      {Object.entries(METRIC_BY_CATEGORY).map(
-                        ([category, catMetrics]) => (
+                      {metricsByCategory.map(
+                        ({ category, compatible, incompatible }) => (
                           <optgroup key={category} label={category}>
-                            {catMetrics.map((m) => (
+                            {compatible.map((m) => (
                               <option key={m.key} value={m.key}>
                                 {m.label}
+                              </option>
+                            ))}
+                            {incompatible.map((m) => (
+                              <option
+                                key={m.key}
+                                value={m.key}
+                                disabled
+                              >
+                                {m.label} (not available)
                               </option>
                             ))}
                           </optgroup>
                         ),
                       )}
                     </select>
-                    {i === 0 && !isCompatible && metricMeta && (
-                      <p className="mt-1 text-xs text-amber-600">
-                        {metricMeta.label} is not compatible with{" "}
-                        {chartType} charts. Compatible:{" "}
-                        {metricMeta.compatibleChartTypes.join(", ")}
-                      </p>
-                    )}
                   </div>
                 );
               })}

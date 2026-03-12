@@ -18,21 +18,24 @@ Do not make assumptions on important decisions — get clarification first.
 
 ## Workflow Steps
 
-### [ ] Step: Implementation
+### [x] Step: Implementation
+<!-- chat-id: 5ba4d031-8001-4b73-9306-93405c697a68 -->
 
-**Debug requests, questions, and investigations:** answer or investigate first. Do not create a plan upfront — the user needs an answer, not a plan. A plan may become relevant later once the investigation reveals what needs to change.
+#### Investigation findings
 
-**For all other tasks**, before writing any code, assess the scope of the actual change (not the prompt length — a one-sentence prompt can describe a large feature). Scale your approach:
+The stat chart had **zero compatible metrics** in the frontend `METRIC_REGISTRY` — no metric's `compatibleChartTypes` array included `"stat"`. The gauge chart only had `"cost"`. Both chart renderers (`OrgMetricWidgets.tsx`) work with any metric that produces timeseries data, so this was a registry oversight.
 
-- **Trivial** (typo, config tweak, single obvious change): implement directly, no plan needed.
-- **Small** (a few files, clear what to do): write 2–3 sentences in `plan.md` describing what and why, then implement. No substeps.
-- **Medium** (multiple components, design decisions, edge cases): write a plan in `plan.md` with requirements, affected files, key decisions, verification. Break into 3–5 steps.
-- **Large** (new feature, cross-cutting, unclear scope): gather requirements and write a technical spec first (`requirements.md`, `spec.md` in `{@artifacts_path}/`). Then write `plan.md` with concrete steps referencing the spec.
+The metric dropdown in `WidgetModal.tsx` showed all metrics identically with no visual distinction between compatible and incompatible options. Incompatibility only appeared as a warning *after* selection, leaving users confused — especially for stat where nothing worked.
 
-**Skip planning and implement directly when** the task is trivial, or the user explicitly asks to "just do it" / gives a clear direct instruction.
+#### Changes made
 
-To reflect the actual purpose of the first step, you can rename it to something more relevant (e.g., Planning, Investigation). Do NOT remove meta information like comments for any step.
+**Bug fix — `widget-registry.ts`:** Added `"gauge"` and `"stat"` to `compatibleChartTypes` for all 16 metrics, matching what the backend and rendering components already support.
 
-Rule of thumb for step size: each step = a coherent unit of work (component, endpoint, test suite). Not too granular (single function), not too broad (entire feature). Unit tests are part of each step, not separate.
+**UX improvement — `WidgetModal.tsx`:**
+- Metric dropdown now shows compatible metrics first, with incompatible ones grayed out (`disabled`) and labeled "(not available)" at the bottom of each category group.
+- When switching chart types, any currently selected incompatible metric is automatically swapped to the first compatible one, preventing a broken form state.
+- Removed the post-selection incompatibility warning since users can no longer select incompatible metrics.
 
-Update `{@artifacts_path}/plan.md`.
+#### Verification
+- All 56 frontend tests pass
+- 0 lint errors (3 pre-existing warnings unchanged)
