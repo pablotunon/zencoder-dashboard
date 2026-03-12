@@ -29,12 +29,18 @@ The metric dropdown in `WidgetModal.tsx` showed all metrics identically with no 
 
 #### Changes made
 
-**Bug fix — `widget-registry.ts`:** Added `"gauge"` and `"stat"` to `compatibleChartTypes` for all 16 metrics, matching what the backend and rendering components already support.
+**Bug fix — `widget-registry.ts`:** All 16 metrics now list all 8 user-creatable chart types (`line`, `area`, `bar`, `kpi`, `pie`, `table`, `gauge`, `stat`) in `compatibleChartTypes`. The backend has no chart-type restrictions (any metric works with any query shape), and the frontend rendering code handles all metrics generically per chart type. The previous selective compatibility was an oversight that created inconsistencies (e.g., `error_rate` had `bar`/`pie`/`table` but `success_rate` didn't).
 
 **UX improvement — `WidgetModal.tsx`:**
 - Metric dropdown now shows compatible metrics first, with incompatible ones grayed out (`disabled`) and labeled "(not available)" at the bottom of each category group.
 - When switching chart types, any currently selected incompatible metric is automatically swapped to the first compatible one, preventing a broken form state.
 - Removed the post-selection incompatibility warning since users can no longer select incompatible metrics.
+
+**Sealed widgets in create modal — `WidgetModal.tsx` + `widget-registry.ts`:**
+- Sealed chart types (Users Trend, Top Users) now appear in the chart type picker under a "Templates" separator at the bottom.
+- When a sealed type is selected, all metric/breakdown/filter form fields are hidden and a hint explains it's a pre-built template.
+- Only time range and title fields remain visible for sealed types.
+- Validation auto-passes for sealed types; submit sends an empty metrics array.
 
 #### Verification
 - All 56 frontend tests pass
