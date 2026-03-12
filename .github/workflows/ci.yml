@@ -162,6 +162,20 @@ jobs:
             sleep 2
           done
 
+      - name: Verify API still healthy after seeding
+        run: |
+          echo "Re-verifying analytics-api is reachable after data seeding..."
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:8080/api/health > /dev/null 2>&1; then
+              echo "API health check passed (attempt $i)"
+              break
+            fi
+            echo "Attempt $i: API not reachable, retrying..."
+            sleep 2
+          done
+          curl -sf http://localhost:8080/api/health \
+            || (echo "API not healthy after seeding" && $DC logs analytics-api --tail=50 && exit 1)
+
       - name: Run E2E tests
         run: $DC --profile testing run --rm --build e2e
 

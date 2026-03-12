@@ -89,6 +89,21 @@ try { await ctx.get("/api/health"); } catch { /* ignore */ }
 
 This meant that if the analytics-api was down (returning 502 via nginx), tests would proceed anyway and fail with cryptic 502-vs-401 assertion errors.
 
+### Additional Fix: CI Workflow Post-Seeding Health Check
+
+The first fix (global-setup retry) was insufficient. A subsequent CI run showed **all 54 tests** failing with 502, meaning the analytics-api was completely down during the entire test run. The global-setup retry can't help if the API goes down *after* it passed the health check.
+
+Root cause: the CI workflow verified API health **before** the simulator's 90-day backfill (step 2 → "Verify API reachable through nginx"). The heavy seeding phase can cause the analytics-api to crash or become unreachable due to resource pressure on the shared ClickHouse/Postgres/Redis infrastructure. By the time E2E tests run, the API may already be down.
+
+**File: `.github/workflows/ci.yml`** — Added a "Verify API still healthy after seeding" step between "Wait for simulator to seed data" and "Run E2E tests":
+- 30 attempts, 2s apart (60s max wait)
+- Re-verifies `/api/health` through nginx from the host
+- If the API isn't healthy, dumps analytics-api logs and fails the job with a clear error message instead of running tests against a dead backend
+
+This two-layer defense ensures:
+1. **CI workflow level**: API is confirmed healthy after all heavy operations complete
+2. **Playwright global-setup level**: API is confirmed healthy from inside the e2e container immediately before tests run
+
 ### Test Results
 
 All 54 E2E tests passed after the fix, including the previously failing test:
