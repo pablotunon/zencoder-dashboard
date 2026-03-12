@@ -12,6 +12,7 @@ import {
   distributeEventsAcrossHours,
   getGrowthMultiplier,
   getDailyNoise,
+  deriveLiveEventsPerSecond,
 } from "./generators/patterns.js";
 import { sendEvents, sleep } from "./sender.js";
 
@@ -93,9 +94,6 @@ async function main() {
 
   // Step 3: Live mode — generate events for all orgs (round-robin)
   console.log("\n[simulator] === Phase 3: Live Mode ===");
-  console.log(
-    `[simulator] Generating ~${config.liveEventsPerSec} events/sec across ${orgs.length} org(s)...`,
-  );
 
   const liveContexts: EventGeneratorContext[] = orgs.map((org) => {
     const orgUsers = users.filter((u) => u.org_id === org.id);
@@ -103,13 +101,50 @@ async function main() {
     return createEventGeneratorContext(org, orgUsers, orgProjects);
   });
 
-  // Generate events at the configured rate, rotating across orgs
-  const intervalMs = 1000 / config.liveEventsPerSec;
+  // Collect baseDailyEvents for each org (used to derive live rate)
+  const orgBaseDailyEvents = orgs.map(
+    (org) => getOrgEventProfile(org.id).baseDailyEvents,
+  );
+
+  // Derive live rate from backfill parameters, or use override if set
+  let currentRate = config.liveEventsPerSecOverride
+    ?? deriveLiveEventsPerSecond(new Date(), orgBaseDailyEvents, config.backfillDays);
+  let lastRecalcMinute = new Date().getUTCMinutes();
+
+  if (config.liveEventsPerSecOverride !== undefined) {
+    console.log(
+      `[simulator] Live rate override: ${config.liveEventsPerSecOverride} events/sec`,
+    );
+  } else {
+    console.log(
+      `[simulator] Derived live rate: ${currentRate.toFixed(4)} events/sec (~${(currentRate * 3600).toFixed(1)} events/hour)`,
+    );
+  }
+
   let orgIndex = 0;
 
   const runLiveLoop = async () => {
     while (true) {
       try {
+        // Recalculate derived rate every minute (picks up hour/day changes)
+        if (config.liveEventsPerSecOverride === undefined) {
+          const nowMinute = new Date().getUTCMinutes();
+          if (nowMinute !== lastRecalcMinute) {
+            lastRecalcMinute = nowMinute;
+            const newRate = deriveLiveEventsPerSecond(
+              new Date(),
+              orgBaseDailyEvents,
+              config.backfillDays,
+            );
+            if (newRate !== currentRate) {
+              currentRate = newRate;
+              console.log(
+                `[simulator] Live rate updated: ${currentRate.toFixed(4)} events/sec (~${(currentRate * 3600).toFixed(1)} events/hour)`,
+              );
+            }
+          }
+        }
+
         const ctx = liveContexts[orgIndex % liveContexts.length];
         orgIndex++;
         const events = generateRunEvents(ctx, new Date());
@@ -117,6 +152,9 @@ async function main() {
       } catch (error) {
         console.error("[simulator] Live mode error:", error);
       }
+
+      // Interval derived from current rate; guard against zero/negative
+      const intervalMs = currentRate > 0 ? 1000 / currentRate : 60_000;
       await sleep(intervalMs);
     }
   };

@@ -133,6 +133,55 @@ export function getDailyNoise(date: Date): number {
 }
 
 /**
+ * Derive the expected live events-per-second rate for a given moment,
+ * consistent with backfill generation parameters. This ensures the live
+ * mode produces data at the same rate that backfill would have generated
+ * for that time of day/week, eliminating the data cliff between
+ * historical and real-time data.
+ *
+ * The calculation mirrors what the backfill loop does:
+ *   dayEventCount = baseDailyEvents * dayMultiplier * growth * noise
+ *   hourShare     = dayEventCount * (hourWeight / sumOfAllHourWeights)
+ *   eventsPerSec  = hourShare / 3600
+ *
+ * @param now                 Current timestamp
+ * @param orgBaseDailyEvents  Array of baseDailyEvents for each org
+ * @param backfillDays        Total backfill window (for growth multiplier)
+ * @returns Total events per second across all orgs
+ */
+export function deriveLiveEventsPerSecond(
+  now: Date,
+  orgBaseDailyEvents: number[],
+  backfillDays: number,
+): number {
+  const dayOfWeek = now.getUTCDay();
+  const hour = now.getUTCHours();
+
+  const dayMult = getDayMultiplier(dayOfWeek);
+  const hourMult = getHourMultiplier(hour);
+
+  // Sum of all hour weights (same denominator used in distributeEventsAcrossHours)
+  const totalHourWeight = Array.from({ length: 24 }, (_, h) =>
+    getHourMultiplier(h),
+  ).reduce((sum, w) => sum + w, 0);
+
+  const hourFraction = hourMult / totalHourWeight;
+
+  // Growth at daysAgo=0 (today) is always 1.0, but include for correctness
+  const growth = getGrowthMultiplier(0, backfillDays);
+  const noise = getDailyNoise(now);
+
+  let totalPerSecond = 0;
+  for (const baseDailyEvents of orgBaseDailyEvents) {
+    const dayEventCount = baseDailyEvents * dayMult * growth * noise;
+    const hourEvents = dayEventCount * hourFraction;
+    totalPerSecond += hourEvents / 3600;
+  }
+
+  return totalPerSecond;
+}
+
+/**
  * Distribute events across hours of a day based on hour multipliers.
  * Returns an array of 24 counts (one per hour).
  */

@@ -7,6 +7,7 @@ import {
   distributeEventsAcrossHours,
   getGrowthMultiplier,
   getDailyNoise,
+  deriveLiveEventsPerSecond,
 } from "../generators/patterns.js";
 
 // SIM-U03: Temporal patterns — weekday > weekend activity
@@ -171,5 +172,70 @@ describe("getDailyNoise", () => {
     // but allow wide tolerance since it's seeded PRNG
     expect(spikes.length).toBeGreaterThan(10);
     expect(dips.length).toBeGreaterThan(10);
+  });
+});
+
+describe("deriveLiveEventsPerSecond", () => {
+  it("should return a positive rate during peak weekday hours", () => {
+    // Tuesday at 2pm UTC
+    const now = new Date("2025-01-14T14:00:00Z");
+    const rate = deriveLiveEventsPerSecond(now, [200, 120], 90);
+    expect(rate).toBeGreaterThan(0);
+  });
+
+  it("should return a lower rate during night hours than peak hours", () => {
+    // Tuesday at 2pm vs Tuesday at 3am
+    const peak = new Date("2025-01-14T14:00:00Z");
+    const night = new Date("2025-01-14T03:00:00Z");
+
+    const peakRate = deriveLiveEventsPerSecond(peak, [200], 90);
+    const nightRate = deriveLiveEventsPerSecond(night, [200], 90);
+
+    expect(peakRate).toBeGreaterThan(nightRate);
+  });
+
+  it("should return a lower rate on weekends than weekdays", () => {
+    // Tuesday noon vs Sunday noon
+    const weekday = new Date("2025-01-14T12:00:00Z"); // Tuesday
+    const weekend = new Date("2025-01-12T12:00:00Z"); // Sunday
+
+    const weekdayRate = deriveLiveEventsPerSecond(weekday, [200], 90);
+    const weekendRate = deriveLiveEventsPerSecond(weekend, [200], 90);
+
+    expect(weekdayRate).toBeGreaterThan(weekendRate);
+  });
+
+  it("should scale linearly with total baseDailyEvents", () => {
+    const now = new Date("2025-01-14T14:00:00Z");
+
+    const singleOrg = deriveLiveEventsPerSecond(now, [200], 90);
+    const doubleOrg = deriveLiveEventsPerSecond(now, [200, 200], 90);
+
+    // Two orgs with same base should produce ~2x the rate
+    expect(doubleOrg / singleOrg).toBeCloseTo(2.0, 1);
+  });
+
+  it("should produce a rate consistent with backfill event counts", () => {
+    // For a single org with 200 baseDailyEvents on a weekday,
+    // the total daily events = 200 (dayMultiplier=1.0).
+    // At peak hour (multiplier=1.0), the hourly share =
+    //   200 * (1.0 / totalHourWeight).
+    // totalHourWeight = 6*1.0 + 2*0.6 + 1*0.3 + 3*0.2 + 6*0.6 + 6*0.05 = ~8.8
+    // (approximate — let's just verify the relationship holds)
+    const now = new Date("2025-01-14T12:00:00Z"); // Tuesday noon
+    const rate = deriveLiveEventsPerSecond(now, [200], 90);
+
+    // At peak on a normal-noise day, rate should be in a reasonable range.
+    // 200 events/day, peak hour gets ~1/8.8 * 200 ≈ 22.7 events/hour ≈ 0.006 events/sec.
+    // With noise multiplier varying, allow a range.
+    const eventsPerHour = rate * 3600;
+    expect(eventsPerHour).toBeGreaterThan(5);   // at least 5 events/hour
+    expect(eventsPerHour).toBeLessThan(60);     // at most 60 events/hour (noise spike)
+  });
+
+  it("should return 0 when given no orgs", () => {
+    const now = new Date("2025-01-14T14:00:00Z");
+    const rate = deriveLiveEventsPerSecond(now, [], 90);
+    expect(rate).toBe(0);
   });
 });

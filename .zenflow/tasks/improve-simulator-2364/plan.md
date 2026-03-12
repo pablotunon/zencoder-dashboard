@@ -56,7 +56,8 @@ Implement changes 4 and 5 from the spec — temporal realism improvements.
 
 ---
 
-### [ ] Step: Align backfill and live mode rates
+### [x] Step: Align backfill and live mode rates
+<!-- chat-id: f595e30f-0c8b-46ed-999e-9b9107c3adce -->
 
 Implement change 3 from the spec — eliminate the data cliff.
 
