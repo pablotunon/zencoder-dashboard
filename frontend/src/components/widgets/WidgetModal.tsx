@@ -23,13 +23,20 @@ import type {
   WidgetConfig,
 } from "@/types/widget";
 
-// ── Chart type option cards (user-creatable only) ────────────────────────────
+// ── Chart type option cards ──────────────────────────────────────────────────
 
-const CHART_TYPE_OPTIONS = (
+const ALL_CHART_TYPE_OPTIONS = (
   Object.entries(CHART_TYPE_META) as [ChartType, (typeof CHART_TYPE_META)[ChartType]][]
 )
   .filter(([, meta]) => meta.userCreatable)
   .map(([type, meta]) => ({ type, label: meta.label, icon: meta.icon }));
+
+const CONFIGURABLE_CHART_TYPES = ALL_CHART_TYPE_OPTIONS.filter(
+  (opt) => MAX_METRICS[opt.type] > 0,
+);
+const SEALED_CHART_TYPES = ALL_CHART_TYPE_OPTIONS.filter(
+  (opt) => MAX_METRICS[opt.type] === 0,
+);
 
 // ── Props ───────────────────────────────────────────────────────────────────
 
@@ -64,19 +71,44 @@ export function WidgetModal({ open, onClose, onAdd }: WidgetModalProps) {
   const breakdownMode = breakdownModeForChartType(chartType);
   const maxMetrics = MAX_METRICS[chartType];
   const needsOrgMetric = requiresOrgMetric(chartType);
+  const isSealed = maxMetrics === 0;
 
   const isCompatible =
     metricMeta !== null && metricMeta.compatibleChartTypes.includes(chartType);
 
-  // Adjust metrics array length when chart type changes
+  // Metrics grouped by category with compatible ones first
+  const metricsByCategory = useMemo(() => {
+    return Object.entries(METRIC_BY_CATEGORY).map(([category, catMetrics]) => {
+      const compatible = catMetrics.filter((m) =>
+        m.compatibleChartTypes.includes(chartType),
+      );
+      const incompatible = catMetrics.filter(
+        (m) => !m.compatibleChartTypes.includes(chartType),
+      );
+      return { category, compatible, incompatible };
+    });
+  }, [chartType]);
+
+  // Adjust metrics array length when chart type changes, and swap out
+  // incompatible selections for the first compatible metric.
   useEffect(() => {
     setMetrics((prev) => {
       const capped = prev.slice(0, Math.max(maxMetrics, 1));
-      // Ensure at least one slot
       if (capped.length === 0) return ["run_count"];
-      return capped;
+
+      const firstCompatible = Object.values(METRIC_REGISTRY).find((m) =>
+        m.compatibleChartTypes.includes(chartType),
+      );
+      const fallback = firstCompatible?.key ?? ("" as MetricKey | "");
+
+      return capped.map((m) => {
+        if (!m) return fallback;
+        const meta = METRIC_REGISTRY[m as MetricKey];
+        if (meta && meta.compatibleChartTypes.includes(chartType)) return m;
+        return fallback;
+      });
     });
-  }, [maxMetrics]);
+  }, [maxMetrics, chartType]);
 
   const setMetricAt = useCallback((index: number, value: MetricKey | "") => {
     setMetrics((prev) => {
@@ -88,12 +120,13 @@ export function WidgetModal({ open, onClose, onAdd }: WidgetModalProps) {
 
   // Auto-generate title
   const autoTitle = useMemo(() => {
+    const chartLabel = CHART_TYPE_META[chartType]?.label ?? chartType;
+    if (isSealed) return chartLabel;
     const labels = metrics
       .filter((m): m is MetricKey => m !== "")
       .map((m) => METRIC_REGISTRY[m].label);
-    const chartLabel = CHART_TYPE_META[chartType]?.label ?? chartType;
     return labels.length > 0 ? labels.join(", ") : chartLabel;
-  }, [metrics, chartType]);
+  }, [metrics, chartType, isSealed]);
 
   useEffect(() => {
     if (!titleTouched) setTitle(autoTitle);
@@ -126,17 +159,18 @@ export function WidgetModal({ open, onClose, onAdd }: WidgetModalProps) {
 
   // Validation
   const isValid = useMemo(() => {
+    if (isSealed) return true;
     if (!primaryMetric || !isCompatible) return false;
     if (breakdownMode === "required" && !breakdown) return false;
     if (needsOrgMetric && !orgMetric) return false;
     return true;
-  }, [primaryMetric, isCompatible, breakdownMode, breakdown, needsOrgMetric, orgMetric]);
+  }, [isSealed, primaryMetric, isCompatible, breakdownMode, breakdown, needsOrgMetric, orgMetric]);
 
   const handleSubmit = useCallback(() => {
     if (!isValid) return;
 
     const activeMetrics = metrics.filter((m): m is MetricKey => m !== "");
-    if (activeMetrics.length === 0) return;
+    if (!isSealed && activeMetrics.length === 0) return;
 
     const config: Omit<WidgetConfig, "id"> = {
       title: title || autoTitle,
@@ -171,6 +205,7 @@ export function WidgetModal({ open, onClose, onAdd }: WidgetModalProps) {
     onClose();
   }, [
     isValid,
+    isSealed,
     title,
     autoTitle,
     chartType,
@@ -225,7 +260,7 @@ export function WidgetModal({ open, onClose, onAdd }: WidgetModalProps) {
               Chart Type
             </legend>
             <div className="grid grid-cols-4 gap-2">
-              {CHART_TYPE_OPTIONS.map((opt) => (
+              {CONFIGURABLE_CHART_TYPES.map((opt) => (
                 <button
                   key={opt.type}
                   type="button"
@@ -241,10 +276,39 @@ export function WidgetModal({ open, onClose, onAdd }: WidgetModalProps) {
                 </button>
               ))}
             </div>
+            {SEALED_CHART_TYPES.length > 0 && (
+              <>
+                <p className="mb-2 mt-3 text-xs text-gray-400">Templates</p>
+                <div className="grid grid-cols-4 gap-2">
+                  {SEALED_CHART_TYPES.map((opt) => (
+                    <button
+                      key={opt.type}
+                      type="button"
+                      onClick={() => setChartType(opt.type)}
+                      className={`flex flex-col items-center gap-1 rounded-lg border-2 px-2 py-3 text-xs font-medium transition-colors ${
+                        chartType === opt.type
+                          ? "border-indigo-600 bg-indigo-50 text-indigo-700"
+                          : "border-gray-200 text-gray-600 hover:border-gray-300"
+                      }`}
+                    >
+                      <span className="text-lg leading-none">{opt.icon}</span>
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
           </fieldset>
 
+          {/* Sealed type hint */}
+          {isSealed && (
+            <p className="text-sm text-gray-500">
+              This is a pre-built template with fixed metrics and layout. Just pick a time range and add it.
+            </p>
+          )}
+
           {/* Metrics — primary + optional extras */}
-          {maxMetrics > 0 && (
+          {!isSealed && maxMetrics > 0 && (
             <div className="space-y-2">
               {Array.from({ length: Math.min(maxMetrics, 5) }).map((_, i) => {
                 const isRequired = i === 0;
@@ -268,25 +332,27 @@ export function WidgetModal({ open, onClose, onAdd }: WidgetModalProps) {
                       className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                     >
                       {!isRequired && <option value="">None</option>}
-                      {Object.entries(METRIC_BY_CATEGORY).map(
-                        ([category, catMetrics]) => (
+                      {metricsByCategory.map(
+                        ({ category, compatible, incompatible }) => (
                           <optgroup key={category} label={category}>
-                            {catMetrics.map((m) => (
+                            {compatible.map((m) => (
                               <option key={m.key} value={m.key}>
                                 {m.label}
+                              </option>
+                            ))}
+                            {incompatible.map((m) => (
+                              <option
+                                key={m.key}
+                                value={m.key}
+                                disabled
+                              >
+                                {m.label} (not available)
                               </option>
                             ))}
                           </optgroup>
                         ),
                       )}
                     </select>
-                    {i === 0 && !isCompatible && metricMeta && (
-                      <p className="mt-1 text-xs text-amber-600">
-                        {metricMeta.label} is not compatible with{" "}
-                        {chartType} charts. Compatible:{" "}
-                        {metricMeta.compatibleChartTypes.join(", ")}
-                      </p>
-                    )}
                   </div>
                 );
               })}
@@ -294,7 +360,7 @@ export function WidgetModal({ open, onClose, onAdd }: WidgetModalProps) {
           )}
 
           {/* Org metric (gauge/stat) */}
-          {needsOrgMetric && (
+          {!isSealed && needsOrgMetric && (
             <div>
               <label
                 htmlFor="widget-org-metric"
@@ -324,7 +390,7 @@ export function WidgetModal({ open, onClose, onAdd }: WidgetModalProps) {
           )}
 
           {/* Breakdown dimension (contextual) */}
-          {breakdownMode !== "none" && (
+          {!isSealed && breakdownMode !== "none" && (
             <div>
               <label
                 htmlFor="widget-breakdown"
@@ -385,52 +451,54 @@ export function WidgetModal({ open, onClose, onAdd }: WidgetModalProps) {
           </div>
 
           {/* Filters (expandable) */}
-          <div>
-            <button
-              type="button"
-              onClick={() => setShowFilters(!showFilters)}
-              className="text-sm font-medium text-gray-700 hover:text-gray-900"
-            >
-              {showFilters ? "- Hide Filters" : "+ Add Filters"}
-            </button>
+          {!isSealed && (
+            <div>
+              <button
+                type="button"
+                onClick={() => setShowFilters(!showFilters)}
+                className="text-sm font-medium text-gray-700 hover:text-gray-900"
+              >
+                {showFilters ? "- Hide Filters" : "+ Add Filters"}
+              </button>
 
-            {showFilters && (
-              <div className="mt-3 space-y-3 rounded-lg border border-gray-200 p-3">
-                <MultiSelect
-                  label="Team"
-                  options={teams.map((t) => ({
-                    value: t.team_id,
-                    label: t.name,
-                  }))}
-                  selected={filterTeams}
-                  onChange={setFilterTeams}
-                  placeholder="All teams"
-                />
+              {showFilters && (
+                <div className="mt-3 space-y-3 rounded-lg border border-gray-200 p-3">
+                  <MultiSelect
+                    label="Team"
+                    options={teams.map((t) => ({
+                      value: t.team_id,
+                      label: t.name,
+                    }))}
+                    selected={filterTeams}
+                    onChange={setFilterTeams}
+                    placeholder="All teams"
+                  />
 
-                <MultiSelect
-                  label="Project"
-                  options={projects.map((p) => ({
-                    value: p.project_id,
-                    label: p.name,
-                  }))}
-                  selected={filterProjects}
-                  onChange={setFilterProjects}
-                  placeholder="All projects"
-                />
+                  <MultiSelect
+                    label="Project"
+                    options={projects.map((p) => ({
+                      value: p.project_id,
+                      label: p.name,
+                    }))}
+                    selected={filterProjects}
+                    onChange={setFilterProjects}
+                    placeholder="All projects"
+                  />
 
-                <MultiSelect
-                  label="Agent Type"
-                  options={agentTypes.map(([value, label]) => ({
-                    value,
-                    label,
-                  }))}
-                  selected={filterAgentTypes}
-                  onChange={setFilterAgentTypes}
-                  placeholder="All agent types"
-                />
-              </div>
-            )}
-          </div>
+                  <MultiSelect
+                    label="Agent Type"
+                    options={agentTypes.map(([value, label]) => ({
+                      value,
+                      label,
+                    }))}
+                    selected={filterAgentTypes}
+                    onChange={setFilterAgentTypes}
+                    placeholder="All agent types"
+                  />
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Title */}
           <div>
