@@ -1,12 +1,16 @@
 """Aggregation Worker — main entry point.
 
 Consumes events from Redis Streams and inserts raw data into ClickHouse.
+Includes resilience: dead-letter queue for poison messages and a circuit
+breaker that backs off after repeated consecutive failures.
 """
 
+import json
 import logging
 import signal
 import sys
 import time
+from collections import defaultdict
 
 import redis as redis_lib
 
@@ -23,11 +27,18 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+DLQ_STREAM = "agent_events_dlq"
+MAX_DELIVERY_ATTEMPTS = 5
+CIRCUIT_BREAKER_THRESHOLD = 3
+CIRCUIT_BREAKER_COOLDOWN = 30  # seconds
+
 
 class Worker:
     def __init__(self, config: Config):
         self.config = config
         self._running = True
+        self._failure_counts: dict[str, int] = defaultdict(int)
+        self._consecutive_failures = 0
 
     def stop(self, signum=None, frame=None):
         logger.info("Shutdown signal received, stopping...")
@@ -66,6 +77,17 @@ class Worker:
 
         while self._running:
             try:
+                # Circuit breaker: back off when failures pile up
+                if self._consecutive_failures >= CIRCUIT_BREAKER_THRESHOLD:
+                    logger.warning(
+                        "Circuit breaker open — %d consecutive failures, "
+                        "cooling down for %ds",
+                        self._consecutive_failures,
+                        CIRCUIT_BREAKER_COOLDOWN,
+                    )
+                    time.sleep(CIRCUIT_BREAKER_COOLDOWN)
+                    self._consecutive_failures = 0
+
                 # Refresh enrichment cache periodically
                 enrichment.refresh()
 
@@ -88,6 +110,11 @@ class Worker:
                         # ACK after successful processing
                         ack_events(r, config, message_ids)
                         total_processed += len(events)
+                        self._consecutive_failures = 0
+
+                        # Clear failure tracking for these messages
+                        for mid in message_ids:
+                            self._failure_counts.pop(mid, None)
 
                         if inserted > 0:
                             logger.info(
@@ -97,11 +124,16 @@ class Worker:
                                 total_processed,
                             )
                     except Exception:
-                        # Don't ACK on failure — events will be reprocessed
+                        self._consecutive_failures += 1
                         logger.exception(
-                            "Failed to process batch of %d events",
+                            "Failed to process batch of %d events (attempt tracking per message)",
                             len(events),
                         )
+                        # Track per-message failures, move to DLQ after max attempts
+                        for mid, evt in events:
+                            self._failure_counts[mid] += 1
+                            if self._failure_counts[mid] >= MAX_DELIVERY_ATTEMPTS:
+                                self._move_to_dlq(r, config, mid, evt)
 
             except redis_lib.ConnectionError:
                 logger.error("Redis connection lost, reconnecting in 5s...")
@@ -113,6 +145,29 @@ class Worker:
         logger.info(
             "Worker stopped. Total events processed: %d", total_processed
         )
+
+    def _move_to_dlq(self, r: redis_lib.Redis, config: Config, message_id: str, event) -> None:
+        """Move a poison message to the dead-letter queue and ACK it."""
+        try:
+            r.xadd(
+                DLQ_STREAM,
+                {
+                    "original_stream": config.STREAM_KEY,
+                    "original_id": message_id,
+                    "data": json.dumps(event.__dict__),
+                    "failure_count": str(self._failure_counts[message_id]),
+                    "failed_at": str(int(time.time())),
+                },
+            )
+            ack_events(r, config, [message_id])
+            self._failure_counts.pop(message_id, None)
+            logger.warning(
+                "Moved message %s to DLQ after %d failed attempts",
+                message_id,
+                MAX_DELIVERY_ATTEMPTS,
+            )
+        except Exception:
+            logger.exception("Failed to move message %s to DLQ", message_id)
 
     def _wait_for_service(self, name: str, connect_fn, max_attempts: int = 30, sleep_seconds: int = 2):
         """Try calling *connect_fn* up to *max_attempts* times, exiting on failure."""

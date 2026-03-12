@@ -1,0 +1,159 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  unit-tests:
+    name: Unit & Integration Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up port configuration
+        run: |
+          cat > .env <<'EOF'
+          POSTGRES_DB=agenthub
+          POSTGRES_USER=agenthub
+          POSTGRES_PASSWORD=agenthub_dev
+          CLICKHOUSE_USER=default
+          CLICKHOUSE_PASSWORD=
+          REDIS_HOST=redis
+          REDIS_PORT=6379
+          POSTGRES_HOST=postgres
+          POSTGRES_PORT=5432
+          CLICKHOUSE_HOST=clickhouse
+          CLICKHOUSE_PORT=8123
+          JWT_SECRET=ci-test-secret-key
+          JWT_EXPIRY_HOURS=1
+          HOST_PORT_NGINX=8080
+          HOST_PORT_REDIS=6379
+          HOST_PORT_POSTGRES=5432
+          HOST_PORT_CLICKHOUSE_HTTP=8123
+          HOST_PORT_CLICKHOUSE_NATIVE=9000
+          EOF
+
+      - name: Build and start services
+        run: docker compose up --build -d
+
+      - name: Wait for services to be healthy
+        run: |
+          echo "Waiting for services..."
+          for i in $(seq 1 60); do
+            if docker compose ps --format json | python3 -c "
+          import sys, json
+          services = [json.loads(line) for line in sys.stdin if line.strip()]
+          unhealthy = [s['Service'] for s in services if s.get('Health','') not in ('healthy','')]
+          if unhealthy:
+              print(f'Waiting: {unhealthy}')
+              sys.exit(1)
+          print('All healthy')
+          " 2>/dev/null; then
+              break
+            fi
+            sleep 2
+          done
+
+      - name: Run simulator tests
+        run: docker compose exec -T simulator npm run test
+
+      - name: Run ingestion tests
+        run: docker compose exec -T ingestion cargo test
+
+      - name: Run aggregation worker tests
+        run: docker compose exec -T aggregation-worker pytest -v
+
+      - name: Run analytics API tests
+        run: docker compose exec -T analytics-api pytest -v
+
+      - name: Run frontend tests
+        run: docker compose exec -T frontend npm run test
+
+      - name: Run TypeScript type check (simulator)
+        run: docker compose exec -T simulator npm run lint
+
+      - name: Show service logs on failure
+        if: failure()
+        run: docker compose logs --tail=50
+
+      - name: Tear down
+        if: always()
+        run: docker compose down -v
+
+  e2e-tests:
+    name: E2E Tests (Playwright)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: unit-tests
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up port configuration
+        run: |
+          cat > .env <<'EOF'
+          POSTGRES_DB=agenthub
+          POSTGRES_USER=agenthub
+          POSTGRES_PASSWORD=agenthub_dev
+          CLICKHOUSE_USER=default
+          CLICKHOUSE_PASSWORD=
+          REDIS_HOST=redis
+          REDIS_PORT=6379
+          POSTGRES_HOST=postgres
+          POSTGRES_PORT=5432
+          CLICKHOUSE_HOST=clickhouse
+          CLICKHOUSE_PORT=8123
+          JWT_SECRET=ci-test-secret-key
+          JWT_EXPIRY_HOURS=1
+          HOST_PORT_NGINX=8080
+          HOST_PORT_REDIS=6379
+          HOST_PORT_POSTGRES=5432
+          HOST_PORT_CLICKHOUSE_HTTP=8123
+          HOST_PORT_CLICKHOUSE_NATIVE=9000
+          EOF
+
+      - name: Build and start full stack
+        run: docker compose up --build -d
+
+      - name: Wait for services and data seeding
+        run: |
+          echo "Waiting for services to be healthy..."
+          for i in $(seq 1 90); do
+            if docker compose ps --format json | python3 -c "
+          import sys, json
+          services = [json.loads(line) for line in sys.stdin if line.strip()]
+          unhealthy = [s['Service'] for s in services if s.get('Health','') not in ('healthy','')]
+          if unhealthy:
+              print(f'Waiting: {unhealthy}')
+              sys.exit(1)
+          print('All healthy')
+          " 2>/dev/null; then
+              break
+            fi
+            sleep 2
+          done
+
+          echo "Waiting for simulator to seed data..."
+          for i in $(seq 1 120); do
+            if docker compose logs simulator 2>&1 | grep -q "Live Mode"; then
+              echo "Simulator seeding complete"
+              break
+            fi
+            sleep 2
+          done
+
+      - name: Run E2E tests
+        run: docker compose --profile testing run --rm --build e2e
+
+      - name: Show service logs on failure
+        if: failure()
+        run: docker compose logs --tail=100
+
+      - name: Tear down
+        if: always()
+        run: docker compose down -v

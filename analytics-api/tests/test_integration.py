@@ -248,7 +248,7 @@ class TestCacheHit:
             "usage_trend_granularity": "day",
             "team_breakdown": [],
         }
-        with patch("app.routers.overview.redis_cache") as mock_cache:
+        with patch("app.routers._helpers.redis_cache") as mock_cache:
             mock_cache.make_cache_key.return_value = "test_key"
             mock_cache.get_cached.return_value = cached_data
 
@@ -261,7 +261,7 @@ class TestCacheHit:
 # API-I07: GET /api/orgs/current returns org with teams and projects
 class TestOrgEndpoint:
     def test_org_current_returns_enriched_data(self, client):
-        with patch("app.routers.org.redis_cache") as mock_cache, \
+        with patch("app.routers._helpers.redis_cache") as mock_cache, \
              patch("app.routers.org.pg_service") as mock_pg:
             mock_cache.make_cache_key.return_value = "test_key"
             mock_cache.get_cached.return_value = None
@@ -373,7 +373,7 @@ class TestCrossOrgIsolation:
 
     def test_org_endpoint_scoped_to_org(self, client):
         """Acme context → org endpoint queries use 'org_acme'."""
-        with patch("app.routers.org.redis_cache") as mock_cache, \
+        with patch("app.routers._helpers.redis_cache") as mock_cache, \
              patch("app.routers.org.pg_service") as mock_pg:
             mock_cache.make_cache_key.return_value = "test_key"
             mock_cache.get_cached.return_value = None
@@ -432,7 +432,7 @@ class TestCacheKeyIsolation:
         }
 
         # Acme request: cache hit returns the cached data
-        with patch("app.routers.overview.redis_cache") as mock_cache:
+        with patch("app.routers._helpers.redis_cache") as mock_cache:
             mock_cache.make_cache_key.return_value = "metrics:org_acme:overview:abc"
             mock_cache.get_cached.return_value = acme_cached
             resp = client.get("/api/metrics/overview")

@@ -5,6 +5,7 @@ const PASSWORD = "pass";
 
 interface LoginResult {
   token: string;
+  refresh_token: string;
   user: unknown;
   org: unknown;
 }
@@ -79,19 +80,20 @@ export const browserTest = base.extend<{
 }>({
   authedPage: async ({ page }, use) => {
     const baseURL = process.env.BASE_URL ?? "http://localhost:8080";
-    const { token, user, org } = await apiLogin(baseURL);
+    const { token, refresh_token, user, org } = await apiLogin(baseURL);
 
     // Navigate to /login and wait for the page to fully load (Vite compilation)
     await page.goto("/login", { waitUntil: "networkidle" });
 
     // Seed localStorage with auth credentials
     await page.evaluate(
-      ({ token, user, org }) => {
+      ({ token, refresh_token, user, org }) => {
         localStorage.setItem("agenthub_token", token);
+        localStorage.setItem("agenthub_refresh_token", refresh_token);
         localStorage.setItem("agenthub_user", JSON.stringify(user));
         localStorage.setItem("agenthub_org", JSON.stringify(org));
       },
-      { token, user, org },
+      { token, refresh_token, user, org },
     );
 
     // Navigate to root — AuthProvider reads localStorage, validates via

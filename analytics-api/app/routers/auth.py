@@ -3,13 +3,21 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-from app.auth.jwt import create_access_token, get_token_remaining_ttl, verify_password
+from app.auth.jwt import (
+    create_access_token,
+    create_refresh_token,
+    decode_refresh_token,
+    get_token_remaining_ttl,
+    verify_password,
+)
 from app.auth.dependencies import get_org_context
 from app.models.auth import (
     LoginRequest,
     LoginResponse,
     OrgContext,
     OrgProfile,
+    RefreshRequest,
+    RefreshResponse,
     UserProfile,
 )
 from app.services import page_service
@@ -64,12 +72,14 @@ async def login(body: LoginRequest):
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
     # Create JWT with user claims (no email — not needed for authorization)
-    token = create_access_token({
+    claims = {
         "sub": user["user_id"],
         "org_id": user["org_id"],
         "role": user["role"],
         "team_id": user.get("team_id"),
-    })
+    }
+    token = create_access_token(claims)
+    refresh = create_refresh_token(claims)
 
     # Seed default pages on first login (or first login after feature ships)
     try:
@@ -79,6 +89,7 @@ async def login(body: LoginRequest):
 
     return LoginResponse(
         token=token,
+        refresh_token=refresh,
         user=UserProfile(
             user_id=user["user_id"],
             name=user["name"],
@@ -135,4 +146,43 @@ async def get_me(ctx: OrgContext = Depends(get_org_context)):
         role=row["role"],
         avatar_url=row.get("avatar_url"),
         team_id=row.get("team_id"),
+    )
+
+
+@router.post("/api/auth/refresh", response_model=RefreshResponse)
+async def refresh(body: RefreshRequest):
+    """Exchange a valid refresh token for a new access + refresh token pair."""
+    # Check deny-list
+    try:
+        redis_client = redis_cache.get_client()
+        if redis_client.exists(f"deny:{body.refresh_token}"):
+            raise HTTPException(status_code=401, detail="Refresh token has been revoked")
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("Redis unavailable for deny-list check")
+        raise HTTPException(status_code=503, detail="Authentication service unavailable")
+
+    claims = decode_refresh_token(body.refresh_token)
+    if claims is None:
+        raise HTTPException(status_code=401, detail="Invalid or expired refresh token")
+
+    # Revoke the old refresh token (rotation: each refresh token is single-use)
+    try:
+        ttl = get_token_remaining_ttl(body.refresh_token)
+        if ttl > 0:
+            redis_client.setex(f"deny:{body.refresh_token}", ttl, "1")
+    except Exception:
+        logger.warning("Failed to revoke old refresh token")
+
+    # Issue new token pair with the same claims
+    new_claims = {
+        "sub": claims["sub"],
+        "org_id": claims["org_id"],
+        "role": claims["role"],
+        "team_id": claims.get("team_id"),
+    }
+    return RefreshResponse(
+        token=create_access_token(new_claims),
+        refresh_token=create_refresh_token(new_claims),
     )

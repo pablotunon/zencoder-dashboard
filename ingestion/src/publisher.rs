@@ -3,6 +3,8 @@ use redis::AsyncCommands;
 use crate::models::event::{AgentEvent, EventType};
 
 const STREAM_KEY: &str = "agent_events";
+const MAX_RETRIES: u32 = 3;
+const RETRY_BASE_MS: u64 = 50;
 
 pub async fn publish_event(
     conn: &mut redis::aio::MultiplexedConnection,
@@ -10,17 +12,45 @@ pub async fn publish_event(
 ) -> Result<(), redis::RedisError> {
     let event_json = serde_json::to_string(event).expect("failed to serialize event");
 
-    // XADD agent_events * data <json>
-    redis::cmd("XADD")
-        .arg(STREAM_KEY)
-        .arg("*")
-        .arg("data")
-        .arg(&event_json)
-        .query_async::<String>(conn)
-        .await?;
+    // XADD agent_events * data <json> — with exponential backoff retry
+    let mut last_err = None;
+    for attempt in 0..MAX_RETRIES {
+        match redis::cmd("XADD")
+            .arg(STREAM_KEY)
+            .arg("*")
+            .arg("data")
+            .arg(&event_json)
+            .query_async::<String>(conn)
+            .await
+        {
+            Ok(_) => {
+                last_err = None;
+                break;
+            }
+            Err(e) => {
+                tracing::warn!(
+                    "XADD attempt {}/{} failed: {}",
+                    attempt + 1,
+                    MAX_RETRIES,
+                    e
+                );
+                last_err = Some(e);
+                if attempt + 1 < MAX_RETRIES {
+                    let delay = std::time::Duration::from_millis(RETRY_BASE_MS * 2u64.pow(attempt));
+                    tokio::time::sleep(delay).await;
+                }
+            }
+        }
+    }
 
-    // Update real-time counters
-    update_realtime_counters(conn, event).await?;
+    if let Some(e) = last_err {
+        return Err(e);
+    }
+
+    // Update real-time counters (best-effort, don't fail the publish)
+    if let Err(e) = update_realtime_counters(conn, event).await {
+        tracing::warn!("Failed to update real-time counters: {}", e);
+    }
 
     Ok(())
 }
