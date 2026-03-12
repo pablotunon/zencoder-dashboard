@@ -1,7 +1,6 @@
 import logging
 
 from fastapi import APIRouter
-from fastapi.responses import JSONResponse
 
 from app.services import clickhouse as ch_service
 from app.services import postgres as pg_service

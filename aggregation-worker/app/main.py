@@ -16,7 +16,6 @@ import redis as redis_lib
 
 from app.config import Config
 from app.consumer import ack_events, ensure_consumer_group, read_events
-from app.enrichment import EnrichmentCache
 from app.writers.clickhouse import create_client as create_ch_client
 from app.writers.clickhouse import insert_events
 from app.writers.redis_cache import invalidate_metrics_cache
@@ -67,10 +66,6 @@ class Worker:
         # Create ClickHouse client
         ch_client = self._create_ch_client_with_retry(config)
 
-        # Initialize enrichment cache
-        enrichment = EnrichmentCache(config)
-        enrichment.refresh()
-
         logger.info("Aggregation worker started")
 
         total_processed = 0
@@ -87,9 +82,6 @@ class Worker:
                     )
                     time.sleep(CIRCUIT_BREAKER_COOLDOWN)
                     self._consecutive_failures = 0
-
-                # Refresh enrichment cache periodically
-                enrichment.refresh()
 
                 # Read batch from Redis Stream
                 events = read_events(r, config)

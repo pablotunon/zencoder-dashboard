@@ -100,28 +100,6 @@ def close_client() -> None:
         _client = None
 
 
-def period_to_dates(period: str) -> tuple[date, date]:
-    """Convert period string to (start_date, end_date) tuple.
-
-    Returns (start, end) where queries should use >= start AND < end.
-    End is tomorrow so that today's (partial) data is included.
-    """
-    days = int(period.rstrip("d"))
-    today = date.today()
-    end = today + timedelta(days=1)
-    start = today - timedelta(days=days)
-    return start, end
-
-
-def previous_period_dates(period: str) -> tuple[date, date]:
-    """Get dates for the previous equivalent period (for change calculation)."""
-    days = int(period.rstrip("d"))
-    current_start, _ = period_to_dates(period)
-    prev_end = current_start
-    prev_start = prev_end - timedelta(days=days)
-    return prev_start, prev_end
-
-
 def build_filter_clause(
     filters: MetricFilters | dict[str, list[str] | None] | None,
     table_prefix: str = "",

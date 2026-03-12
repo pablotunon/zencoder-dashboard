@@ -1,7 +1,6 @@
 """Unit tests for Analytics API — API-U01 through API-U09."""
 import json
 from datetime import date, datetime, timedelta, timezone
-from unittest.mock import patch
 
 import pytest
 
@@ -15,8 +14,6 @@ from app.models.responses import (
 )
 from app.services.clickhouse import (
     _is_current_bucket,
-    period_to_dates,
-    previous_period_dates,
     previous_range,
     resolve_granularity,
 )
@@ -150,21 +147,6 @@ class TestResponseSerialization:
         card = KpiCard(value=100, change_pct=None)
         data = card.model_dump()
         assert data["change_pct"] is None
-
-
-# API-U05: Legacy date range calculation from period (kept for backward compat)
-class TestDateRangeCalculation:
-    @pytest.mark.parametrize("period,days", [("7d", 7), ("30d", 30), ("90d", 90)])
-    def test_period_to_dates(self, period, days):
-        start, end = period_to_dates(period)
-        assert end == date.today() + timedelta(days=1)
-        assert start == date.today() - timedelta(days=days)
-
-    def test_previous_period_contiguous(self):
-        current_start, current_end = period_to_dates("30d")
-        prev_start, prev_end = previous_period_dates("30d")
-        assert prev_end == current_start
-        assert prev_start == current_start - timedelta(days=30)
 
 
 # API-U06: Widget query request validation and registries

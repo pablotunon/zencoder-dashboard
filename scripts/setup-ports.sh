@@ -40,7 +40,6 @@ ENV_FILE="$PROJECT_DIR/.env"
 MARKER_BEGIN="# --- MANAGED BY setup-ports.sh (do not edit below) ---"
 MARKER_END="# --- END setup-ports.sh ---"
 OFFSET_INCREMENT=100
-MAX_OFFSET=57300  # keeps highest port (9000+57300=66300) under 65535... actually let's be safe
 
 # Base ports
 BASE_NGINX=8080

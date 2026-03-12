@@ -16,7 +16,7 @@ export type ErrorCategory =
   | "tool_error"
   | "internal_error";
 
-export type UserRating = "positive" | "negative";
+type UserRating = "positive" | "negative";
 
 export interface AgentEvent {
   run_id: string;
@@ -49,7 +49,7 @@ export const AGENT_TYPE_WEIGHTS: Record<AgentType, number> = {
 
 const AGENT_TYPES: AgentType[] = Object.keys(AGENT_TYPE_WEIGHTS) as AgentType[];
 
-export const DEFAULT_SUCCESS_RATE = 0.87;
+const DEFAULT_SUCCESS_RATE = 0.87;
 
 /**
  * Per-org event generation characteristics.
@@ -60,12 +60,12 @@ export interface OrgEventProfile {
   successRate: number;
 }
 
-export const ORG_EVENT_PROFILES: Record<string, OrgEventProfile> = {
+const ORG_EVENT_PROFILES: Record<string, OrgEventProfile> = {
   org_acme: { baseDailyEvents: 200, successRate: 0.87 },
   org_globex: { baseDailyEvents: 120, successRate: 0.90 },
 };
 
-export const DEFAULT_ORG_EVENT_PROFILE: OrgEventProfile = {
+const DEFAULT_ORG_EVENT_PROFILE: OrgEventProfile = {
   baseDailyEvents: 200,
   successRate: DEFAULT_SUCCESS_RATE,
 };
