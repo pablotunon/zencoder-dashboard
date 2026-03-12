@@ -6,15 +6,22 @@ on:
   pull_request:
     branches: [main]
 
-# Shared .env setup — only HOST_PORT_* vars (used by docker-compose.yml
-# for port mapping). Service-level env vars come from the compose file itself.
-# Using -f docker-compose.yml to skip the dev override file.
+# CI notes:
+# - Unit tests: docker-compose.yml + docker-compose.ci.yml (dev build targets
+#   for test tooling, no volume mounts). Skips docker-compose.override.yml.
+# - E2E tests: docker-compose.yml only (prod targets — Playwright container
+#   tests the production stack through nginx).
+# - Both jobs run in parallel on separate runners.
+# - .env only needs HOST_PORT_* vars for port mapping.
 
 jobs:
   unit-tests:
     name: Unit & Integration Tests
     runs-on: ubuntu-latest
     timeout-minutes: 15
+
+    env:
+      DC: docker compose -f docker-compose.yml -f docker-compose.ci.yml
 
     steps:
       - uses: actions/checkout@v4
@@ -30,13 +37,13 @@ jobs:
           EOF
 
       - name: Build and start services
-        run: docker compose -f docker-compose.yml up --build -d
+        run: $DC up --build -d
 
       - name: Wait for services to be healthy
         run: |
           echo "Waiting for services..."
           for i in $(seq 1 60); do
-            if docker compose -f docker-compose.yml ps --format json | python3 -c "
+            if $DC ps --format json | python3 -c "
           import sys, json
           services = [json.loads(line) for line in sys.stdin if line.strip()]
           unhealthy = [s['Service'] for s in services if s.get('Health','') not in ('healthy','')]
@@ -51,35 +58,38 @@ jobs:
           done
 
       - name: Run simulator tests
-        run: docker compose -f docker-compose.yml exec -T simulator npm run test
+        run: $DC exec -T simulator npm run test
 
       - name: Run ingestion tests
-        run: docker compose -f docker-compose.yml exec -T ingestion cargo test
+        run: $DC exec -T ingestion cargo test
 
       - name: Run aggregation worker tests
-        run: docker compose -f docker-compose.yml exec -T aggregation-worker pytest -v
+        run: $DC exec -T aggregation-worker pytest -v
 
       - name: Run analytics API tests
-        run: docker compose -f docker-compose.yml exec -T analytics-api pytest -v
+        run: $DC exec -T analytics-api pytest -v
 
       - name: Run frontend tests
-        run: docker compose -f docker-compose.yml exec -T frontend npm run test
+        run: $DC exec -T frontend npm run test
 
       - name: Run TypeScript type check (simulator)
-        run: docker compose -f docker-compose.yml exec -T simulator npm run lint
+        run: $DC exec -T simulator npm run lint
 
       - name: Show service logs on failure
         if: failure()
-        run: docker compose -f docker-compose.yml logs --tail=50
+        run: $DC logs --tail=50
 
       - name: Tear down
         if: always()
-        run: docker compose -f docker-compose.yml down -v
+        run: $DC down -v
 
   e2e-tests:
     name: E2E Tests (Playwright)
     runs-on: ubuntu-latest
     timeout-minutes: 20
+
+    env:
+      DC: docker compose -f docker-compose.yml
 
     steps:
       - uses: actions/checkout@v4
@@ -95,13 +105,13 @@ jobs:
           EOF
 
       - name: Build and start full stack
-        run: docker compose -f docker-compose.yml up --build -d
+        run: $DC up --build -d
 
       - name: Wait for services to be healthy
         run: |
           echo "Waiting for Docker health checks..."
           for i in $(seq 1 90); do
-            if docker compose -f docker-compose.yml ps --format json | python3 -c "
+            if $DC ps --format json | python3 -c "
           import sys, json
           services = [json.loads(line) for line in sys.stdin if line.strip()]
           unhealthy = [s['Service'] for s in services if s.get('Health','') not in ('healthy','')]
@@ -115,7 +125,7 @@ jobs:
             sleep 2
           done
 
-      - name: Wait for API to be reachable through nginx
+      - name: Verify API reachable through nginx
         run: |
           echo "Verifying API is reachable through nginx..."
           for i in $(seq 1 60); do
@@ -126,12 +136,11 @@ jobs:
             echo "Attempt $i: API not yet reachable, retrying..."
             sleep 3
           done
-          # Final check — fail the step if still unreachable
-          curl -sf http://localhost:8080/api/health || (echo "API never became reachable" && docker compose -f docker-compose.yml logs analytics-api nginx --tail=30 && exit 1)
+          curl -sf http://localhost:8080/api/health \
+            || (echo "API never became reachable" && $DC logs analytics-api nginx --tail=30 && exit 1)
 
-      - name: Wait for ingestion to be reachable through nginx
+      - name: Verify ingestion reachable through nginx
         run: |
-          echo "Verifying ingestion is reachable through nginx..."
           for i in $(seq 1 30); do
             if curl -sf http://localhost:8080/ingest/health > /dev/null 2>&1; then
               echo "Ingestion health check passed through nginx"
@@ -139,13 +148,14 @@ jobs:
             fi
             sleep 2
           done
-          curl -sf http://localhost:8080/ingest/health || (echo "Ingestion never became reachable" && docker compose -f docker-compose.yml logs ingestion nginx --tail=30 && exit 1)
+          curl -sf http://localhost:8080/ingest/health \
+            || (echo "Ingestion never became reachable" && $DC logs ingestion nginx --tail=30 && exit 1)
 
       - name: Wait for simulator to seed data
         run: |
           echo "Waiting for simulator to seed data..."
           for i in $(seq 1 120); do
-            if docker compose -f docker-compose.yml logs simulator 2>&1 | grep -q "Live Mode"; then
+            if $DC logs simulator 2>&1 | grep -q "Live Mode"; then
               echo "Simulator seeding complete"
               break
             fi
@@ -153,12 +163,12 @@ jobs:
           done
 
       - name: Run E2E tests
-        run: docker compose -f docker-compose.yml --profile testing run --rm --build e2e
+        run: $DC --profile testing run --rm --build e2e
 
       - name: Show service logs on failure
         if: failure()
-        run: docker compose -f docker-compose.yml logs --tail=100
+        run: $DC logs --tail=100
 
       - name: Tear down
         if: always()
-        run: docker compose -f docker-compose.yml down -v
+        run: $DC down -v
