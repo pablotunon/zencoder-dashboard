@@ -1,4 +1,4 @@
-import { XMarkIcon, InformationCircleIcon, FunnelIcon } from "@heroicons/react/24/outline";
+import { XMarkIcon, InformationCircleIcon, FunnelIcon, ClockIcon } from "@heroicons/react/24/outline";
 import { AGENT_TYPE_LABELS } from "@/lib/constants";
 import { useOrg } from "@/api/hooks";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -9,6 +9,7 @@ export function WidgetCard({
   subtitle,
   tooltip,
   filters,
+  timeRange,
   onRemove,
   children,
 }: {
@@ -16,6 +17,7 @@ export function WidgetCard({
   subtitle?: string;
   tooltip?: string;
   filters?: WidgetConfig["filters"];
+  timeRange?: WidgetConfig["timeRange"];
   onRemove?: () => void;
   children: React.ReactNode;
 }) {
@@ -34,6 +36,7 @@ export function WidgetCard({
               </div>
             )}
             <FilterIndicator filters={filters} />
+            <TimeRangeIndicator timeRange={timeRange} />
           </div>
           {subtitle && (
             <p className="mt-0.5 text-sm text-gray-500">{subtitle}</p>
@@ -106,6 +109,42 @@ function FilterIndicator({
             {agentTypeNames.join(", ")}
           </p>
         )}
+      </div>
+    </div>
+  );
+}
+
+// ── Custom time range indicator (clock icon + hover tooltip) ─────────────
+
+function formatTimeRangeDate(iso: string): string {
+  const d = new Date(iso);
+  const now = new Date();
+  const sameYear = d.getFullYear() === now.getFullYear();
+  const month = d.toLocaleString("en-US", { month: "short" });
+  const day = d.getDate();
+  return sameYear ? `${month} ${day}` : `${month} ${day}, ${d.getFullYear()}`;
+}
+
+function TimeRangeIndicator({
+  timeRange,
+}: {
+  timeRange?: WidgetConfig["timeRange"];
+}) {
+  if (!timeRange || timeRange.useGlobal) return null;
+
+  return (
+    <div className="group relative">
+      <ClockIcon className="h-4 w-4 shrink-0 text-amber-400 hover:text-amber-600" />
+      <div className="pointer-events-none absolute left-1/2 top-full z-50 mt-1.5 hidden w-56 -translate-x-1/2 rounded-md border border-gray-200 bg-white p-3 text-xs leading-relaxed text-gray-600 shadow-lg group-hover:block">
+        <p className="mb-1.5 font-medium text-gray-900">Custom Time Range</p>
+        <p>
+          <span className="font-medium text-gray-700">From:</span>{" "}
+          {formatTimeRangeDate(timeRange.start)}
+        </p>
+        <p>
+          <span className="font-medium text-gray-700">To:</span>{" "}
+          {formatTimeRangeDate(timeRange.end)}
+        </p>
       </div>
     </div>
   );

@@ -14,10 +14,10 @@ import {
   YAxis,
 } from "recharts";
 import { METRIC_REGISTRY } from "@/lib/widget-registry";
-import { formatNumber, formatChangePct, formatTimestamp } from "@/lib/formatters";
+import { formatChangePct, formatTimestamp } from "@/lib/formatters";
 import { TimeSeriesChart } from "@/components/charts/TimeSeriesChart";
 import { ChartContainer, type ChartConfig } from "@/components/ui/chart";
-import { FORMAT_FN, PIE_COLORS, primaryMetric } from "./widget-helpers";
+import { PIE_COLORS, primaryMetric } from "./widget-helpers";
 import type { Granularity } from "@/types/api";
 import type {
   WidgetConfig,

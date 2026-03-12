@@ -31,14 +31,14 @@ export function WidgetRenderer({
   // Sealed widget types — use their own data sources
   if (widget.chartType === "active_users_trend") {
     return (
-      <WidgetCard title={widget.title} onRemove={onRemove}>
+      <WidgetCard title={widget.title} timeRange={widget.timeRange} onRemove={onRemove}>
         <ActiveUsersTrendWidget dateRange={dateRange} />
       </WidgetCard>
     );
   }
   if (widget.chartType === "top_users") {
     return (
-      <WidgetCard title={widget.title} onRemove={onRemove}>
+      <WidgetCard title={widget.title} timeRange={widget.timeRange} onRemove={onRemove}>
         <TopUsersWidget dateRange={dateRange} />
       </WidgetCard>
     );
@@ -47,14 +47,14 @@ export function WidgetRenderer({
   // Gauge and stat — need org data + single metric
   if (widget.chartType === "gauge") {
     return (
-      <WidgetCard title={widget.title} filters={widget.filters} onRemove={onRemove}>
+      <WidgetCard title={widget.title} filters={widget.filters} timeRange={widget.timeRange} onRemove={onRemove}>
         <GaugeWidgetLoader widget={widget} dateRange={dateRange} />
       </WidgetCard>
     );
   }
   if (widget.chartType === "stat") {
     return (
-      <WidgetCard title={widget.title} filters={widget.filters} onRemove={onRemove}>
+      <WidgetCard title={widget.title} filters={widget.filters} timeRange={widget.timeRange} onRemove={onRemove}>
         <StatWidgetLoader widget={widget} dateRange={dateRange} />
       </WidgetCard>
     );
@@ -63,7 +63,7 @@ export function WidgetRenderer({
   // Multi-metric path
   if (widget.metrics.length > 1) {
     return (
-      <WidgetCard title={widget.title} filters={widget.filters} onRemove={onRemove}>
+      <WidgetCard title={widget.title} filters={widget.filters} timeRange={widget.timeRange} onRemove={onRemove}>
         <MultiMetricLoader widget={widget} dateRange={dateRange} />
       </WidgetCard>
     );
@@ -105,6 +105,7 @@ function SingleMetricWidget({
       subtitle={meta?.description}
       tooltip={meta?.tooltip}
       filters={widget.filters}
+      timeRange={widget.timeRange}
       onRemove={onRemove}
     >
       {isLoading ? (
