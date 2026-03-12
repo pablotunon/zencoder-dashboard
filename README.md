@@ -4,6 +4,16 @@ Organizational analytics dashboard for monitoring AI agent usage, cost, and perf
 
 **Author:** Pablo Tuñón Sánchez — submission for the Senior Software Engineer position at [Zencoder](https://zencoder.ai).
 
+## Screenshots
+
+| Overview | Cost & Efficiency |
+|----------|-------------------|
+| ![Overview](docs/screenshots/overview.png) | ![Cost & Efficiency](docs/screenshots/cost.png) |
+
+| Usage & Adoption | Performance & Reliability |
+|------------------|---------------------------|
+| ![Usage & Adoption](docs/screenshots/usage.png) | ![Performance & Reliability](docs/screenshots/performance.png) |
+
 ## Architecture
 
 ```
@@ -43,7 +53,7 @@ Organizational analytics dashboard for monitoring AI agent usage, cost, and perf
 | **Frontend** | TypeScript (React + Vite) | Dashboard SPA with custom page builder, drag-and-drop widgets, Tremor charts, shadcn/ui |
 | **Analytics API** | Python (FastAPI) | BFF with JWT auth, serves aggregated metrics from ClickHouse/PostgreSQL/Redis |
 | **Ingestion** | Rust (Axum) | High-throughput event intake with org validation, publishes to Redis Streams |
-| **Aggregation Worker** | Python | Consumes events from Redis, inserts into ClickHouse, computes rollup tables |
+| **Aggregation Worker** | Python | Consumes events from Redis, inserts into ClickHouse, computes aggregations |
 | **Simulator** | TypeScript (Node.js) | Seeds multi-org demo data, generates 90 days of historical events + live stream |
 
 ### Infrastructure
@@ -51,7 +61,7 @@ Organizational analytics dashboard for monitoring AI agent usage, cost, and perf
 | Component | Purpose |
 |-----------|---------|
 | **PostgreSQL** | Organizations, teams, users, projects, API keys |
-| **ClickHouse** | Time-series event storage and aggregated rollup tables |
+| **ClickHouse** | Time-series event storage and pre-aggregated analytics |
 | **Redis** | Event bus (Streams), real-time counters, API response cache, auth deny-list |
 | **nginx** | Reverse proxy routing `/api/*`, `/ingest/*`, and `/` to services |
 
@@ -99,7 +109,7 @@ open http://localhost:8080
 - High-throughput ingestion via Rust (Axum)
 - Org validation on incoming events
 - Redis Streams consumer groups for async processing
-- ClickHouse rollup tables for fast aggregation queries
+- ClickHouse pre-aggregated tables for fast analytics queries
 
 ## Tech Stack Rationale
 
