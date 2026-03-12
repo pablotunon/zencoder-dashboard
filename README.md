@@ -1,6 +1,6 @@
 # AgentHub Analytics
 
-Organizational analytics dashboard for monitoring AI agent usage, cost, and performance across engineering teams. Features multi-tenant authentication, customizable dashboards with drag-and-drop widgets, and real-time event processing.
+Organizational analytics dashboard for monitoring AI agent usage, cost, and performance across engineering teams. Features multi-tenant authentication, customizable dashboards with user-defined widgets, and real-time event processing.
 
 **Author:** Pablo Tuñón Sánchez — submission for the Senior Software Engineer position at [Zencoder](https://zencoder.ai).
 
@@ -50,7 +50,7 @@ Organizational analytics dashboard for monitoring AI agent usage, cost, and perf
 
 | Service | Language | Purpose |
 |---------|----------|---------|
-| **Frontend** | TypeScript (React + Vite) | Dashboard SPA with custom page builder, drag-and-drop widgets, Tremor charts, shadcn/ui |
+| **Frontend** | TypeScript (React + Vite) | Dashboard SPA with custom page builder, customizable widgets, Tremor charts, shadcn/ui |
 | **Analytics API** | Python (FastAPI) | BFF with JWT auth, serves aggregated metrics from ClickHouse/PostgreSQL/Redis |
 | **Ingestion** | Rust (Axum) | High-throughput event intake with org validation, publishes to Redis Streams |
 | **Aggregation Worker** | Python | Consumes events from Redis, inserts into ClickHouse, computes aggregations |
@@ -93,7 +93,7 @@ open http://localhost:8080
 - Redis deny-list for logout invalidation
 
 ### Custom Page Builder
-- Drag-and-drop widget dashboard with editable pages
+- Customizable widget dashboard with editable pages
 - Dynamic row layouts with 1-4 columns per row
 - Multiple chart types: Line, Area, Bar, Pie, KPI, Gauge, Table
 - Sealed templates for common widget configurations (e.g., Users Trend, Top Users)
