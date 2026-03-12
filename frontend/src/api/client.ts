@@ -4,14 +4,28 @@ import type { AuthUser, AuthOrg } from "@/types/auth";
 const BASE_URL = "/api";
 
 let _token: string | null = null;
+let _refreshToken: string | null = null;
 let _onUnauthorized: (() => void) | null = null;
+let _onTokenRefreshed: ((token: string, refreshToken: string) => void) | null =
+  null;
+let _refreshPromise: Promise<boolean> | null = null;
 
 export function setAuthToken(token: string | null): void {
   _token = token;
 }
 
+export function setRefreshToken(token: string | null): void {
+  _refreshToken = token;
+}
+
 export function setOnUnauthorized(callback: (() => void) | null): void {
   _onUnauthorized = callback;
+}
+
+export function setOnTokenRefreshed(
+  callback: ((token: string, refreshToken: string) => void) | null,
+): void {
+  _onTokenRefreshed = callback;
 }
 
 function buildQueryString(filters: MetricFilters): string {
@@ -35,9 +49,50 @@ function authHeaders(): Record<string, string> {
   return {};
 }
 
+async function tryRefreshToken(): Promise<boolean> {
+  if (!_refreshToken) return false;
+
+  // Deduplicate concurrent refresh attempts
+  if (_refreshPromise) return _refreshPromise;
+
+  _refreshPromise = (async () => {
+    try {
+      const res = await fetch(`${BASE_URL}/auth/refresh`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refresh_token: _refreshToken }),
+      });
+      if (!res.ok) return false;
+
+      const body = (await res.json()) as {
+        token: string;
+        refresh_token: string;
+      };
+      _token = body.token;
+      _refreshToken = body.refresh_token;
+      _onTokenRefreshed?.(body.token, body.refresh_token);
+      return true;
+    } catch {
+      return false;
+    } finally {
+      _refreshPromise = null;
+    }
+  })();
+
+  return _refreshPromise;
+}
+
 async function request(url: string, init?: RequestInit): Promise<Response> {
   const res = await fetch(url, init);
   if (res.status === 401) {
+    // Attempt a silent token refresh before giving up
+    const refreshed = await tryRefreshToken();
+    if (refreshed) {
+      // Retry the original request with the new token
+      const retryHeaders = { ...(init?.headers ?? {}), ...authHeaders() };
+      const retry = await fetch(url, { ...init, headers: retryHeaders });
+      if (retry.ok) return retry;
+    }
     _onUnauthorized?.();
     throw new Error("Unauthorized");
   }
@@ -81,6 +136,7 @@ export async function deleteJson(url: string): Promise<void> {
 
 export interface LoginResponse {
   token: string;
+  refresh_token: string;
   user: AuthUser;
   org: AuthOrg;
 }

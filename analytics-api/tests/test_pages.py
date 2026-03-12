@@ -315,6 +315,7 @@ class TestLoginSeeding:
              patch("app.routers.auth.redis_cache") as mock_redis, \
              patch("app.routers.auth.verify_password", return_value=True), \
              patch("app.routers.auth.create_access_token", return_value="mock-token"), \
+             patch("app.routers.auth.create_refresh_token", return_value="mock-refresh"), \
              patch("app.routers.auth.page_service") as mock_page_svc:
             mock_pg.get_user_by_email = AsyncMock(return_value=mock_user)
             mock_redis.get_client.return_value = MagicMock()
@@ -346,6 +347,7 @@ class TestLoginSeeding:
              patch("app.routers.auth.redis_cache") as mock_redis, \
              patch("app.routers.auth.verify_password", return_value=True), \
              patch("app.routers.auth.create_access_token", return_value="mock-token"), \
+             patch("app.routers.auth.create_refresh_token", return_value="mock-refresh"), \
              patch("app.routers.auth.page_service") as mock_page_svc:
             mock_pg.get_user_by_email = AsyncMock(return_value=mock_user)
             mock_redis.get_client.return_value = MagicMock()
