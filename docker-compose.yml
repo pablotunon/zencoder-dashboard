@@ -143,6 +143,21 @@ services:
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
     depends_on:
-      - frontend
-      - analytics-api
-      - ingestion
+      frontend:
+        condition: service_started
+      analytics-api:
+        condition: service_healthy
+      ingestion:
+        condition: service_healthy
+
+  # --- E2E Tests (opt-in via --profile testing) ---
+
+  e2e:
+    build:
+      context: ./tests/e2e
+    environment:
+      BASE_URL: http://nginx:80
+    depends_on:
+      - nginx
+    profiles:
+      - testing
