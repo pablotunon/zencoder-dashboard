@@ -110,9 +110,16 @@ A third CI run revealed the true root cause. The global-setup retry worked corre
 
 **The `--build` flag on `docker compose run` was recreating the analytics-api container.** When `docker compose --profile testing run --rm --build e2e` executes, docker compose rebuilds **all services in the dependency chain** (e2e → nginx → analytics-api, ingestion, frontend). If the analytics-api image hash changes (e.g., COPY context differs), docker compose recreates the container — stopping the running one and starting a new one. The new container needs time to pass its healthcheck (start_period: 10s + retries), during which nginx returns 502.
 
-**Fix:** Split the build and run into two commands:
-1. `docker compose --profile testing build e2e` — builds images (harmless to running containers)
-2. `docker compose --profile testing run --rm e2e` — runs e2e without triggering rebuilds/recreation
+**Initial fix attempt:** Split build and run into separate commands (`build e2e` then `run --rm e2e`). This failed because `docker compose run` still detects that dependency images changed from the `build` step and recreates containers anyway.
+
+**Final fix:** Use `--no-deps` on the run command:
+```
+docker compose --profile testing run --rm --build --no-deps e2e
+```
+
+- `--build` builds only the e2e image (no dependency rebuilds since `--no-deps` is set)
+- `--no-deps` prevents docker compose from starting/recreating dependency containers
+- The e2e container joins the same Docker network and reaches the already-running nginx/analytics-api
 
 Applied to both:
 - `.github/workflows/ci.yml` (CI pipeline)
@@ -120,4 +127,4 @@ Applied to both:
 
 ### Test Results
 
-All 54 E2E tests passed. The analytics-api container ID remained unchanged throughout the test run, confirming no recreation occurred.
+All 54 E2E tests passed. The analytics-api container ID remained unchanged throughout the test run, confirming no recreation occurred. The build output shows only `Image e2e Building` — no analytics-api/ingestion/frontend rebuilds.

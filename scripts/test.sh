@@ -40,10 +40,9 @@ run_tests() {
 
 run_e2e() {
   echo "=== Running E2E tests (Playwright) ==="
-  # Build e2e image separately so --build on `run` doesn't rebuild (and
-  # potentially recreate) already-running services like analytics-api.
-  docker compose --profile testing build e2e
-  docker compose --profile testing run --rm e2e
+  # --no-deps prevents docker compose from recreating already-running
+  # services (analytics-api, ingestion, etc.) when their images change.
+  docker compose --profile testing run --rm --build --no-deps e2e
   echo ""
 }
 
