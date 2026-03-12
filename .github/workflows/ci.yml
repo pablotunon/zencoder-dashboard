@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [main]
 
+# Shared .env setup — only HOST_PORT_* vars (used by docker-compose.yml
+# for port mapping). Service-level env vars come from the compose file itself.
+# Using -f docker-compose.yml to skip the dev override file.
+
 jobs:
   unit-tests:
     name: Unit & Integration Tests
@@ -18,19 +22,6 @@ jobs:
       - name: Set up port configuration
         run: |
           cat > .env <<'EOF'
-          POSTGRES_DB=agenthub
-          POSTGRES_USER=agenthub
-          POSTGRES_PASSWORD=agenthub_dev
-          CLICKHOUSE_USER=default
-          CLICKHOUSE_PASSWORD=
-          REDIS_HOST=redis
-          REDIS_PORT=6379
-          POSTGRES_HOST=postgres
-          POSTGRES_PORT=5432
-          CLICKHOUSE_HOST=clickhouse
-          CLICKHOUSE_PORT=8123
-          JWT_SECRET=ci-test-secret-key
-          JWT_EXPIRY_HOURS=1
           HOST_PORT_NGINX=8080
           HOST_PORT_REDIS=6379
           HOST_PORT_POSTGRES=5432
@@ -39,13 +30,13 @@ jobs:
           EOF
 
       - name: Build and start services
-        run: docker compose up --build -d
+        run: docker compose -f docker-compose.yml up --build -d
 
       - name: Wait for services to be healthy
         run: |
           echo "Waiting for services..."
           for i in $(seq 1 60); do
-            if docker compose ps --format json | python3 -c "
+            if docker compose -f docker-compose.yml ps --format json | python3 -c "
           import sys, json
           services = [json.loads(line) for line in sys.stdin if line.strip()]
           unhealthy = [s['Service'] for s in services if s.get('Health','') not in ('healthy','')]
@@ -54,42 +45,41 @@ jobs:
               sys.exit(1)
           print('All healthy')
           " 2>/dev/null; then
-              break
+                break
             fi
             sleep 2
           done
 
       - name: Run simulator tests
-        run: docker compose exec -T simulator npm run test
+        run: docker compose -f docker-compose.yml exec -T simulator npm run test
 
       - name: Run ingestion tests
-        run: docker compose exec -T ingestion cargo test
+        run: docker compose -f docker-compose.yml exec -T ingestion cargo test
 
       - name: Run aggregation worker tests
-        run: docker compose exec -T aggregation-worker pytest -v
+        run: docker compose -f docker-compose.yml exec -T aggregation-worker pytest -v
 
       - name: Run analytics API tests
-        run: docker compose exec -T analytics-api pytest -v
+        run: docker compose -f docker-compose.yml exec -T analytics-api pytest -v
 
       - name: Run frontend tests
-        run: docker compose exec -T frontend npm run test
+        run: docker compose -f docker-compose.yml exec -T frontend npm run test
 
       - name: Run TypeScript type check (simulator)
-        run: docker compose exec -T simulator npm run lint
+        run: docker compose -f docker-compose.yml exec -T simulator npm run lint
 
       - name: Show service logs on failure
         if: failure()
-        run: docker compose logs --tail=50
+        run: docker compose -f docker-compose.yml logs --tail=50
 
       - name: Tear down
         if: always()
-        run: docker compose down -v
+        run: docker compose -f docker-compose.yml down -v
 
   e2e-tests:
     name: E2E Tests (Playwright)
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    needs: unit-tests
 
     steps:
       - uses: actions/checkout@v4
@@ -97,19 +87,6 @@ jobs:
       - name: Set up port configuration
         run: |
           cat > .env <<'EOF'
-          POSTGRES_DB=agenthub
-          POSTGRES_USER=agenthub
-          POSTGRES_PASSWORD=agenthub_dev
-          CLICKHOUSE_USER=default
-          CLICKHOUSE_PASSWORD=
-          REDIS_HOST=redis
-          REDIS_PORT=6379
-          POSTGRES_HOST=postgres
-          POSTGRES_PORT=5432
-          CLICKHOUSE_HOST=clickhouse
-          CLICKHOUSE_PORT=8123
-          JWT_SECRET=ci-test-secret-key
-          JWT_EXPIRY_HOURS=1
           HOST_PORT_NGINX=8080
           HOST_PORT_REDIS=6379
           HOST_PORT_POSTGRES=5432
@@ -118,13 +95,13 @@ jobs:
           EOF
 
       - name: Build and start full stack
-        run: docker compose up --build -d
+        run: docker compose -f docker-compose.yml up --build -d
 
-      - name: Wait for services and data seeding
+      - name: Wait for services to be healthy
         run: |
-          echo "Waiting for services to be healthy..."
+          echo "Waiting for Docker health checks..."
           for i in $(seq 1 90); do
-            if docker compose ps --format json | python3 -c "
+            if docker compose -f docker-compose.yml ps --format json | python3 -c "
           import sys, json
           services = [json.loads(line) for line in sys.stdin if line.strip()]
           unhealthy = [s['Service'] for s in services if s.get('Health','') not in ('healthy','')]
@@ -133,14 +110,42 @@ jobs:
               sys.exit(1)
           print('All healthy')
           " 2>/dev/null; then
-              break
+                break
             fi
             sleep 2
           done
 
+      - name: Wait for API to be reachable through nginx
+        run: |
+          echo "Verifying API is reachable through nginx..."
+          for i in $(seq 1 60); do
+            if curl -sf http://localhost:8080/api/health > /dev/null 2>&1; then
+              echo "API health check passed through nginx"
+              break
+            fi
+            echo "Attempt $i: API not yet reachable, retrying..."
+            sleep 3
+          done
+          # Final check — fail the step if still unreachable
+          curl -sf http://localhost:8080/api/health || (echo "API never became reachable" && docker compose -f docker-compose.yml logs analytics-api nginx --tail=30 && exit 1)
+
+      - name: Wait for ingestion to be reachable through nginx
+        run: |
+          echo "Verifying ingestion is reachable through nginx..."
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:8080/ingest/health > /dev/null 2>&1; then
+              echo "Ingestion health check passed through nginx"
+              break
+            fi
+            sleep 2
+          done
+          curl -sf http://localhost:8080/ingest/health || (echo "Ingestion never became reachable" && docker compose -f docker-compose.yml logs ingestion nginx --tail=30 && exit 1)
+
+      - name: Wait for simulator to seed data
+        run: |
           echo "Waiting for simulator to seed data..."
           for i in $(seq 1 120); do
-            if docker compose logs simulator 2>&1 | grep -q "Live Mode"; then
+            if docker compose -f docker-compose.yml logs simulator 2>&1 | grep -q "Live Mode"; then
               echo "Simulator seeding complete"
               break
             fi
@@ -148,12 +153,12 @@ jobs:
           done
 
       - name: Run E2E tests
-        run: docker compose --profile testing run --rm --build e2e
+        run: docker compose -f docker-compose.yml --profile testing run --rm --build e2e
 
       - name: Show service logs on failure
         if: failure()
-        run: docker compose logs --tail=100
+        run: docker compose -f docker-compose.yml logs --tail=100
 
       - name: Tear down
         if: always()
-        run: docker compose down -v
+        run: docker compose -f docker-compose.yml down -v
