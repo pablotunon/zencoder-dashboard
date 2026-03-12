@@ -18,7 +18,16 @@ Do not make assumptions on important decisions — get clarification first.
 
 ## Workflow Steps
 
-### [ ] Step: Implementation
+### [x] Step: Implementation
+<!-- chat-id: d86d2d56-9059-499d-a676-92180f5936cf -->
+
+**Scope**: Small — single file change to add a custom time range indicator icon to widget headers.
+
+**What was done**: Added a `TimeRangeIndicator` component to `WidgetRenderer.tsx` that displays a clock icon (amber color, matching the pattern of the existing info/filter icons) when a widget uses a custom time range instead of the global one. On hover, a tooltip shows "Custom Time Range" with the From/To dates. The `WidgetCard` component now accepts an optional `timeRange` prop, and all call sites pass `widget.timeRange`.
+
+**Files changed**: `frontend/src/components/widgets/WidgetRenderer.tsx`
+
+**Verification**: All 42 frontend tests pass, lint clean (no new warnings).
 
 **Debug requests, questions, and investigations:** answer or investigate first. Do not create a plan upfront — the user needs an answer, not a plan. A plan may become relevant later once the investigation reveals what needs to change.
 
