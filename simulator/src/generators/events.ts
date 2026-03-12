@@ -52,17 +52,71 @@ const AGENT_TYPES: AgentType[] = Object.keys(AGENT_TYPE_WEIGHTS) as AgentType[];
 const DEFAULT_SUCCESS_RATE = 0.87;
 
 /**
+ * Per-team overrides for event generation characteristics.
+ * Fields are optional — absent fields fall back to org/global defaults.
+ */
+export interface TeamEventProfile {
+  agentTypeWeights?: Partial<Record<AgentType, number>>;
+  modelWeights?: { models: string[]; weights: number[] };
+  preferredTools?: string[];
+}
+
+/**
  * Per-org event generation characteristics.
  * Orgs not listed here use defaults.
  */
 export interface OrgEventProfile {
   baseDailyEvents: number;
   successRate: number;
+  teamProfiles?: Record<string, TeamEventProfile>;
 }
 
 const ORG_EVENT_PROFILES: Record<string, OrgEventProfile> = {
-  org_acme: { baseDailyEvents: 200, successRate: 0.87 },
-  org_globex: { baseDailyEvents: 120, successRate: 0.90 },
+  org_acme: {
+    baseDailyEvents: 200,
+    successRate: 0.87,
+    teamProfiles: {
+      team_platform: {
+        agentTypeWeights: { coding: 0.25, review: 0.15, testing: 0.15, ci: 0.25, debugging: 0.15, general: 0.05 },
+        preferredTools: ["terminal", "docker", "git", "database_query"],
+      },
+      team_backend: {
+        agentTypeWeights: { coding: 0.35, review: 0.20, testing: 0.20, ci: 0.15, debugging: 0.05, general: 0.05 },
+        preferredTools: ["terminal", "file_read", "file_write", "database_query", "git"],
+      },
+      team_frontend: {
+        agentTypeWeights: { coding: 0.55, review: 0.20, testing: 0.10, ci: 0.05, debugging: 0.05, general: 0.05 },
+        preferredTools: ["file_read", "file_write", "linter", "test_runner", "web_search"],
+      },
+      team_data: {
+        agentTypeWeights: { coding: 0.30, review: 0.10, testing: 0.15, ci: 0.10, debugging: 0.10, general: 0.25 },
+        preferredTools: ["database_query", "terminal", "file_read", "file_write"],
+      },
+      team_mobile: {
+        agentTypeWeights: { coding: 0.50, review: 0.20, testing: 0.15, ci: 0.05, debugging: 0.05, general: 0.05 },
+        preferredTools: ["file_read", "file_write", "linter", "test_runner"],
+      },
+    },
+  },
+  org_globex: {
+    baseDailyEvents: 120,
+    successRate: 0.90,
+    teamProfiles: {
+      team_globex_eng: {
+        agentTypeWeights: { coding: 0.40, review: 0.20, testing: 0.15, ci: 0.10, debugging: 0.10, general: 0.05 },
+        preferredTools: ["file_read", "file_write", "terminal", "git", "code_search"],
+      },
+      team_globex_product: {
+        agentTypeWeights: { coding: 0.30, review: 0.30, testing: 0.10, ci: 0.05, debugging: 0.05, general: 0.20 },
+        preferredTools: ["web_search", "file_read", "code_search"],
+        modelWeights: { models: ["claude-sonnet-4-20250514", "claude-3-5-haiku-20241022", "gpt-4o", "gpt-4o-mini"], weights: [0.5, 0.3, 0.15, 0.05] },
+      },
+      team_globex_devops: {
+        agentTypeWeights: { coding: 0.20, review: 0.10, testing: 0.10, ci: 0.35, debugging: 0.15, general: 0.10 },
+        preferredTools: ["docker", "terminal", "git", "database_query"],
+      },
+    },
+  },
 };
 
 const DEFAULT_ORG_EVENT_PROFILE: OrgEventProfile = {
@@ -138,9 +192,40 @@ export function weightedRandom<T>(items: T[], weights: number[]): T {
 }
 
 /**
- * Pick a random agent type according to configured weights.
+ * Generate a right-skewed random value between min and max.
+ *
+ * Uses a power-curve transformation: Math.random()^skew maps [0,1] → [0,1]
+ * with values clustered toward 0 when skew > 1. This produces many small
+ * values with a long tail — matching real-world telemetry distributions.
+ *
+ * A ~2% chance of "outlier" pushes the value to between 80-100% of the range,
+ * simulating occasional extreme runs (very long duration, massive token counts).
+ *
+ * @param min   Lower bound (inclusive)
+ * @param max   Upper bound (inclusive)
+ * @param skew  Exponent controlling skew (higher = more skewed toward min)
  */
-export function pickAgentType(): AgentType {
+export function skewedRandom(min: number, max: number, skew: number): number {
+  // ~2% chance of an outlier near the high end
+  if (Math.random() < 0.02) {
+    return min + (max - min) * (0.8 + Math.random() * 0.2);
+  }
+  const u = Math.random();
+  const skewed = Math.pow(u, skew);
+  return min + (max - min) * skewed;
+}
+
+/**
+ * Pick a random agent type according to configured weights.
+ * Accepts optional team-level weight overrides.
+ */
+export function pickAgentType(overrides?: Partial<Record<AgentType, number>>): AgentType {
+  if (overrides) {
+    // Fill in any missing agent types with 0 weight
+    const types = AGENT_TYPES;
+    const weights = types.map((t) => overrides[t] ?? 0);
+    return weightedRandom(types, weights);
+  }
   return weightedRandom(
     AGENT_TYPES,
     AGENT_TYPES.map((t) => AGENT_TYPE_WEIGHTS[t]),
@@ -159,8 +244,12 @@ export function pickErrorCategory(): ErrorCategory {
 
 /**
  * Pick a model according to weights.
+ * Accepts optional team-level overrides.
  */
-function pickModel(): string {
+function pickModel(overrides?: { models: string[]; weights: number[] }): string {
+  if (overrides) {
+    return weightedRandom(overrides.models, overrides.weights);
+  }
   return weightedRandom(MODELS, MODEL_WEIGHTS);
 }
 
@@ -179,9 +268,27 @@ function pickUserRating(succeeded: boolean): UserRating | undefined {
 
 /**
  * Pick a random subset of tools used.
+ *
+ * When preferredTools are specified, picks from them ~70% of the time
+ * and from the full tool list ~30%, producing a team-specific fingerprint
+ * while still allowing any tool to appear occasionally.
  */
-function pickTools(): string[] {
+function pickTools(preferredTools?: string[]): string[] {
   const count = 1 + Math.floor(Math.random() * 4); // 1-4 tools
+  if (preferredTools && preferredTools.length > 0) {
+    const selected: string[] = [];
+    for (let i = 0; i < count; i++) {
+      if (Math.random() < 0.7) {
+        // Pick from preferred tools
+        selected.push(preferredTools[Math.floor(Math.random() * preferredTools.length)]);
+      } else {
+        // Pick from all tools
+        selected.push(TOOLS[Math.floor(Math.random() * TOOLS.length)]);
+      }
+    }
+    // Deduplicate while preserving count
+    return [...new Set(selected)];
+  }
   const shuffled = [...TOOLS].sort(() => Math.random() - 0.5);
   return shuffled.slice(0, count);
 }
@@ -232,6 +339,10 @@ export function createEventGeneratorContext(
 /**
  * Generate a complete agent run (start + completed/failed events) at a given timestamp.
  * Returns 2 events: a run_started and either run_completed or run_failed.
+ *
+ * Uses team-specific profiles (agent type weights, model weights, preferred tools)
+ * when available, falling back to global defaults.
+ * Numeric metrics use skewed distributions for realistic long-tail behavior.
  */
 export function generateRunEvents(
   ctx: EventGeneratorContext,
@@ -240,24 +351,29 @@ export function generateRunEvents(
   const runId = randomUUID();
   const user = pickUser(ctx.users, ctx.teamWeights);
   const project = pickProject(ctx.projects);
-  const agentType = pickAgentType();
-  const model = pickModel();
   const profile = getOrgEventProfile(ctx.org.id);
+
+  // Resolve team-specific overrides
+  const teamProfile = profile.teamProfiles?.[user.team_id];
+
+  const agentType = pickAgentType(teamProfile?.agentTypeWeights);
+  const model = pickModel(teamProfile?.modelWeights);
   const succeeded = Math.random() < profile.successRate;
 
-  // Duration: 5s-5min for most, 30s-5min for CI
+  // Duration: skewed toward shorter runs (skew=2.5 → median ~30s)
+  // CI runs have a higher minimum floor
   const baseDuration =
     agentType === "ci"
-      ? CI_DURATION_MIN_MS + Math.random() * (CI_DURATION_MAX_MS - CI_DURATION_MIN_MS)
-      : DURATION_MIN_MS + Math.random() * (DURATION_MAX_MS - DURATION_MIN_MS);
+      ? skewedRandom(CI_DURATION_MIN_MS, CI_DURATION_MAX_MS, 2.0)
+      : skewedRandom(DURATION_MIN_MS, DURATION_MAX_MS, 2.5);
   const durationMs = Math.round(baseDuration);
 
-  // Queue wait
-  const queueWaitMs = Math.round(QUEUE_WAIT_MIN_MS + Math.random() * (QUEUE_WAIT_MAX_MS - QUEUE_WAIT_MIN_MS));
+  // Queue wait: skewed toward fast queue times (skew=3 → median ~500ms)
+  const queueWaitMs = Math.round(skewedRandom(QUEUE_WAIT_MIN_MS, QUEUE_WAIT_MAX_MS, 3));
 
-  // Tokens
-  const tokensInput = Math.round(TOKENS_INPUT_MIN + Math.random() * (TOKENS_INPUT_MAX - TOKENS_INPUT_MIN));
-  const tokensOutput = Math.round(TOKENS_OUTPUT_MIN + Math.random() * (TOKENS_OUTPUT_MAX - TOKENS_OUTPUT_MIN));
+  // Tokens: skewed toward smaller counts (skew=2.5 → median ~3k input, ~500 output)
+  const tokensInput = Math.round(skewedRandom(TOKENS_INPUT_MIN, TOKENS_INPUT_MAX, 2.5));
+  const tokensOutput = Math.round(skewedRandom(TOKENS_OUTPUT_MIN, TOKENS_OUTPUT_MAX, 2.5));
 
   // Cost: rough approximation based on tokens
   const costUsd =
@@ -265,7 +381,7 @@ export function generateRunEvents(
       (tokensInput * COST_PER_INPUT_TOKEN + tokensOutput * COST_PER_OUTPUT_TOKEN) * 100,
     ) / 100;
 
-  const tools = pickTools();
+  const tools = pickTools(teamProfile?.preferredTools);
 
   const startEvent: AgentEvent = {
     run_id: runId,

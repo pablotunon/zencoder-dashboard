@@ -24,7 +24,8 @@ Difficulty: **Medium**. Spec saved to `.zenflow/tasks/improve-simulator-2364/spe
 
 ---
 
-### [ ] Step: Per-breakdown multipliers and skewed distributions
+### [x] Step: Per-breakdown multipliers and skewed distributions
+<!-- chat-id: cc783942-aa6b-4aa9-a497-57b159ad5ccf -->
 
 Implement changes 1 and 2 from the spec — the core data realism improvements.
 
