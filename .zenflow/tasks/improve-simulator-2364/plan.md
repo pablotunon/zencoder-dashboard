@@ -40,7 +40,8 @@ Implement changes 1 and 2 from the spec — the core data realism improvements.
 
 ---
 
-### [ ] Step: Growth trend, daily variance, and anomalies
+### [x] Step: Growth trend, daily variance, and anomalies
+<!-- chat-id: 046c338a-4be8-41b6-a325-70647a3cc02b -->
 
 Implement changes 4 and 5 from the spec — temporal realism improvements.
 

@@ -10,6 +10,8 @@ import {
 import {
   expectedEventsForDay,
   distributeEventsAcrossHours,
+  getGrowthMultiplier,
+  getDailyNoise,
 } from "./generators/patterns.js";
 import { sendEvents, sleep } from "./sender.js";
 
@@ -48,7 +50,10 @@ async function main() {
       dayDate.setUTCDate(dayDate.getUTCDate() - daysAgo);
       dayDate.setUTCHours(0, 0, 0, 0);
 
-      const dayEventCount = expectedEventsForDay(dayDate, profile.baseDailyEvents);
+      const baseCount = expectedEventsForDay(dayDate, profile.baseDailyEvents);
+      const growth = getGrowthMultiplier(daysAgo, config.backfillDays);
+      const noise = getDailyNoise(dayDate);
+      const dayEventCount = Math.round(baseCount * growth * noise);
       const hourDistribution = distributeEventsAcrossHours(dayEventCount);
 
       const dayEvents: AgentEvent[] = [];
