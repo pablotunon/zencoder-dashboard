@@ -598,7 +598,6 @@ dependencies = [
  "axum",
  "chrono",
  "http-body-util",
- "hyper",
  "redis",
  "rstest",
  "serde",

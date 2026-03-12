@@ -13,13 +13,6 @@ class Config:
     CLICKHOUSE_USER: str = os.environ.get("CLICKHOUSE_USER", "default")
     CLICKHOUSE_PASSWORD: str = os.environ.get("CLICKHOUSE_PASSWORD", "")
 
-    # PostgreSQL
-    POSTGRES_HOST: str = os.environ.get("POSTGRES_HOST", "localhost")
-    POSTGRES_PORT: int = int(os.environ.get("POSTGRES_PORT", "5432"))
-    POSTGRES_DB: str = os.environ.get("POSTGRES_DB", "agenthub")
-    POSTGRES_USER: str = os.environ.get("POSTGRES_USER", "agenthub")
-    POSTGRES_PASSWORD: str = os.environ.get("POSTGRES_PASSWORD", "agenthub_dev")
-
     # Consumer
     STREAM_KEY: str = "agent_events"
     CONSUMER_GROUP: str = "aggregation_workers"

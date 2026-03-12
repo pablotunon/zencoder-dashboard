@@ -11,7 +11,7 @@ export function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const from = (location.state as { from?: string })?.from || "/overview";
+  const from = (location.state as { from?: string })?.from || "/";
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();

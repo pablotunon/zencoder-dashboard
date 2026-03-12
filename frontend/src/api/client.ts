@@ -134,7 +134,7 @@ export async function deleteJson(url: string): Promise<void> {
 
 // --- Auth API ---
 
-export interface LoginResponse {
+interface LoginResponse {
   token: string;
   refresh_token: string;
   user: AuthUser;
