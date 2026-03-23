@@ -1,8 +1,14 @@
 # AgentHub Analytics
 
-Organizational analytics dashboard for monitoring AI agent usage, cost, and performance across engineering teams. Features multi-tenant authentication, customizable dashboards with user-defined widgets, and real-time event processing.
+![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)
+![Rust](https://img.shields.io/badge/Rust-Axum-000000?logo=rust&logoColor=white)
+![Python](https://img.shields.io/badge/Python-FastAPI-3776AB?logo=python&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-React-3178C6?logo=typescript&logoColor=white)
+![ClickHouse](https://img.shields.io/badge/ClickHouse-Analytics-FFCC01?logo=clickhouse&logoColor=black)
+![Redis](https://img.shields.io/badge/Redis-Streams-DC382D?logo=redis&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Metadata-4169E1?logo=postgresql&logoColor=white)
 
-**Author:** Pablo Tuñón Sánchez — submission for the Senior Software Engineer position at [Zencoder](https://zencoder.ai).
+Organizational analytics dashboard for monitoring AI agent usage, cost, and performance across engineering teams. Features multi-tenant authentication, customizable dashboards with user-defined widgets, and real-time event processing.
 
 ## Screenshots
 
@@ -16,34 +22,42 @@ Organizational analytics dashboard for monitoring AI agent usage, cost, and perf
 
 ## Architecture
 
-```
-                        ┌──────────┐
-                        │  nginx   │ :8080
-                        │  proxy   │
-                        └────┬─────┘
-               ┌─────────┬──┴──────────┐
-               │         │             │
-        ┌──────▼──┐ ┌────▼─────┐ ┌─────▼──────┐
-        │ Frontend│ │Analytics │ │ Ingestion  │
-        │  React  │ │   API    │ │   (Rust)   │
-        │   SPA   │ │ (FastAPI)│ │   Axum     │
-        └─────────┘ └──┬──┬───┘ └──┬─────────┘
-                       │  │        │
-          ┌────────────┘  │   ┌────┘
-          │               │   │
-     ┌────▼────┐  ┌───────▼─┐ │  ┌────────────────┐
-     │PostgreSQL│  │ClickHouse│ ├─▶│  Redis Streams  │
-     │ metadata │  │analytics │ │  └───────┬────────┘
-     └─────────┘  └─────────┘  │          │
-                               │  ┌───────▼────────┐
-                               │  │  Aggregation   │
-                               │  │    Worker      │
-                    ┌──────────┤  │   (Python)     │
-                    │          │  └────────────────┘
-              ┌─────▼─────┐   │
-              │ Simulator  │──┘
-              │(TypeScript)│
-              └───────────┘
+```mermaid
+graph TB
+    Client(["🌐 Browser / API Client"])
+
+    subgraph proxy["nginx :8080"]
+        nginx["Reverse Proxy"]
+    end
+
+    subgraph services["Services"]
+        frontend["Frontend\nReact + Vite"]
+        api["Analytics API\nPython · FastAPI"]
+        ingestion["Ingestion\nRust · Axum"]
+        worker["Aggregation Worker\nPython"]
+        simulator["Simulator\nTypeScript"]
+    end
+
+    subgraph storage["Storage"]
+        postgres[("PostgreSQL\nOrgs · Users · Teams")]
+        clickhouse[("ClickHouse\nTime-series Events")]
+        redis[("Redis\nStreams · Cache · Auth")]
+    end
+
+    Client --> nginx
+    nginx --> frontend
+    nginx --> api
+    nginx --> ingestion
+
+    api --> postgres
+    api --> clickhouse
+    api --> redis
+
+    ingestion --> redis
+    redis -->|"consumer group"| worker
+    worker --> clickhouse
+
+    simulator -->|"seed + live stream"| ingestion
 ```
 
 ### Services
