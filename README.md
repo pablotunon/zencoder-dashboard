@@ -1,6 +1,7 @@
 # AgentHub Analytics
 
-[![CI](https://github.com/pablotunon/agenthub-analytics/actions/workflows/ci.yml/badge.svg)](https://github.com/pablotunon/agenthub-analytics/actions/workflows/ci.yml)
+[![Unit & Integration Tests](https://github.com/pablotunon/agenthub-analytics/actions/workflows/unit-tests.yml/badge.svg)](https://github.com/pablotunon/agenthub-analytics/actions/workflows/unit-tests.yml)
+[![E2E Tests](https://github.com/pablotunon/agenthub-analytics/actions/workflows/e2e-tests.yml/badge.svg)](https://github.com/pablotunon/agenthub-analytics/actions/workflows/e2e-tests.yml)
 ![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)
 ![Rust](https://img.shields.io/badge/Rust-Axum-000000?logo=rust&logoColor=white)
 ![Python](https://img.shields.io/badge/Python-FastAPI-3776AB?logo=python&logoColor=white)

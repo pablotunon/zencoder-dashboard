@@ -1,0 +1,79 @@
+name: Unit & Integration Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Unit tests use docker-compose.ci.yml (dev build targets with test tooling,
+# no volume mounts). Skips docker-compose.override.yml.
+
+jobs:
+  unit-tests:
+    name: Unit & Integration Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    env:
+      DC: docker compose -f docker-compose.yml -f docker-compose.ci.yml
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up port configuration
+        run: |
+          cat > .env <<'EOF'
+          HOST_PORT_NGINX=8080
+          HOST_PORT_REDIS=6379
+          HOST_PORT_POSTGRES=5432
+          HOST_PORT_CLICKHOUSE_HTTP=8123
+          HOST_PORT_CLICKHOUSE_NATIVE=9000
+          EOF
+
+      - name: Build and start services
+        run: $DC up --build -d
+
+      - name: Wait for services to be healthy
+        run: |
+          echo "Waiting for services..."
+          for i in $(seq 1 60); do
+            if $DC ps --format json | python3 -c "
+          import sys, json
+          services = [json.loads(line) for line in sys.stdin if line.strip()]
+          unhealthy = [s['Service'] for s in services if s.get('Health','') not in ('healthy','')]
+          if unhealthy:
+              print(f'Waiting: {unhealthy}')
+              sys.exit(1)
+          print('All healthy')
+          " 2>/dev/null; then
+                break
+            fi
+            sleep 2
+          done
+
+      - name: Run simulator tests
+        run: $DC exec -T simulator npm run test
+
+      - name: Run ingestion tests
+        run: $DC exec -T ingestion cargo test
+
+      - name: Run aggregation worker tests
+        run: $DC exec -T aggregation-worker pytest -v
+
+      - name: Run analytics API tests
+        run: $DC exec -T analytics-api pytest -v
+
+      - name: Run frontend tests
+        run: $DC exec -T frontend npm run test
+
+      - name: Run TypeScript type check (simulator)
+        run: $DC exec -T simulator npm run lint
+
+      - name: Show service logs on failure
+        if: failure()
+        run: $DC logs --tail=50
+
+      - name: Tear down
+        if: always()
+        run: $DC down -v
