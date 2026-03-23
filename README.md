@@ -1,5 +1,6 @@
 # AgentHub Analytics
 
+[![CI](https://github.com/pablotunon/agenthub-analytics/actions/workflows/ci.yml/badge.svg)](https://github.com/pablotunon/agenthub-analytics/actions/workflows/ci.yml)
 ![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)
 ![Rust](https://img.shields.io/badge/Rust-Axum-000000?logo=rust&logoColor=white)
 ![Python](https://img.shields.io/badge/Python-FastAPI-3776AB?logo=python&logoColor=white)
